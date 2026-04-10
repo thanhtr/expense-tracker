@@ -17,7 +17,8 @@ describe('getDashboardStats', () => {
     vi.clearAllMocks();
   });
 
-  const mockExpenses = [
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockExpenses: any[] = [
     {
       id: 1,
       date: '2026-04-10',
@@ -27,7 +28,7 @@ describe('getDashboardStats', () => {
       users: [{ user_id: 123, paid_share: 45.67 }],
       deleted_at: null,
       details: null,
-    } as any,
+    },
     {
       id: 2,
       date: '2026-04-10',
@@ -37,7 +38,7 @@ describe('getDashboardStats', () => {
       users: [{ user_id: 123, paid_share: 5.50 }],
       deleted_at: null,
       details: null,
-    } as any,
+    },
     {
       id: 3,
       date: '2026-04-11',
@@ -47,10 +48,12 @@ describe('getDashboardStats', () => {
       users: [{ user_id: 123, paid_share: 25.00 }],
       deleted_at: null,
       details: null,
-    } as any,
+    },
   ];
 
   it('should compute totalExpenses correctly', async () => {
+     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -59,6 +62,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should filter expenses by date range', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const dateFrom = new Date('2026-04-10');
@@ -71,6 +75,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should aggregate by category', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -81,6 +86,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should sort byCategory by amount descending', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -91,6 +97,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should aggregate by day with dynamic category keys', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -106,6 +113,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should include topTransaction', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -117,6 +125,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should count transactions', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();
@@ -125,6 +134,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should filter by category', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats(undefined, undefined, 'Shopping');
@@ -168,6 +178,7 @@ describe('getDashboardStats', () => {
   });
 
   it('should populate allCategories from unfiltered data', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const stats = await getDashboardStats();

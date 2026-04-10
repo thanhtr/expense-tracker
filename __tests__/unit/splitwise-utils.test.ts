@@ -21,21 +21,22 @@ describe('Splitwise utilities', () => {
 
   describe('buildExistingKeys', () => {
     it('should build set of dedup keys from expenses array', () => {
-      const expenses = [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const expenses: any[] = [
         {
           id: 1,
           date: '2026-04-10T12:00:00Z',
           description: 'Amazon',
           cost: '45.67',
           deleted_at: null,
-        } as any,
+        },
         {
           id: 2,
           date: '2026-04-11T12:00:00Z',
           description: 'Starbucks',
           cost: '5.50',
           deleted_at: null,
-        } as any,
+        },
       ];
 
       const keys = buildExistingKeys(expenses);
@@ -44,21 +45,22 @@ describe('Splitwise utilities', () => {
     });
 
     it('should skip deleted expenses', () => {
-      const expenses = [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const expenses: any[] = [
         {
           id: 1,
           date: '2026-04-10T12:00:00Z',
           description: 'Amazon',
           cost: '45.67',
           deleted_at: null,
-        } as any,
+        },
         {
           id: 2,
           date: '2026-04-11T12:00:00Z',
           description: 'Deleted Item',
           cost: '100.00',
           deleted_at: '2026-04-12T12:00:00Z',
-        } as any,
+        },
       ];
 
       const keys = buildExistingKeys(expenses);

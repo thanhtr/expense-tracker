@@ -15,7 +15,6 @@ export function KeywordManager() {
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchKeywords = async () => {
     try {

@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { setupSplitwise, mockExpense } from '../fixtures/splitwise-mock';
-import fs from 'fs';
-import path from 'path';
 
 test.describe('CSV Upload', () => {
   test('should navigate to upload page', async ({ page }) => {
@@ -49,14 +47,9 @@ test.describe('CSV Upload', () => {
 
     await page.goto('/upload');
 
-    // Create a CSV file with the same transaction
-    const csvContent = `Date,Merchant,Amount\n2026-04-10,Amazon,45.67`;
-
-    // Upload the file
+    // Verify upload form exists
     const fileInput = page.locator('input[type="file"]');
     if (await fileInput.count() > 0) {
-      // Note: In actual test, would use proper file upload mechanism
-      // This is a simplified check that form exists
       await expect(fileInput).toBeVisible();
     }
   });
@@ -114,9 +107,7 @@ test.describe('CSV Upload', () => {
 
     await page.goto('/upload');
 
-    // Check for loading indicator (may appear after submission)
-    const loadingIndicators = page.locator('[role="progressbar"], .loading, .spinner');
-    // These may not be visible until form is submitted
+    // Page should render without errors
     expect(await page.content()).toBeDefined();
   });
 

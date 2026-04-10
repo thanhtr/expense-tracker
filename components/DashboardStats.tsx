@@ -75,7 +75,7 @@ export function DashboardStats() {
     if (unfiltered) {
       fetchStats();
     }
-  }, [selectedCategory, unfiltered]);
+  }, [selectedCategory, unfiltered, dateFrom, dateTo]);
 
   if (loading || !unfiltered) {
     return <div className="text-center py-8">Loading...</div>;
@@ -128,7 +128,7 @@ export function DashboardStats() {
                 <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} />
+            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} /> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -162,7 +162,7 @@ export function DashboardStats() {
               }}
             />
             <YAxis tickFormatter={(v) => `€${v.toFixed(0)}`} width={60} />
-            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} />
+            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} /> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
             <Legend />
             {data.byCategory.map((item, i) => (
               <Bar

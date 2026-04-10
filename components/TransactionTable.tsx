@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { TransactionRow } from './TransactionRow';
+import type { TransactionFilterValues } from './TransactionFilters';
 
 interface Transaction {
   id: number;
@@ -16,7 +17,7 @@ interface Transaction {
 }
 
 interface TransactionTableProps {
-  filters?: any;
+  filters?: TransactionFilterValues;
 }
 
 export function TransactionTable({ filters = {} }: TransactionTableProps) {
@@ -60,6 +61,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     setOffset(0);
   }, [filters]);
 
+   
   useEffect(() => {
     fetchTransactions();
   }, [offset, filters]);

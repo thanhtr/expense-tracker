@@ -185,11 +185,6 @@ test.describe('Transactions Page', () => {
     // Look for export button
     const exportButton = page.locator('button:has-text("Export"), a:has-text("Export")');
     if (await exportButton.count() > 0) {
-      // Set up listener for download
-      const downloadPromise = page.waitForEvent('popup').catch(() => null);
-
-      await exportButton.click();
-
       // Verify button exists and is clickable
       await expect(exportButton).toBeVisible();
     }

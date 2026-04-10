@@ -116,7 +116,9 @@ export function mockExpenses(count: number, baseDate: Date = new Date('2026-04-1
  * Helper to set up page.route interceptor for Splitwise API
  * Usage: await setupSplitwise(page, { get_expenses: mockExpenseArray })
  */
+ 
 export async function setupSplitwise(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   page: any,
   mocks: {
     get_expenses?: SplitwiseMockExpense[];
@@ -124,6 +126,7 @@ export async function setupSplitwise(
     delete_expense?: boolean;
   }
 ) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await page.route('https://secure.splitwise.com/**', async (route: any) => {
     const url = new URL(route.request().url());
 

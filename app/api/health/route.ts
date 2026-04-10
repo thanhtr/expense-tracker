@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAllExpenses } from '@/lib/splitwise';
 import { USER_ID, WIFE_ID, GROUP_ID } from '@/lib/constants';
 
+ 
 export async function GET() {
   const checks: Record<string, any> = {
     timestamp: new Date().toISOString(),
@@ -31,6 +32,7 @@ export async function GET() {
   }
 
   // Overall status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allOk = Object.values(checks.tests).every((t: any) => t.status === 'OK');
   checks.status = allOk ? 'HEALTHY' : 'UNHEALTHY';
 

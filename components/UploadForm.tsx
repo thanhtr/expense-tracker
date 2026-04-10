@@ -6,12 +6,19 @@ interface UploadFormProps {
   onSuccess?: () => void;
 }
 
+interface UploadResult {
+  created: number;
+  skipped: number;
+  total: number;
+  message: string;
+}
+
 export function UploadForm({ onSuccess }: UploadFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [accountType, setAccountType] = useState('op');
   const [accountOwner, setAccountOwner] = useState('tung');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 

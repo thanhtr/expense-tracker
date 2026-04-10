@@ -9,6 +9,7 @@ const createPrismaClient = () => {
     throw new Error('DATABASE_URL environment variable is not set');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adapter = new PrismaNeon(connectionString as any);
 
   return new PrismaClient({

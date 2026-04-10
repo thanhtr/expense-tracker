@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function convertToCSV(data: any[]): string {
   if (data.length === 0) return '';
 

@@ -24,7 +24,6 @@ function findColumn(row: Record<string, string>, names: string[]): string | unde
 export async function parseOPBank(fileContent: string): Promise<ParsedTransaction[]> {
   return new Promise((resolve) => {
     // Try with semicolon delimiter first (standard OP Bank format)
-    let parseAttempt = 0;
     const delimiters = [';', ',', '\t'];
 
     function tryParse(delimiterIndex: number) {

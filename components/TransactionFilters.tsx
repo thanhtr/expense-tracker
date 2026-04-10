@@ -2,8 +2,18 @@
 
 import { useState, useEffect } from 'react';
 
+export interface TransactionFilterValues {
+  dateFrom?: string;
+  dateTo?: string;
+  account?: string;
+  type?: string;
+  category?: string;
+  paidBy?: string;
+  merchant?: string;
+}
+
 interface TransactionFiltersProps {
-  onFilter: (filters: any) => void;
+  onFilter: (filters: TransactionFilterValues) => void;
 }
 
 export function TransactionFilters({ onFilter }: TransactionFiltersProps) {

@@ -172,14 +172,16 @@ export async function getTransactions(filters: {
   }
 
   // Sort
-  const sortBy = filters.sortBy || 'date';
+  const sortBy: keyof TransactionWithId = (filters.sortBy as keyof TransactionWithId) || 'date';
   const order = filters.order || 'desc';
   transactions.sort((a, b) => {
-    let aVal: any = (a as any)[sortBy];
-    let bVal: any = (b as any)[sortBy];
+    const aVal = a[sortBy];
+    const bVal = b[sortBy];
 
-    if (aVal < bVal) return order === 'asc' ? -1 : 1;
-    if (aVal > bVal) return order === 'asc' ? 1 : -1;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((aVal as any) < (bVal as any)) return order === 'asc' ? -1 : 1;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((aVal as any) > (bVal as any)) return order === 'asc' ? 1 : -1;
     return 0;
   });
 

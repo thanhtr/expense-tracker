@@ -107,9 +107,8 @@ test.describe('Dashboard', () => {
 
     await page.goto('/');
 
-    // Get initial total
+    // Get initial state
     await page.waitForTimeout(500);
-    const initialTotal = await page.locator('text=Total Expenses').locator('..').locator('div').last().textContent();
 
     // Change date range (depends on UI implementation)
     const dateInputs = page.locator('input[type="date"]');

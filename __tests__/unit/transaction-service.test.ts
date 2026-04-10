@@ -16,7 +16,8 @@ describe('getTransactions', () => {
     vi.clearAllMocks();
   });
 
-  const mockExpenses = [
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockExpenses: any[] = [
     {
       id: 1,
       date: '2026-04-10',
@@ -29,7 +30,7 @@ describe('getTransactions', () => {
       ],
       deleted_at: null,
       details: JSON.stringify({ account: 'OP Bank', category: 'Shopping' }),
-    } as any,
+    },
     {
       id: 2,
       date: '2026-04-10',
@@ -59,6 +60,7 @@ describe('getTransactions', () => {
   ];
 
   it('should return all transactions without filters', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({});
@@ -68,6 +70,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by date range', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -80,6 +83,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by account', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -91,6 +95,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by category', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -102,6 +107,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by merchant (substring match)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -113,6 +119,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by merchant case-insensitively', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -124,6 +131,7 @@ describe('getTransactions', () => {
   });
 
   it('should filter by paidBy (user)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -135,6 +143,7 @@ describe('getTransactions', () => {
   });
 
   it('should handle pagination with limit and offset', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -156,6 +165,7 @@ describe('getTransactions', () => {
   });
 
   it('should sort by date descending by default', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({});
@@ -165,6 +175,7 @@ describe('getTransactions', () => {
   });
 
   it('should sort by date ascending when order specified', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -177,6 +188,7 @@ describe('getTransactions', () => {
   });
 
   it('should sort by amount field', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -189,6 +201,7 @@ describe('getTransactions', () => {
   });
 
   it('should return correct total count', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({
@@ -200,6 +213,7 @@ describe('getTransactions', () => {
   });
 
   it('should determine paidBy correctly for each transaction', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses as any);
 
     const result = await getTransactions({});
