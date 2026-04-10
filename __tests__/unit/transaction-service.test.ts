@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getTransactions } from '../../lib/services/transaction-service';
 import type { SplitwiseExpense } from '../../lib/splitwise';
+import { USER_ID, WIFE_ID } from '../../lib/constants';
 
 vi.mock('../../lib/splitwise', () => ({
   getAllExpenses: vi.fn(),
+  parseExpenseDetails: vi.fn((details: string | null) => {
+    if (!details) return { account: '', category: '' };
+    try {
+      return JSON.parse(details);
+    } catch {
+      return { account: '', category: '' };
+    }
+  }),
 }));
 
 vi.mock('../../lib/cache', () => ({
@@ -25,8 +34,8 @@ describe('getTransactions', () => {
       cost: '45.67',
       category: { id: 41, name: 'Shopping' },
       users: [
-        { user_id: 123, paid_share: 45.67, owed_share: 22.835 },
-        { user_id: 456, paid_share: 0, owed_share: 22.835 },
+        { user_id: USER_ID, paid_share: 45.67, owed_share: 22.835 },
+        { user_id: WIFE_ID, paid_share: 0, owed_share: 22.835 },
       ],
       deleted_at: null,
       details: JSON.stringify({ account: 'OP Bank', category: 'Shopping' }),
@@ -38,8 +47,8 @@ describe('getTransactions', () => {
       cost: '5.50',
       category: { id: 13, name: 'Dining Out' },
       users: [
-        { user_id: 123, paid_share: 5.50, owed_share: 2.75 },
-        { user_id: 456, paid_share: 0, owed_share: 2.75 },
+        { user_id: USER_ID, paid_share: 5.50, owed_share: 2.75 },
+        { user_id: WIFE_ID, paid_share: 0, owed_share: 2.75 },
       ],
       deleted_at: null,
       details: JSON.stringify({ account: 'OP Bank', category: 'Dining Out' }),
@@ -51,8 +60,8 @@ describe('getTransactions', () => {
       cost: '25.00',
       category: { id: 12, name: 'Food & Groceries' },
       users: [
-        { user_id: 456, paid_share: 25.00, owed_share: 12.5 },
-        { user_id: 123, paid_share: 0, owed_share: 12.5 },
+        { user_id: WIFE_ID, paid_share: 25.00, owed_share: 12.5 },
+        { user_id: USER_ID, paid_share: 0, owed_share: 12.5 },
       ],
       deleted_at: null,
       details: JSON.stringify({ account: 'Amex', category: 'Food & Groceries' }),
@@ -69,7 +78,13 @@ describe('getTransactions', () => {
   });
 
   it('should filter by date range', async () => {
-    vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses);
+    // Mock should filter based on the date range params
+    vi.mocked(splitwise.getAllExpenses).mockImplementation(async (params) => {
+      if (params.datedAfter === '2026-04-10' && params.datedBefore === '2026-04-10') {
+        return mockExpenses.filter(exp => exp.date === '2026-04-10');
+      }
+      return mockExpenses;
+    });
 
     const result = await getTransactions({
       dateFrom: '2026-04-10',
@@ -174,7 +189,8 @@ describe('getTransactions', () => {
     });
 
     expect(result.transactions[0].date).toEqual(new Date('2026-04-10'));
-    expect(result.transactions[1].date).toEqual(new Date('2026-04-11'));
+    expect(result.transactions[1].date).toEqual(new Date('2026-04-10'));
+    expect(result.transactions[2].date).toEqual(new Date('2026-04-11'));
   });
 
   it('should sort by amount field', async () => {
@@ -185,8 +201,10 @@ describe('getTransactions', () => {
       order: 'desc',
     });
 
-    expect(result.transactions[0].amount).toBe(-45.67);
-    expect(result.transactions[2].amount).toBe(-5.50);
+    // Descending order for negative amounts: -5.50, -25.00, -45.67
+    expect(result.transactions[0].amount).toBe(-5.50);
+    expect(result.transactions[1].amount).toBe(-25.00);
+    expect(result.transactions[2].amount).toBe(-45.67);
   });
 
   it('should return correct total count', async () => {
@@ -205,8 +223,9 @@ describe('getTransactions', () => {
 
     const result = await getTransactions({});
 
-    expect(result.transactions[0].paidBy).toBe('tung'); // user 123
-    expect(result.transactions[2].paidBy).toBe('thuy'); // user 456
+    expect(result.transactions[0].paidBy).toBe('thuy'); // 2026-04-11 - WIFE_ID paid
+    expect(result.transactions[1].paidBy).toBe('tung'); // 2026-04-10 - USER_ID paid
+    expect(result.transactions[2].paidBy).toBe('tung'); // 2026-04-10 - USER_ID paid
   });
 
   it('should handle empty results', async () => {

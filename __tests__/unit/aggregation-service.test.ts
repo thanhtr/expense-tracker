@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardStats } from '../../lib/services/aggregation-service';
 import type { SplitwiseExpense } from '../../lib/splitwise';
+import { USER_ID } from '../../lib/constants';
 
 // Mock the splitwise module
 vi.mock('../../lib/splitwise', () => ({
@@ -25,7 +26,7 @@ describe('getDashboardStats', () => {
       description: 'Amazon',
       cost: '45.67',
       category: { id: 41, name: 'Shopping' },
-      users: [{ user_id: 123, paid_share: 45.67 }],
+      users: [{ user_id: USER_ID, paid_share: 45.67 }],
       deleted_at: null,
       details: null,
     },
