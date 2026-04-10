@@ -1,7 +1,23 @@
 import { getAllExpenses, buildExistingKeys, makeDedupKey, parseExpenseDetails, createExpense } from '@/lib/splitwise';
-import { CATEGORY_MAP, DEFAULT_CATEGORY_ID, USER_ID, WIFE_ID, ACCOUNT_TO_USER, GROUP_ID } from '@/lib/constants';
+import { CATEGORY_MAP, DEFAULT_CATEGORY_ID, USER_ID, WIFE_ID, GROUP_ID } from '@/lib/constants';
 import { ParsedTransaction, TransactionWithId } from '@/lib/types';
-import { withCache, invalidateCache } from '@/lib/cache';
+import { withCache } from '@/lib/cache';
+
+interface CreateExpenseRequest {
+  cost: string;
+  description: string;
+  currency_code: string;
+  date: string;
+  category_id: number;
+  group_id: string;
+  'users__0__user_id': string;
+  'users__0__paid_share': string;
+  'users__0__owed_share': string;
+  'users__1__user_id': string;
+  'users__1__paid_share': string;
+  'users__1__owed_share': string;
+  details: string;
+}
 
 /**
  * Create Splitwise expenses from parsed transactions
@@ -54,7 +70,12 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     try {
       const categoryId = CATEGORY_MAP[row.category || ''] || DEFAULT_CATEGORY_ID;
 
-      const body = {
+      const details = JSON.stringify({
+        account: row.account,
+        category: row.category || '',
+      });
+
+      const body: CreateExpenseRequest = {
         cost,
         description: row.merchant,
         currency_code: 'EUR',
@@ -68,19 +89,13 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
         'users__1__user_id': paidByUserId === USER_ID ? WIFE_ID : USER_ID,
         'users__1__paid_share': '0',
         'users__1__owed_share': (parseFloat(cost) / 2).toFixed(2),
+        details,
       };
-
-      // Add details with account and category info
-      const details = JSON.stringify({
-        account: row.account,
-        category: row.category || '',
-      });
-      (body as any).details = details;
 
       await createExpense(body);
       createdKeys.add(dedupKey);
       created++;
-    } catch (error) {
+    } catch {
       skipped++;
     }
   }
@@ -121,7 +136,7 @@ export async function getTransactions(filters: {
   // Convert Splitwise expenses to our transaction format
   let transactions: TransactionWithId[] = expenses
     .filter(exp => !exp.deleted_at)
-    .map((exp, idx) => {
+    .map((exp) => {
       const details = parseExpenseDetails(exp.details);
       const categoryName = details.category || exp.category?.name || '';
 

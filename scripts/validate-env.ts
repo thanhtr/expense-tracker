@@ -3,7 +3,7 @@
  * Checks that all required environment variables are set correctly
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync } from 'fs';
 import { resolve } from 'path';
 
 const requiredVars = {

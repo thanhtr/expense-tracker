@@ -5,22 +5,22 @@
 
 const SPLITWISE_BASE = "https://secure.splitwise.com/api/v3.0";
 
-interface SplitwiseExpense {
+export interface SplitwiseExpense {
   id: number;
   date: string;
   description: string;
   cost: string;
   users: Array<{
-    user: { id: number; first_name: string; last_name: string };
+    user?: { id: number; first_name: string; last_name: string };
     user_id: number;
-    paid_share: string;
-    owed_share: string;
+    paid_share: string | number;
+    owed_share?: string | number;
   }>;
   category?: {
     id: number;
     name: string;
   };
-  details?: string; // JSON string stored in Splitwise
+  details?: string | null; // JSON string stored in Splitwise
   deleted_at?: string | null;
 }
 
@@ -51,7 +51,7 @@ async function swFetch<T>(
     cache: "no-store", // Always fetch fresh from Splitwise
   });
 
-  const data = await response.json() as any;
+  const data = await response.json() as Record<string, unknown>;
 
   // Splitwise quirk: HTTP 200 but still has errors
   // Check for actual error messages, not empty arrays

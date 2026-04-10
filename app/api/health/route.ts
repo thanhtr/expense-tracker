@@ -2,9 +2,27 @@ import { NextResponse } from 'next/server';
 import { getAllExpenses } from '@/lib/splitwise';
 import { USER_ID, WIFE_ID, GROUP_ID } from '@/lib/constants';
 
- 
+interface TestResult {
+  status: 'OK' | 'ERROR';
+  expenses_found?: number;
+  message?: string;
+  error?: string;
+}
+
+interface HealthCheck {
+  timestamp: string;
+  status: 'HEALTHY' | 'UNHEALTHY';
+  environment: {
+    SPLITWISE_API_KEY_SET: boolean;
+    SPLITWISE_USER_ID: string;
+    SPLITWISE_WIFE_ID: string;
+    SPLITWISE_GROUP_ID: string;
+  };
+  tests: Record<string, TestResult>;
+}
+
 export async function GET() {
-  const checks: Record<string, any> = {
+  const checks: HealthCheck = {
     timestamp: new Date().toISOString(),
     environment: {
       SPLITWISE_API_KEY_SET: !!process.env.SPLITWISE_API_KEY,
@@ -32,8 +50,7 @@ export async function GET() {
   }
 
   // Overall status
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allOk = Object.values(checks.tests).every((t: any) => t.status === 'OK');
+  const allOk = Object.values(checks.tests).every((t) => t.status === 'OK');
   checks.status = allOk ? 'HEALTHY' : 'UNHEALTHY';
 
   return NextResponse.json(checks, {

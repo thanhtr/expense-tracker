@@ -27,44 +27,43 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
-  const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set('limit', limit.toString());
-      params.set('offset', offset.toString());
-      params.set('sort_by', 'date');
-      params.set('order', 'desc');
-
-      if (filters.dateFrom) params.set('date_from', filters.dateFrom);
-      if (filters.dateTo) params.set('date_to', filters.dateTo);
-      if (filters.account) params.set('account', filters.account);
-      if (filters.category) params.set('category', filters.category);
-      if (filters.merchant) params.set('merchant', filters.merchant);
-      if (filters.type) params.set('type', filters.type);
-      if (filters.paidBy) params.set('paid_by', filters.paidBy);
-
-      const res = await fetch(`/api/transactions?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data.transactions);
-        setTotal(data.total);
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     setOffset(0);
   }, [filters]);
 
-   
   useEffect(() => {
+    const fetchTransactions = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', limit.toString());
+        params.set('offset', offset.toString());
+        params.set('sort_by', 'date');
+        params.set('order', 'desc');
+
+        if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+        if (filters.dateTo) params.set('date_to', filters.dateTo);
+        if (filters.account) params.set('account', filters.account);
+        if (filters.category) params.set('category', filters.category);
+        if (filters.merchant) params.set('merchant', filters.merchant);
+        if (filters.type) params.set('type', filters.type);
+        if (filters.paidBy) params.set('paid_by', filters.paidBy);
+
+        const res = await fetch(`/api/transactions?${params}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTransactions(data.transactions);
+          setTotal(data.total);
+        }
+      } catch (error) {
+        console.error('Failed to fetch transactions:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchTransactions();
-  }, [offset, filters]);
+  }, [offset, filters, limit]);
 
   const handleUpdate = async (id: number, category: string) => {
     try {
