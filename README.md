@@ -34,6 +34,8 @@ npm run dev
 
 Open http://localhost:3000
 
+**Note:** Git pre-commit hooks are configured with Husky + lint-staged to automatically lint staged files before committing.
+
 ### Environment Variables
 ```
 NEXT_PUBLIC_SPLITWISE_API_KEY=your_api_key
