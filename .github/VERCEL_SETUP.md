@@ -63,25 +63,20 @@ These are automatically passed to Vercel during deployment via CI/CD.
 
 ## Deployment Flow
 
-### Preview Deployments (on Pull Requests)
-```
-PR created → build → unit-test → e2e-test → deploy-preview
-```
-
-- Runs on every PR
-- Creates unique preview URL
-- Tests must pass first
-- Link in PR details
-
-### Production Deployments (on main push)
+### Production Deployments Only (on main push)
 ```
 git push main → build → unit-test → e2e-test → deploy-production → comment
 ```
 
-- Runs only on main branch
+- Runs only on main branch after tests pass
 - Deploys to production domain
 - Comments on commit with live URL
-- Tests must pass first
+- **Preview deployments disabled for now** (can be enabled later)
+
+### Testing on PR
+- PR triggers: build, unit tests, E2E tests
+- **No deployment** (review and merge to main first)
+- Once merged to main, production deployment happens automatically
 
 ## Vercel Configuration
 

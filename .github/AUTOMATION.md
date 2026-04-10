@@ -1,6 +1,10 @@
 # GitHub Automation & Claude Code Review Cycle
 
-This project uses GitHub Actions + Claude Code for automated issue creation and PR review.
+**Status**: Documented for future implementation (not currently active)
+
+This document describes the planned setup for automated issue creation and PR review via GitHub Actions + Claude Code.
+
+**Note**: The workflows (`create-issues.yml`, `claude-review.yml`) are not currently in `.github/workflows/`. They have been documented here for future tackling when resources allow.
 
 ## Setup Required
 
