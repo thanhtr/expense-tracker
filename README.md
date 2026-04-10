@@ -36,13 +36,17 @@ Open http://localhost:3000
 
 **Note:** Git pre-commit hooks are configured with Husky + lint-staged to automatically lint staged files before committing.
 
-### Environment Variables
+### Environment Variables (Local Development)
+Add to `.env.local`:
 ```
 NEXT_PUBLIC_SPLITWISE_API_KEY=your_api_key
+SPLITWISE_API_KEY=your_api_key
 SPLITWISE_USER_ID=your_id
 SPLITWISE_WIFE_ID=spouse_id
 SPLITWISE_GROUP_ID=group_id
 ```
+
+**For Vercel Deployment:** Configure GitHub Secrets instead. See [.github/SETUP.md](.github/SETUP.md) for details.
 
 ## Testing
 
@@ -62,15 +66,18 @@ GitHub Actions runs on every push:
 - Lint & type check
 - Unit tests (Vitest)
 - E2E tests (Playwright)
-- Auto-deploy to Vercel (main branch)
+- Auto-deploy to Vercel (main branch only)
 
-See `.github/workflows/ci.yml` for pipeline config.
+**Vercel Environment Setup:** Secrets are automatically bootstrapped from GitHub Secrets during deployment—no manual Vercel configuration needed.
+
+See `.github/workflows/ci.yml` for pipeline config and `.github/SETUP.md` for GitHub Secrets configuration.
 
 ## Key Docs
 
 - **CLAUDE.md** - Agent instructions (with references to PROJECT_SUMMARY.md and AGENTS.md)
 - **PROJECT_SUMMARY.md** - Architecture, data flow, and API reference
 - **AGENTS.md** - Notes on Next.js changes
+- **.github/SETUP.md** - GitHub Secrets & Vercel deployment bootstrap configuration
 
 ## Scripts
 
