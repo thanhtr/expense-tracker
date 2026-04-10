@@ -1,0 +1,39 @@
+{
+  "projectSettings": {
+    "framework": "nextjs",
+    "nodeVersion": "18.x"
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "env": [
+    {
+      "key": "DATABASE_URL",
+      "description": "PostgreSQL connection string from Neon",
+      "value": "",
+      "type": "secret"
+    }
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "regions": ["iad1"],
+  "git": {
+    "deploymentEnabled": true
+  },
+  "redirects": [],
+  "rewrites": [],
+  "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

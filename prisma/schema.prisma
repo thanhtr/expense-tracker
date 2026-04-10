@@ -1,0 +1,42 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @db.Date
+  account   String   @db.VarChar(50)
+  merchant  String   @db.VarChar(255)
+  amount    Decimal  @db.Decimal(10, 2)
+  note      String   @default("")
+  type      String   @db.VarChar(10) // 'Income' or 'Expense'
+  category  String   @default("") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, account, merchant, amount], name: "unique_transaction")
+  @@index([date(sort: Desc)])
+  @@index([category])
+  @@index([account])
+  @@index([merchant])
+  @@map("transactions")
+}
+
+model MerchantKeyword {
+  id        Int      @id @default(autoincrement())
+  keyword   String   @unique @db.VarChar(255)
+  category  String   @db.VarChar(100)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([keyword])
+  @@map("merchant_keywords")
+}

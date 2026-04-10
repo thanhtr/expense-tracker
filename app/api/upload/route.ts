@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { parseOPBank, parseAmex, parseFinnair } from '@/lib/parsers';
+import { categorizeTransactions } from '@/lib/categorizer';
+import { upsertTransactions } from '@/lib/services/transaction-service';
+import { invalidateCache } from '@/lib/cache';
+
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    const accountType = formData.get('account_type') as string;
+    const accountOwner = (formData.get('account_owner') as string) || 'tung';
+
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    const fileContent = await file.text();
+
+    // Parse based on account type
+    let rows;
+    switch (accountType) {
+      case 'op':
+        rows = await parseOPBank(fileContent);
+        break;
+      case 'amex':
+        rows = await parseAmex(fileContent);
+        break;
+      case 'finnair':
+        rows = await parseFinnair(fileContent);
+        break;
+      default:
+        return NextResponse.json({ error: 'Invalid account type' }, { status: 400 });
+    }
+
+    // Categorize transactions
+    rows = await categorizeTransactions(rows);
+
+    // Filter to expenses only
+    rows = rows.filter(r => r.type === 'Expense');
+
+    // Create in Splitwise
+    const result = await upsertTransactions(rows, accountOwner);
+
+    // Invalidate cache so next fetch gets fresh data
+    if (result.created > 0) {
+      invalidateCache('expenses:');
+    }
+
+    return NextResponse.json({
+      created: result.created,
+      skipped: result.skipped,
+      total: result.total,
+      message: result.total === 0
+        ? 'No transactions found in file. Check format and column names.'
+        : `Successfully processed ${result.total} transactions`,
+    });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Failed to process upload';
+    console.error('❌ Upload error:', error);
+    return NextResponse.json(
+      {
+        error: errorMsg,
+        debug: {
+          message: 'Check server logs at /api/health for configuration issues',
+        }
+      },
+      { status: 500 }
+    );
+  }
+}

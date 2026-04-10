@@ -1,0 +1,115 @@
+'use client';
+
+import { useState } from 'react';
+
+interface Transaction {
+  id: number;
+  date: string | Date;
+  account: string;
+  merchant: string;
+  amount: number;
+  type: string;
+  category: string;
+  note: string;
+  paidBy: 'tung' | 'thuy' | 'other';
+}
+
+interface TransactionRowProps {
+  transaction: Transaction;
+  onUpdate: (id: number, category: string) => void;
+  onDelete: (id: number) => void;
+}
+
+export function TransactionRow({ transaction, onUpdate, onDelete }: TransactionRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [category, setCategory] = useState(transaction.category);
+
+  const handleSave = async () => {
+    await onUpdate(transaction.id, category);
+    setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this transaction?')) {
+      await onDelete(transaction.id);
+    }
+  };
+
+  const formatDate = (date: string | Date) => {
+    if (typeof date === 'string') {
+      return date.split('T')[0];
+    }
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatCurrency = (n: number) => {
+    return new Intl.NumberFormat('fi-FI', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2
+    }).format(Math.abs(n));
+  };
+
+  const amountColor = transaction.type === 'Expense' ? 'text-red-600' : 'text-green-600';
+  const amountPrefix = transaction.type === 'Expense' ? '−' : '+';
+
+  return (
+    <tr className="border-b border-gray-200 hover:bg-gray-50">
+      <td className="px-4 py-3 text-sm">{formatDate(transaction.date)}</td>
+      <td className="px-4 py-3 text-sm">{transaction.account}</td>
+      <td className="px-4 py-3 text-sm">{transaction.merchant}</td>
+      <td className={`px-4 py-3 text-sm text-right font-medium ${amountColor}`}>
+        {amountPrefix}{formatCurrency(transaction.amount)}
+      </td>
+      <td className="px-4 py-3 text-sm">
+        {isEditing ? (
+          <input
+            type="text"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            autoFocus
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+          />
+        ) : (
+          <span
+            onClick={() => setIsEditing(true)}
+            className="inline-block cursor-pointer bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-sm"
+          >
+            {category || '⚠'}
+          </span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-sm">
+        {transaction.paidBy === 'tung' ? 'Tung'
+          : transaction.paidBy === 'thuy' ? 'Thuy'
+          : '—'}
+      </td>
+      <td className="px-4 py-3 text-sm text-gray-500">{transaction.note?.substring(0, 30)}</td>
+      <td className="px-4 py-3 text-sm">
+        {isEditing ? (
+          <div className="flex gap-1">
+            <button
+              onClick={handleSave}
+              className="text-green-600 hover:text-green-800 font-medium text-xs"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setIsEditing(false)}
+              className="text-gray-500 hover:text-gray-700 font-medium text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleDelete}
+            className="text-red-600 hover:text-red-800 font-medium text-xs"
+          >
+            Delete
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+}

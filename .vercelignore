@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README.md
+SETUP.md
+DEPLOYMENT.md
+IMPLEMENTATION_SUMMARY.md
+
+# Development
+.env.local
+.env.*.local
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/cache
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache
+__pycache__
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+raw/
+output/
+.claude/
+merchant_map.csv
+expenses.py

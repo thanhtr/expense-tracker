@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Expense Tracker Web
 
-## Getting Started
+Real-time expense tracking with Splitwise API sync, interactive dashboards, and CSV uploads from banks.
 
-First, run the development server:
+## Features
 
+- 📊 Dashboard with category breakdown and daily spending charts
+- 📝 Transactions list with inline category editing
+- 📤 CSV upload from OP Bank, Amex, Finnair Visa
+- 🏷️ Keyword-based automatic categorization
+- 💰 Duplicate detection and deduplication
+- 📥 CSV export and filtering
+
+## Tech Stack
+
+- **Framework:** Next.js 16.2.2
+- **API:** Splitwise (primary data source)
+- **Database:** PostgreSQL with Prisma (optional, unused at runtime)
+- **UI:** React 19, Tailwind CSS, Recharts
+- **Testing:** Vitest (unit) + Playwright (E2E)
+- **Node:** 20+
+
+## Quick Start
+
+### Prerequisites
+- Node.js 20+
+- Splitwise API key (set `NEXT_PUBLIC_SPLITWISE_API_KEY` env var)
+
+### Setup
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
+```
+NEXT_PUBLIC_SPLITWISE_API_KEY=your_api_key
+SPLITWISE_USER_ID=your_id
+SPLITWISE_WIFE_ID=spouse_id
+SPLITWISE_GROUP_ID=group_id
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Testing
 
-## Learn More
+```bash
+# Unit tests (Vitest)
+npm test
+npm run test:watch
+npm run test:coverage
 
-To learn more about Next.js, take a look at the following resources:
+# E2E tests (Playwright)
+npm run test:e2e
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## CI/CD
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+GitHub Actions runs on every push:
+- Lint & type check
+- Unit tests (Vitest)
+- E2E tests (Playwright)
+- Auto-deploy to Vercel (main branch)
 
-## Deploy on Vercel
+See `.github/workflows/ci.yml` for pipeline config.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Key Docs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **CLAUDE.md** - Agent instructions (with references to PROJECT_SUMMARY.md and AGENTS.md)
+- **PROJECT_SUMMARY.md** - Architecture, data flow, and API reference
+- **AGENTS.md** - Notes on Next.js changes
+
+## Scripts
+
+```bash
+npm run dev              # Dev server
+npm run build            # Build for production
+npm run lint             # Run ESLint
+npm test                 # Run unit tests
+npm run test:e2e         # Run E2E tests
+npm run db:push          # Sync Prisma schema
+npm run db:seed          # Seed keywords
+```
