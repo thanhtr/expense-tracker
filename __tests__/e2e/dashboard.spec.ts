@@ -10,14 +10,14 @@ test.describe('Dashboard', () => {
     await page.goto('/');
 
     // Verify page title/heading
-    await expect(page.locator('h1, h2')).first().toBeVisible();
+    await expect(page.locator('h1, h2').first()).toBeVisible();
 
     // Verify stat cards are rendered
     await expect(page.locator('text=Total Expenses')).toBeVisible();
     await expect(page.locator('text=Transaction Count')).toBeVisible();
 
     // Wait for charts to be visible (Recharts renders them)
-    await expect(page.locator('svg')).first().toBeVisible();
+    await expect(page.locator('svg').first()).toBeVisible();
   });
 
   test('should display correct total expenses', async ({ page }) => {
@@ -93,7 +93,7 @@ test.describe('Dashboard', () => {
     await page.goto('/');
 
     // Should not crash
-    await expect(page.locator('h1, h2')).first().toBeVisible();
+    await expect(page.locator('h1, h2').first()).toBeVisible();
 
     // Stats should show 0
     const totalText = await page.locator('text=Total Expenses').locator('..').locator('div').last().textContent();
