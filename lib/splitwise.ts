@@ -158,7 +158,7 @@ export function buildExistingKeys(expenses: SplitwiseExpense[]): Set<string> {
  * Format: {"account": "...", "category": "..."}
  */
 export function parseExpenseDetails(
-  detailsStr?: string
+  detailsStr?: string | null
 ): { account?: string; category?: string } {
   if (!detailsStr) return {};
   try {

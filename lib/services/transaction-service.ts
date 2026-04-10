@@ -3,7 +3,7 @@ import { CATEGORY_MAP, DEFAULT_CATEGORY_ID, USER_ID, WIFE_ID, GROUP_ID } from '@
 import { ParsedTransaction, TransactionWithId } from '@/lib/types';
 import { withCache } from '@/lib/cache';
 
-interface CreateExpenseRequest {
+interface CreateExpenseRequest extends Record<string, string | number> {
   cost: string;
   description: string;
   currency_code: string;
@@ -81,12 +81,12 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
         currency_code: 'EUR',
         date: `${dateStr}T12:00:00Z`,
         category_id: categoryId,
-        group_id: GROUP_ID,
+        group_id: String(GROUP_ID),
         // Paid by account owner, split equally
-        'users__0__user_id': paidByUserId,
+        'users__0__user_id': String(paidByUserId),
         'users__0__paid_share': cost,
         'users__0__owed_share': (parseFloat(cost) / 2).toFixed(2),
-        'users__1__user_id': paidByUserId === USER_ID ? WIFE_ID : USER_ID,
+        'users__1__user_id': String(paidByUserId === USER_ID ? WIFE_ID : USER_ID),
         'users__1__paid_share': '0',
         'users__1__owed_share': (parseFloat(cost) / 2).toFixed(2),
         details,
@@ -141,7 +141,7 @@ export async function getTransactions(filters: {
       const categoryName = details.category || exp.category?.name || '';
 
       // Determine the payer user
-      const paidByUser = exp.users.find(u => parseFloat(u.paid_share) > 0);
+      const paidByUser = exp.users.find(u => parseFloat(String(u.paid_share)) > 0);
       const paidByUserId = paidByUser?.user_id;
       const isExpense = parseFloat(exp.cost) > 0;
 

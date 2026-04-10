@@ -24,6 +24,7 @@ interface HealthCheck {
 export async function GET() {
   const checks: HealthCheck = {
     timestamp: new Date().toISOString(),
+    status: 'UNHEALTHY',
     environment: {
       SPLITWISE_API_KEY_SET: !!process.env.SPLITWISE_API_KEY,
       SPLITWISE_USER_ID: String(USER_ID),
