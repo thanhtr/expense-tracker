@@ -1,5 +1,4 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
 # Only run lint-staged if there are staged files matching the pattern
 if git diff --cached --name-only --diff-filter=ACM | grep -qE '\.(ts|tsx|js|jsx)$'; then
