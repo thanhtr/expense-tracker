@@ -6,6 +6,14 @@ import { USER_ID } from '../../lib/constants';
 // Mock the splitwise module
 vi.mock('../../lib/splitwise', () => ({
   getAllExpenses: vi.fn(),
+  parseExpenseDetails: vi.fn((details: string | null) => {
+    if (!details) return { account: '', category: '' };
+    try {
+      return JSON.parse(details);
+    } catch {
+      return { account: '', category: '' };
+    }
+  }),
 }));
 
 vi.mock('../../lib/cache', () => ({
@@ -62,7 +70,12 @@ describe('getDashboardStats', () => {
   });
 
   it('should filter expenses by date range', async () => {
-    vi.mocked(splitwise.getAllExpenses).mockResolvedValueOnce(mockExpenses);
+    vi.mocked(splitwise.getAllExpenses).mockImplementation(async (params) => {
+      if (params.datedAfter === '2026-04-10' && params.datedBefore === '2026-04-10') {
+        return mockExpenses.filter(exp => exp.date === '2026-04-10');
+      }
+      return mockExpenses;
+    });
 
     const dateFrom = new Date('2026-04-10');
     const dateTo = new Date('2026-04-10');

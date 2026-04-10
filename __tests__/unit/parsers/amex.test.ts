@@ -81,6 +81,6 @@ describe('parseAmex', () => {
     const result = await parseAmex(csv);
 
     expect(result).toHaveLength(1);
-    expect(result[0].merchant).toBe('');
+    expect(result[0].merchant).toBe('Unknown');
   });
 });

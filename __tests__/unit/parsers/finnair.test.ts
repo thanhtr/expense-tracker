@@ -18,13 +18,13 @@ describe('parseFinnair', () => {
 
   it('should skip income transactions (positive amounts)', async () => {
     const csv = `Payment Date,Location of purchase,Amount
-2026-04-10,-45.67,Charge
-2026-04-11,+100.00,Refund`;
+2026-04-10,Charge,-45.67
+2026-04-11,Refund,100.00`;
 
     const result = await parseFinnair(csv);
 
     expect(result).toHaveLength(1);
-    expect(result[0].merchant).toMatch(/Charge|Helsinki/);
+    expect(result[0].merchant).toBe('Charge');
   });
 
   it('should handle different column names', async () => {
