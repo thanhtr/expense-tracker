@@ -26,9 +26,9 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     environment: {
       SPLITWISE_API_KEY_SET: !!process.env.SPLITWISE_API_KEY,
-      SPLITWISE_USER_ID: USER_ID,
-      SPLITWISE_WIFE_ID: WIFE_ID,
-      SPLITWISE_GROUP_ID: GROUP_ID,
+      SPLITWISE_USER_ID: String(USER_ID),
+      SPLITWISE_WIFE_ID: String(WIFE_ID),
+      SPLITWISE_GROUP_ID: String(GROUP_ID),
     },
     tests: {},
   };
