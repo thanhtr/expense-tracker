@@ -33,6 +33,17 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache npm packages and build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          node_modules
+          .next
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
     - name: Install dependencies
       run: npm ci
 
@@ -63,6 +74,16 @@ jobs:
       with:
         node-version: '20'
         cache: 'npm'
+
+    - name: Cache npm packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
 
     - name: Install dependencies
       run: npm ci
@@ -100,6 +121,16 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
+    - name: Cache npm packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.npm
+          node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
     - name: Install dependencies
       run: npm ci
 
@@ -134,6 +165,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
 
     - name: Set Vercel environment variables
       run: |
@@ -161,6 +193,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
 
     - name: Set Vercel environment variables
       run: |
