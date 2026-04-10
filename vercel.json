@@ -3,7 +3,7 @@
   "outputDirectory": ".next",
   "regions": ["iad1"],
   "git": {
-    "deploymentEnabled": true
+    "deploymentEnabled": false
   },
   "redirects": [],
   "rewrites": [],
