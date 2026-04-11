@@ -2,7 +2,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "regions": ["iad1"],
-  "nodeVersion": "22.x",
   "git": {
     "deploymentEnabled": false
   },

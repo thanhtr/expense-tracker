@@ -14,6 +14,9 @@
     "test:e2e": "playwright test",
     "prepare": "husky"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": ["eslint --fix", "tsc --noEmit"]
   },
