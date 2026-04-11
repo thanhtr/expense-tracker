@@ -4,7 +4,7 @@ import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise
 test.describe('Transactions Page', () => {
   test('should navigate to transactions page', async ({ page }) => {
     const expenses = mockExpenses(3);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -17,7 +17,7 @@ test.describe('Transactions Page', () => {
 
   test('should load and display transactions list', async ({ page }) => {
     const expenses = mockExpenses(3);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -32,7 +32,7 @@ test.describe('Transactions Page', () => {
   test('should show pagination for large lists', async ({ page }) => {
     // Create 60 expenses (more than default page size of 50)
     const expenses = mockExpenses(60);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -47,7 +47,7 @@ test.describe('Transactions Page', () => {
 
   test('should navigate to next page with pagination', async ({ page }) => {
     const expenses = mockExpenses(60);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -83,7 +83,7 @@ test.describe('Transactions Page', () => {
         details: JSON.stringify({ account: 'Amex' }),
       }),
     ];
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -107,7 +107,7 @@ test.describe('Transactions Page', () => {
 
   test('should reset filters', async ({ page }) => {
     const expenses = mockExpenses(3);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -124,7 +124,7 @@ test.describe('Transactions Page', () => {
 
   test('should allow inline category editing', async ({ page }) => {
     const expenses = [mockExpense({ id: 1, category: { id: 25, name: 'Food & Dining' } })];
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
@@ -178,7 +178,7 @@ test.describe('Transactions Page', () => {
 
   test('should export transactions as CSV', async ({ page }) => {
     const expenses = mockExpenses(3);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 

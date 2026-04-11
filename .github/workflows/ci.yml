@@ -199,20 +199,10 @@ jobs:
     - name: Install Playwright browsers
       run: npx playwright install --with-deps chromium
 
-    - name: Start dev server
-      run: npm run dev > /dev/null 2>&1 &
-      env:
-        SPLITWISE_API_KEY: test-key
-        SPLITWISE_USER_ID: '123'
-        SPLITWISE_WIFE_ID: '456'
-        SPLITWISE_GROUP_ID: '789'
-
-    - name: Wait for server
-      run: npx wait-on http://localhost:3000
-
-    - name: Run E2E tests against dev server
+    - name: Run E2E tests
       run: npm run test:e2e
       env:
+        CI: 'true'
         SPLITWISE_API_KEY: test-key
         SPLITWISE_USER_ID: '123'
         SPLITWISE_WIFE_ID: '456'

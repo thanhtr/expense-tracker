@@ -5,7 +5,7 @@ test.describe('Dashboard', () => {
   test('should load dashboard with expenses and display charts', async ({ page }) => {
     const baseDate = new Date('2026-04-01');
     const expenses = mockExpenses(5, baseDate);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -22,11 +22,11 @@ test.describe('Dashboard', () => {
 
   test('should display correct total expenses', async ({ page }) => {
     const expenses = [
-      mockExpense({ id: 1, description: 'Item 1', cost: '50.00' }),
-      mockExpense({ id: 2, description: 'Item 2', cost: '30.00' }),
-      mockExpense({ id: 3, description: 'Item 3', cost: '20.00' }),
+      mockExpense({ merchant: 'Item 1', amount: 50.00 }),
+      mockExpense({ merchant: 'Item 2', amount: 30.00 }),
+      mockExpense({ merchant: 'Item 3', amount: 20.00 }),
     ];
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -40,7 +40,7 @@ test.describe('Dashboard', () => {
 
   test('should display transaction count', async ({ page }) => {
     const expenses = mockExpenses(3);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -52,26 +52,11 @@ test.describe('Dashboard', () => {
 
   test('should filter by category and show only selected category data', async ({ page }) => {
     const expenses = [
-      mockExpense({
-        id: 1,
-        description: 'Amazon',
-        cost: '50.00',
-        category: { id: 41, name: 'Shopping' },
-      }),
-      mockExpense({
-        id: 2,
-        description: 'Starbucks',
-        cost: '5.50',
-        category: { id: 25, name: 'Food & Dining' },
-      }),
-      mockExpense({
-        id: 3,
-        description: 'Grocery Store',
-        cost: '30.00',
-        category: { id: 12, name: 'Food & Groceries' },
-      }),
+      mockExpense({ merchant: 'Amazon', amount: 50.00, category: 'Shopping' }),
+      mockExpense({ merchant: 'Starbucks', amount: 5.50, category: 'Food & Dining' }),
+      mockExpense({ merchant: 'Grocery Store', amount: 30.00, category: 'Food & Groceries' }),
     ];
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -88,7 +73,7 @@ test.describe('Dashboard', () => {
   });
 
   test('should handle empty expenses gracefully', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [] });
+    await setupSplitwise(page, []);
 
     await page.goto('/');
 
@@ -103,7 +88,7 @@ test.describe('Dashboard', () => {
   test('should update when date range is changed', async ({ page }) => {
     const baseDate = new Date('2026-04-01');
     const expenses = mockExpenses(5, baseDate);
-    await setupSplitwise(page, { get_expenses: expenses });
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 
@@ -123,15 +108,8 @@ test.describe('Dashboard', () => {
   });
 
   test('should display uncategorized warning if applicable', async ({ page }) => {
-    const expenses = [
-      mockExpense({
-        id: 1,
-        description: 'Item 1',
-        cost: '50.00',
-        category: { id: 18, name: 'General' }, // Often used for uncategorized
-      }),
-    ];
-    await setupSplitwise(page, { get_expenses: expenses });
+    const expenses = [mockExpense({ merchant: 'Item 1', amount: 50.00, category: 'General' })];
+    await setupSplitwise(page, expenses);
 
     await page.goto('/');
 

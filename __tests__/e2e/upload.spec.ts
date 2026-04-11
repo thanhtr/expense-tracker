@@ -3,7 +3,7 @@ import { setupSplitwise, mockExpense } from '../fixtures/splitwise-mock';
 
 test.describe('CSV Upload', () => {
   test('should navigate to upload page', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/');
 
@@ -16,7 +16,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should show upload form', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -34,16 +34,12 @@ test.describe('CSV Upload', () => {
   test('should show duplicate detection warning', async ({ page }) => {
     // Mock an existing expense that matches what we'll upload
     const existingExpense = mockExpense({
-      id: 1,
       date: '2026-04-10',
-      description: 'Amazon',
-      cost: '45.67',
+      merchant: 'Amazon',
+      amount: 45.67,
     });
 
-    await setupSplitwise(page, {
-      get_expenses: [existingExpense],
-      create_expense: true,
-    });
+    await setupSplitwise(page, [existingExpense]);
 
     await page.goto('/upload');
 
@@ -55,7 +51,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should handle file upload and show results', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -73,7 +69,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should select account before upload', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -90,7 +86,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should prevent upload without selecting account', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -103,7 +99,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should show progress during upload', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -112,7 +108,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should display success message after upload', async ({ page }) => {
-    await setupSplitwise(page, { get_expenses: [], create_expense: true });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
@@ -123,8 +119,7 @@ test.describe('CSV Upload', () => {
   });
 
   test('should handle upload errors gracefully', async ({ page }) => {
-    // Simulate API error
-    await setupSplitwise(page, { get_expenses: [], create_expense: false });
+    await setupSplitwise(page, []);
 
     await page.goto('/upload');
 
