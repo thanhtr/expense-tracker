@@ -59,29 +59,29 @@ Call log:
         - generic [ref=e27]:
           - generic [ref=e28]:
             - generic [ref=e29]: Total Expenses
-            - generic [ref=e30]: 150,32 €
+            - generic [ref=e30]: 224,08 €
           - generic [ref=e31]:
             - generic [ref=e32]: Total Income
             - generic [ref=e33]: 0,00 €
           - generic [ref=e34]:
             - generic [ref=e35]: Net
-            - generic [ref=e36]: −150,32 €
+            - generic [ref=e36]: −224,08 €
           - generic [ref=e37]:
             - generic [ref=e38]: OP
-            - generic [ref=e39]: 150,32 €
+            - generic [ref=e39]: 224,08 €
         - generic [ref=e40]:
           - generic [ref=e41]:
             - generic [ref=e42]: Top Category
             - generic [ref=e43]: Shopping
-            - generic [ref=e44]: 86,83 €
+            - generic [ref=e44]: 92,88 €
           - generic [ref=e45]:
             - generic [ref=e46]: Most Expensive
             - generic [ref=e47]: Amazon
             - generic [ref=e48]: Shopping
-            - generic [ref=e49]: 86,83 €
+            - generic [ref=e49]: 92,88 €
           - generic [ref=e50]:
             - generic [ref=e51]: Daily Average
-            - generic [ref=e52]: 75,16 €
+            - generic [ref=e52]: 112,04 €
           - generic [ref=e53]:
             - generic [ref=e54]: Transactions
             - generic [ref=e55]: "3"
@@ -90,9 +90,9 @@ Call log:
             - heading "Expenses by Category" [level=2] [ref=e58]
             - application [ref=e61]:
               - generic [ref=e74]:
-                - generic [ref=e77]: Shopping 58%
-                - generic [ref=e80]: Food & Groceries 33%
-                - generic [ref=e83]: Food & Dining 10%
+                - generic [ref=e77]: Shopping 41%
+                - generic [ref=e80]: Food & Groceries 34%
+                - generic [ref=e83]: Food & Dining 24%
           - generic [ref=e84]:
             - heading "Daily Spending by Category" [level=2] [ref=e85]
             - generic [ref=e87]:
@@ -113,10 +113,10 @@ Call log:
                     - generic [ref=e131]: 11 Apr
                   - generic [ref=e132]:
                     - generic [ref=e134]: €0
-                    - generic [ref=e136]: €30
-                    - generic [ref=e138]: €60
-                    - generic [ref=e140]: €90
-                    - generic [ref=e142]: €120
+                    - generic [ref=e136]: €40
+                    - generic [ref=e138]: €80
+                    - generic [ref=e140]: €120
+                    - generic [ref=e142]: €160
   - button "Open Next.js Dev Tools" [ref=e148] [cursor=pointer]:
     - img [ref=e149]
   - alert [ref=e152]

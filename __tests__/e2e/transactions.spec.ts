@@ -155,8 +155,8 @@ test.describe('Transactions Page', () => {
   });
 
   test('should allow transaction deletion with confirmation', async ({ page }) => {
-    const expenses = [mockExpense({ id: 1 })];
-    await setupSplitwise(page, { get_expenses: expenses, delete_expense: true });
+    const expenses = [mockExpense()];
+    await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
 
