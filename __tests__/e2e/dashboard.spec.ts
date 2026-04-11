@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise-mock';
 
 test.describe('Dashboard', () => {
-  test.skip('should load dashboard with expenses and display charts', async ({ page }) => {
+  test('should load dashboard with expenses and display charts', async ({ page }) => {
     const baseDate = new Date('2026-04-01');
     const expenses = mockExpenses(5, baseDate);
     await setupSplitwise(page, expenses);
@@ -13,8 +13,8 @@ test.describe('Dashboard', () => {
     await expect(page.locator('h1, h2').first()).toBeVisible();
 
     // Verify stat cards are rendered
-    await expect(page.locator('text=Total Expenses')).toBeVisible();
-    await expect(page.locator('text=Transaction Count')).toBeVisible();
+    await expect(page.locator('text=Top Category')).toBeVisible();
+    await expect(page.locator('text=Daily Average')).toBeVisible();
 
     // Wait for charts to be visible (Recharts renders them)
     await expect(page.locator('svg').first()).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('Dashboard', () => {
     expect(totalExpensesText).toContain('100');
   });
 
-  test.skip('should display transaction count', async ({ page }) => {
+  test('should display transaction count', async ({ page }) => {
     const expenses = mockExpenses(3);
     await setupSplitwise(page, expenses);
 
@@ -46,7 +46,9 @@ test.describe('Dashboard', () => {
 
     await page.waitForTimeout(500);
 
-    const countText = await page.locator('text=Transaction Count').locator('..').locator('div').last().textContent();
+    // Find the Transactions card and check for count
+    const transactionsCard = page.locator('text=Transactions').locator('..');
+    const countText = await transactionsCard.locator('div').last().textContent();
     expect(countText).toContain('3');
   });
 
