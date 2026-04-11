@@ -118,6 +118,8 @@ jobs:
         source .env.production
         set +a
 
+        echo "Setting Vercel environment variables..."
+
         # Set each variable in Vercel
         for VAR_NAME in SPLITWISE_API_KEY SPLITWISE_USER_ID SPLITWISE_WIFE_ID SPLITWISE_GROUP_ID; do
           VAR_VALUE="${!VAR_NAME}"
@@ -128,17 +130,24 @@ jobs:
             continue
           fi
 
-          # Delete existing variable if it exists
-          curl -s -X DELETE "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env/$VAR_NAME" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" || true
+          echo "Setting $VAR_NAME..."
 
-          # Create new variable
-          curl -s -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
+          # Create/update variable via Vercel API
+          RESPONSE=$(curl -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
             -H "Authorization: Bearer $VERCEL_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"key\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\",\"target\":[\"production\"]}"
-          echo "✓ Set $VAR_NAME"
+            -d "{\"key\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\",\"target\":[\"production\"]}")
+
+          # Check if successful
+          if echo "$RESPONSE" | grep -q "\"key\":\"$VAR_NAME\""; then
+            echo "✓ $VAR_NAME set successfully"
+          else
+            echo "Response: $RESPONSE"
+            echo "⚠ Warning: Failed to set $VAR_NAME (may already exist)"
+          fi
         done
+
+        echo "Environment variables configured for Vercel"
       env:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
