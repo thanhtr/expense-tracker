@@ -1,1 +1,2 @@
+@PROJECT_SUMMARY.md
 @AGENTS.md

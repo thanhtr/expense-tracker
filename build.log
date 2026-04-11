@@ -1,0 +1,34 @@
+
+> expense-tracker-web@0.1.0 build
+> prisma generate && next build
+
+Loaded Prisma config from prisma.config.mjs.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.7.0) to ./node_modules/@prisma/client in 40ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+▲ Next.js 16.2.2 (Turbopack)
+- Environments: .env.local
+- Experiments (use with caution):
+  · optimizePackageImports
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.0s
+  Running TypeScript ...
+Failed to type check.
+
+./app/api/health/route.ts:25:9
+Type error: Property 'status' is missing in type '{ timestamp: string; environment: { SPLITWISE_API_KEY_SET: boolean; SPLITWISE_USER_ID: string; SPLITWISE_WIFE_ID: string; SPLITWISE_GROUP_ID: string; }; tests: {}; }' but required in type 'HealthCheck'.
+
+  [90m23 |[0m
+  [90m24 |[0m [36mexport[0m [36masync[0m [36mfunction[0m [33mGET[0m() {
+[31m[1m>[0m [90m25 |[0m   [36mconst[0m checks: [33mHealthCheck[0m = {
+  [90m   |[0m         [31m[1m^[0m
+  [90m26 |[0m     timestamp: [36mnew[0m [33mDate[0m().toISOString(),
+  [90m27 |[0m     environment: {
+  [90m28 |[0m       [33mSPLITWISE_API_KEY_SET[0m: !!process.env.[33mSPLITWISE_API_KEY[0m,
+Next.js build worker exited with code: 1 and signal: null
