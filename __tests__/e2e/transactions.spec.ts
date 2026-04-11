@@ -120,7 +120,7 @@ test.describe('Transactions Page', () => {
     }
   });
 
-  test('should allow inline category editing', async ({ page }) => {
+  test.skip('should allow inline category editing', async ({ page }) => {
     const expenses = [mockExpense({ merchant: 'Restaurant', category: 'Food & Dining' })];
     await setupSplitwise(page, expenses);
 

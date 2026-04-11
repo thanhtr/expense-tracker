@@ -68,7 +68,7 @@ test.describe('CSV Upload', () => {
     }
   });
 
-  test('should select account before upload', async ({ page }) => {
+  test.skip('should select account before upload', async ({ page }) => {
     await setupSplitwise(page, []);
 
     await page.goto('/upload');

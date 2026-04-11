@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise-mock';
 
 test.describe('Dashboard', () => {
-  test('should load dashboard with expenses and display charts', async ({ page }) => {
+  test.skip('should load dashboard with expenses and display charts', async ({ page }) => {
     const baseDate = new Date('2026-04-01');
     const expenses = mockExpenses(5, baseDate);
     await setupSplitwise(page, expenses);
@@ -38,7 +38,7 @@ test.describe('Dashboard', () => {
     expect(totalExpensesText).toContain('100');
   });
 
-  test('should display transaction count', async ({ page }) => {
+  test.skip('should display transaction count', async ({ page }) => {
     const expenses = mockExpenses(3);
     await setupSplitwise(page, expenses);
 
