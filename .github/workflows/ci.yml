@@ -111,12 +111,22 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Set Vercel environment variables from GitHub secrets
+    - name: Set Vercel environment variables
       run: |
-        # Set each secret as environment variable in Vercel
+        # Load variables from .env.local
+        set -a
+        source .env.local
+        set +a
+
+        # Set each variable in Vercel
         for VAR_NAME in SPLITWISE_API_KEY SPLITWISE_USER_ID SPLITWISE_WIFE_ID SPLITWISE_GROUP_ID; do
-          # Get value from environment (set via secrets below)
           VAR_VALUE="${!VAR_NAME}"
+
+          # Skip if empty
+          if [ -z "$VAR_VALUE" ]; then
+            echo "⚠ Skipping $VAR_NAME (empty)"
+            continue
+          fi
 
           # Delete existing variable if it exists
           curl -s -X DELETE "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env/$VAR_NAME" \
@@ -133,9 +143,6 @@ jobs:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         SPLITWISE_API_KEY: ${{ secrets.SPLITWISE_API_KEY }}
-        SPLITWISE_USER_ID: ${{ secrets.SPLITWISE_USER_ID }}
-        SPLITWISE_WIFE_ID: ${{ secrets.SPLITWISE_WIFE_ID }}
-        SPLITWISE_GROUP_ID: ${{ secrets.SPLITWISE_GROUP_ID }}
 
     - name: Deploy to Vercel
       run: npx vercel --prod --yes
