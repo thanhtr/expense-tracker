@@ -111,17 +111,31 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Create .env.production for Vercel deployment
+    - name: Set Vercel environment variables
       run: |
-        cat > .env.production.local << 'EOF'
-        SPLITWISE_API_KEY=${{ secrets.SPLITWISE_API_KEY }}
-        SPLITWISE_USER_ID=${{ secrets.SPLITWISE_USER_ID }}
-        SPLITWISE_WIFE_ID=${{ secrets.SPLITWISE_WIFE_ID }}
-        SPLITWISE_GROUP_ID=${{ secrets.SPLITWISE_GROUP_ID }}
-        EOF
+        # Set environment variables via Vercel API for production
+        VARS=("SPLITWISE_API_KEY" "SPLITWISE_USER_ID" "SPLITWISE_WIFE_ID" "SPLITWISE_GROUP_ID")
+        for VAR in "${VARS[@]}"; do
+          VALUE="${!VAR}"
+          # Delete existing variable if it exists
+          curl -s -X DELETE "https://api.vercel.com/v10/projects/${{ secrets.VERCEL_PROJECT_ID }}/env/$VAR" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" || true
+
+          # Create new variable
+          curl -s -X POST "https://api.vercel.com/v10/projects/${{ secrets.VERCEL_PROJECT_ID }}/env" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$VAR\",\"value\":\"$VALUE\",\"target\":[\"production\"]}"
+          echo "Set $VAR"
+        done
+      env:
+        SPLITWISE_API_KEY: ${{ secrets.SPLITWISE_API_KEY }}
+        SPLITWISE_USER_ID: ${{ secrets.SPLITWISE_USER_ID }}
+        SPLITWISE_WIFE_ID: ${{ secrets.SPLITWISE_WIFE_ID }}
+        SPLITWISE_GROUP_ID: ${{ secrets.SPLITWISE_GROUP_ID }}
 
     - name: Deploy to Vercel
-      run: npx vercel --prod --yes --env-file .env.production.local
+      run: npx vercel --prod --yes
       env:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
