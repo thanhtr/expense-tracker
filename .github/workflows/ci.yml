@@ -113,9 +113,9 @@ jobs:
 
     - name: Set Vercel environment variables
       run: |
-        # Load variables from .env.local
+        # Load variables from .env.production
         set -a
-        source .env.local
+        source .env.production
         set +a
 
         # Set each variable in Vercel
