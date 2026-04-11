@@ -1,6 +1,6 @@
 'use client';
 
-import KeywordManager from '@/components/KeywordManager';
+import { KeywordManager } from '@/components/KeywordManager';
 
 export default function KeywordsPage() {
   return (

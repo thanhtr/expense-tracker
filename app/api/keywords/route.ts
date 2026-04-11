@@ -12,7 +12,7 @@ const keywords: Array<{
 let nextId = 1;
 
 export async function GET() {
-  return NextResponse.json({ keywords });
+  return NextResponse.json(keywords);
 }
 
 export async function POST(request: NextRequest) {
