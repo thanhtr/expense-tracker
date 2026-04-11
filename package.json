@@ -4,33 +4,22 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "db:push": "prisma db push",
-    "db:seed": "node --import tsx ./prisma/seed.ts",
-    "prisma:generate": "prisma generate",
     "prepare": "husky"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": "eslint --fix"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
-    "@prisma/adapter-neon": "^7.7.0",
-    "@prisma/client": "^7.7.0",
     "dotenv": "^17.4.1",
     "next": "16.2.2",
     "papaparse": "^5.5.3",
-    "pg": "^8.20.0",
-    "prisma": "^7.7.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
@@ -41,7 +30,6 @@
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
-    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
