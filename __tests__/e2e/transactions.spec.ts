@@ -71,16 +71,14 @@ test.describe('Transactions Page', () => {
   test('should filter transactions by account', async ({ page }) => {
     const expenses = [
       mockExpense({
-        id: 1,
-        description: 'OP Purchase',
-        cost: '50.00',
-        details: JSON.stringify({ account: 'OP Bank' }),
+        merchant: 'OP Purchase',
+        amount: 50.00,
+        account: 'OP',
       }),
       mockExpense({
-        id: 2,
-        description: 'Amex Purchase',
-        cost: '30.00',
-        details: JSON.stringify({ account: 'Amex' }),
+        merchant: 'Amex Purchase',
+        amount: 30.00,
+        account: 'Amex',
       }),
     ];
     await setupSplitwise(page, expenses);
@@ -123,7 +121,7 @@ test.describe('Transactions Page', () => {
   });
 
   test('should allow inline category editing', async ({ page }) => {
-    const expenses = [mockExpense({ id: 1, category: { id: 25, name: 'Food & Dining' } })];
+    const expenses = [mockExpense({ merchant: 'Restaurant', category: 'Food & Dining' })];
     await setupSplitwise(page, expenses);
 
     await page.goto('/transactions');
