@@ -136,7 +136,7 @@ jobs:
           RESPONSE=$(curl -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
             -H "Authorization: Bearer $VERCEL_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"key\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\",\"target\":[\"production\"]}")
+            -d "{\"key\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\",\"type\":\"plain\",\"target\":[\"production\"]}")
 
           # Check if successful
           if echo "$RESPONSE" | grep -q "\"key\":\"$VAR_NAME\""; then
