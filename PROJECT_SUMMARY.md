@@ -1,6 +1,6 @@
 # Expense Tracker Web - Project Summary
 
-**Last Updated:** April 10, 2026
+**Last Updated:** April 12, 2026
 **Key Tech Stack:** Next.js 16.2.2, React, TypeScript, Tailwind CSS, Recharts 3.8.1, Splitwise API
 
 ---
@@ -32,8 +32,9 @@ An expense tracking application built with Next.js that fetches expense data fro
 - Daily spending visualization (stacked bar chart)
 - Transaction list with inline editing and deletion
 - CSV export capabilities
-- Keyword-based automatic categorization
+- Learned rule-based automatic categorization (from user corrections and Splitwise history)
 - Income/expense classification
+- Keyword rules management via UI
 
 ---
 
@@ -63,6 +64,16 @@ Splitwise API
 4. **No Global State Management** - All state is colocated using React `useState` + `useEffect`. Filters are passed as props between components.
 
 5. **Filtering & Sorting in Memory** - No database queries. After fetching from Splitwise, filtering, grouping, and sorting happen in JavaScript.
+
+6. **Sentinel Expense Pattern** - Learned rules are stored in a special Splitwise sentinel expense with gzip compression:
+   - Description: `__learned_rules__` (to identify it)
+   - Date: `2000-01-01` (out of normal date range)
+   - Cost: `€0.01` (minimal, valid amount)
+   - Details field: Gzip-compressed base64-encoded `LearnedRulesStore` JSON
+     - `{ rules: Record<normalizedMerchantKey, LearnedRule>, version, updatedAt }`
+     - `LearnedRule` includes `category` and `count` (how many corrections confirmed it)
+   - Enables persistence across serverless cold starts without external database
+   - Soft-delete aware: Bootstrap skips transactions marked with `deleted_at`
 
 ---
 
@@ -97,13 +108,17 @@ Frontend renders charts & stats:
   - Insight cards (top category, most expensive, avg/day, count)
 ```
 
-### Category Resolution
-When parsing expenses from Splitwise:
-1. First, check `exp.details` (custom stringified JSON) for stored `category` and `account`
+### Category Resolution (Three-Tier System)
+When parsing expenses from Splitwise for display:
+1. Check `exp.details` (custom stored) for `category` and `account`
 2. Fall back to `exp.category?.name` (Splitwise native category)
-3. Fall back to empty string (uncategorized)
+3. Fall back to empty string → displayed as "⚠ Uncategorized"
 
-The `exp.details` field is set by the app when storing custom metadata, allowing override of Splitwise's native categories.
+**Bootstrap behavior (different):**
+- Uses ONLY `exp.category?.name` (current Splitwise state user sees in UI)
+- Ignores `exp.details.category` (may be stale from transaction creation)
+- Skips soft-deleted transactions (`deleted_at` set)
+- Majority-vote when merchant has multiple historical categories
 
 ---
 
@@ -159,7 +174,8 @@ expense-tracker-web/
 │   ├── services/
 │   │   ├── aggregation-service.ts  # Dashboard stats computation
 │   │   ├── transaction-service.ts  # Transaction list logic
-│   │   └── categorizer.ts          # (possibly unused in current flow)
+│   │   ├── learned-rules-service.ts # Learned rules storage and categorization
+│   │   └── categorizer.ts          # Transaction categorization using learned rules
 │   ├── splitwise.ts            # Splitwise API client & parsing
 │   ├── cache.ts                # Simple in-memory cache with TTL
 │   ├── constants.ts            # User IDs, category map
@@ -309,6 +325,55 @@ Returns sorted list of category names from `CATEGORY_MAP` constant.
 ### GET `/api/export`
 Export transactions as CSV. Same filtering as `/api/transactions`, but returns all results (limit=10000).
 
+### GET `/api/keywords`
+Fetch all learned rules from Splitwise sentinel.
+
+**Response:**
+```typescript
+Keyword[] // [{ id: number, keyword: string, category: string, priority: number }, ...]
+```
+
+### POST `/api/keywords`
+Add a new learned rule manually.
+
+**Body:**
+```json
+{ "keyword": "netflix", "category": "Subscriptions" }
+```
+
+**Response:** `Keyword` (newly created keyword with assigned id)
+
+### PUT `/api/keywords/[id]`
+Update a learned rule.
+
+**Body:**
+```json
+{ "keyword": "hulu", "category": "Entertainment" }
+```
+
+**Response:** `Keyword` (updated keyword)
+
+### DELETE `/api/keywords/[id]`
+Delete a learned rule.
+
+**Response:** `{ success: true }`
+
+### POST `/api/keywords/bootstrap`
+Seed learned rules from Splitwise history (March 2026 active transactions only). Uses majority vote when a merchant has multiple historical categories.
+
+**Response:**
+```json
+{ "success": true, "learned": 63, "skipped": 0 }
+```
+
+### POST `/api/keywords/clear`
+Delete all learned rule sentinels and reset to empty state.
+
+**Response:**
+```json
+{ "success": true, "message": "Cleared N learned rules sentinels" }
+```
+
 ---
 
 ## Frontend Components
@@ -353,6 +418,17 @@ Single transaction row with:
 - Display of: date, merchant, amount, category, account, paid by
 - Inline edit mode for category (text input, save/cancel)
 - Delete button
+
+### `KeywordManager.tsx`
+Component for managing learned rules at `/keywords` page.
+
+**Features:**
+- View all learned rules in a table
+- Add new learned rule manually with form (keyword + category inputs)
+- Delete individual rules with confirmation
+- Bootstrap from history button (calls `/api/keywords/bootstrap`)
+- Clear all rules button (calls `/api/keywords/clear`)
+- Real-time status messages for all operations
 
 ---
 
@@ -464,6 +540,35 @@ useEffect(() => {
 - Backend now supports optional `category` query parameter
 - When category is selected, expenses are filtered before aggregation
 - Dropdown shows only categories with expenses in the selected date range
+
+### Reinforced Learning for Category Matching
+- **Two-tier categorization system** prioritizes: learned rules → Splitwise native category
+- **Learned rules** stored in Splitwise sentinel expense with gzip compression
+  - Learns from user category corrections (accumulated in PATCH `/api/transactions/[id]`)
+  - Each rule tracked with `count` field (increments on repeat corrections)
+  - Merchant names normalized before storage (strips legal suffixes, handles brand variants)
+  - Gzip+base64 compression reduces 65KB JSON to ~5-10KB for safe storage in Splitwise details field
+
+- **Keyword rules management UI** at `/keywords` page via `KeywordManager` component
+  - Manage learned rules (add/delete/view)
+  - Bootstrap from history: `/api/keywords/bootstrap` scans March 2026 active transactions only (majority vote)
+  - Clear all: `/api/keywords/clear` resets learned rules
+
+- **CSV upload integration** via `categorizeWithLearning()` in upload flow
+  - New transactions auto-categorized using learned rules before pushing to Splitwise
+  - **No retroactive recategorization** of existing transactions (learning is forward-looking only)
+
+- **Implementation details:**
+  - Bootstrap uses `exp.category?.name` (current Splitwise state), not `details.category` (may be stale)
+  - Bootstrap skips soft-deleted transactions (`deleted_at` set)
+  - Soft-delete aware: Splitwise deletes mark with `deleted_at` but still return in API
+
+- **Files:**
+  - `lib/services/learned-rules-service.ts` — Gzip storage, cache, recordCorrection, bootstrapRulesFromHistory
+  - `app/api/keywords/route.ts`, `[id]/route.ts`, `bootstrap/route.ts`, `clear/route.ts` — All keyword/bootstrap API endpoints
+  - `app/keywords/page.tsx` — Keywords management page
+  - `components/KeywordManager.tsx` — Keyword UI component
+  - Test coverage: `__tests__/unit/learned-rules-service.test.ts`, `__tests__/unit/api/keywords.test.ts`, `__tests__/e2e/keywords.spec.ts`
 
 ---
 

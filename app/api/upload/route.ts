@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseOPBank, parseAmex, parseFinnair } from '@/lib/parsers';
-import { categorizeTransactions } from '@/lib/categorizer';
+import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
 import { invalidateCache } from '@/lib/cache';
 
@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid account type' }, { status: 400 });
     }
 
-    // Categorize transactions
-    rows = await categorizeTransactions(rows);
+    // Categorize transactions (using learned rules + CSV keywords)
+    rows = await categorizeWithLearning(rows);
 
     // Filter to expenses only
     rows = rows.filter(r => r.type === 'Expense');

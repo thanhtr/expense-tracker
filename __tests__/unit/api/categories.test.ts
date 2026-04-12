@@ -5,37 +5,30 @@ describe('GET /api/categories', () => {
   it('should return a sorted list of all category names', () => {
     const categories = Object.keys(CATEGORY_MAP).sort();
 
-    expect(categories).toContain('Shopping');
-    expect(categories).toContain('Food & Dining');
-    expect(categories).toContain('Transport');
+    expect(categories).toContain('Clothing');
+    expect(categories).toContain('Dining out');
+    expect(categories).toContain('Transportation');
     expect(Array.isArray(categories)).toBe(true);
   });
 
-  it('should return categories in alphabetical order', () => {
-    const categories = Object.keys(CATEGORY_MAP).sort();
-
-    for (let i = 0; i < categories.length - 1; i++) {
-      expect(categories[i].localeCompare(categories[i + 1])).toBeLessThanOrEqual(0);
-    }
+  it('should return non-empty category list', () => {
+    const categories = Object.keys(CATEGORY_MAP);
+    expect(categories.length).toBeGreaterThan(0);
   });
 
   it('should include all expected categories from CATEGORY_MAP', () => {
     const expectedCategories = [
       'Entertainment',
-      'Food & Dining',
-      'Food & Groceries',
-      'Dining Out',
-      'Transport',
-      'Travel',
-      'Subscriptions',
-      'Healthcare',
-      'Fitness',
-      'Hobbies',
-      'Utilities',
+      'Dining out',
+      'Groceries',
+      'Transportation',
+      'Plane',
       'Home',
+      'Utilities',
       'Rent',
-      'Shopping',
-      'Personal Care',
+      'Mortgage',
+      'Insurance',
+      'General',
     ];
 
     const categories = Object.keys(CATEGORY_MAP);

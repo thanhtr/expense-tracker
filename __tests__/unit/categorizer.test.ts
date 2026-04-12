@@ -1,50 +1,146 @@
-import { describe, it, expect } from 'vitest';
-import { categorize } from '../../lib/categorizer';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { categorizeWithLearning } from '../../lib/categorizer';
+import * as learnedRulesService from '@/lib/services/learned-rules-service';
 
-describe('categorize', () => {
-  const keywords: Array<[string, string]> = [
-    ['amazon', 'Shopping'],
-    ['starbucks', 'Food & Dining'],
-    ['whole foods', 'Food & Groceries'],
-    ['uber', 'Transport'],
-    ['spotify', 'Subscriptions'],
-  ];
+vi.mock('@/lib/services/learned-rules-service');
 
-  it('should match exact keyword (case-insensitive)', () => {
-    expect(categorize('Amazon Order', keywords)).toBe('Shopping');
-    expect(categorize('AMAZON order', keywords)).toBe('Shopping');
-    expect(categorize('amazon', keywords)).toBe('Shopping');
+describe('categorizeWithLearning', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('should match partial merchant name containing keyword', () => {
-    expect(categorize('Starbucks Coffee #123', keywords)).toBe('Food & Dining');
-    expect(categorize('Order from Whole Foods Market', keywords)).toBe('Food & Groceries');
-  });
+  it('should apply learned rules before CSV keywords', async () => {
+    vi.mocked(learnedRulesService.getLearnedRulesStore).mockResolvedValue({
+      rules: {
+        amazon: {
+          category: 'Electronics',
+          learnedFrom: 'AMAZON',
+          learnedAt: '2026-04-01T00:00:00Z',
+          count: 2,
+        },
+      },
+      version: 1,
+      updatedAt: '2026-04-01T00:00:00Z',
+    });
 
-  it('should return empty string when no keyword matches', () => {
-    expect(categorize('Random Store ABC', keywords)).toBe('');
-    expect(categorize('Unknown Merchant', keywords)).toBe('');
-  });
-
-  it('should return first matching category when multiple keywords could match', () => {
-    const multiKeywords: Array<[string, string]> = [
-      ['store', 'General'],
-      ['market', 'Food & Groceries'],
+    const rows = [
+      {
+        date: new Date('2026-04-01'),
+        merchant: 'AMAZON',
+        amount: 100,
+        type: 'Expense' as const,
+        category: '',
+        account: 'OP',
+        note: '',
+      },
     ];
-    // 'Whole Foods Market' - 'store' doesn't match, 'market' matches
-    expect(categorize('Whole Foods Market', multiKeywords)).toBe('Food & Groceries');
+
+    const result = await categorizeWithLearning(rows);
+
+    expect(result[0].category).toBe('Electronics');
   });
 
-  it('should be case-insensitive for merchant name', () => {
-    expect(categorize('SPOTIFY MONTHLY', keywords)).toBe('Subscriptions');
-    expect(categorize('sPOTIFY monthly', keywords)).toBe('Subscriptions');
+  it('should leave uncategorized when no learned rule exists', async () => {
+    vi.mocked(learnedRulesService.getLearnedRulesStore).mockResolvedValue({
+      rules: {},
+      version: 1,
+      updatedAt: '2026-04-01T00:00:00Z',
+    });
+
+    const rows = [
+      {
+        date: new Date('2026-04-01'),
+        merchant: 'Unknown Store',
+        amount: 100,
+        type: 'Expense' as const,
+        category: '',
+        account: 'OP',
+        note: '',
+      },
+    ];
+
+    const result = await categorizeWithLearning(rows);
+
+    // Should leave uncategorized since no learned rule matches
+    expect(result[0].category).toBe('');
+    expect(result[0].type).toBe('Expense');
   });
 
-  it('should handle empty merchant string', () => {
-    expect(categorize('', keywords)).toBe('');
+  it('should not modify other transaction fields', async () => {
+    vi.mocked(learnedRulesService.getLearnedRulesStore).mockResolvedValue({
+      rules: {
+        spotify: {
+          category: 'Subscriptions',
+          learnedFrom: 'SPOTIFY',
+          learnedAt: '2026-04-01T00:00:00Z',
+          count: 1,
+        },
+      },
+      version: 1,
+      updatedAt: '2026-04-01T00:00:00Z',
+    });
+
+    const date = new Date('2026-04-01');
+    const rows = [
+      {
+        date,
+        merchant: 'SPOTIFY',
+        amount: 12.99,
+        type: 'Expense' as const,
+        category: '',
+        account: 'Amex',
+        note: '',
+      },
+    ];
+
+    const result = await categorizeWithLearning(rows);
+
+    expect(result[0].date).toEqual(date);
+    expect(result[0].merchant).toBe('SPOTIFY');
+    expect(result[0].amount).toBe(12.99);
+    expect(result[0].type).toBe('Expense');
+    expect(result[0].account).toBe('Amex');
+    expect(result[0].category).toBe('Subscriptions');
   });
 
-  it('should handle empty keywords array', () => {
-    expect(categorize('Amazon Order', [])).toBe('');
+  it('should handle multiple transactions with learned rules and leave others uncategorized', async () => {
+    vi.mocked(learnedRulesService.getLearnedRulesStore).mockResolvedValue({
+      rules: {
+        amazon: {
+          category: 'Shopping',
+          learnedFrom: 'AMAZON',
+          learnedAt: '2026-04-01T00:00:00Z',
+          count: 2,
+        },
+      },
+      version: 1,
+      updatedAt: '2026-04-01T00:00:00Z',
+    });
+
+    const rows = [
+      {
+        date: new Date('2026-04-01'),
+        merchant: 'AMAZON',
+        amount: 50,
+        type: 'Expense' as const,
+        category: '',
+        account: 'OP',
+        note: '',
+      },
+      {
+        date: new Date('2026-04-02'),
+        merchant: 'Unknown Store',
+        amount: 25,
+        type: 'Expense' as const,
+        category: '',
+        account: 'OP',
+        note: '',
+      },
+    ];
+
+    const result = await categorizeWithLearning(rows);
+
+    expect(result[0].category).toBe('Shopping'); // From learned rule
+    expect(result[1].category).toBe(''); // Uncategorized - no learned rule
   });
 });

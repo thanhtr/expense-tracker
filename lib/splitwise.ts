@@ -54,9 +54,41 @@ async function swFetch<T>(
   const data = await response.json() as Record<string, unknown>;
 
   // Splitwise quirk: HTTP 200 but still has errors
-  // Check for actual error messages, not empty arrays
-  if (!response.ok || (Array.isArray(data.errors) && data.errors.length > 0)) {
-    const errorMsg = (Array.isArray(data.errors) ? data.errors[0] : data.error) || response.statusText;
+  // Errors can be array, object with error arrays, or string field
+  let hasErrors = false;
+  let errorMsg = '';
+
+  if (!response.ok) {
+    hasErrors = true;
+    errorMsg = response.statusText;
+  } else if (data.errors) {
+    // Handle array of errors: [{ base: ["message"] }, ...]
+    if (Array.isArray(data.errors) && data.errors.length > 0) {
+      hasErrors = true;
+      errorMsg = String(data.errors[0]);
+    }
+    // Handle object with error arrays: { base: ["message"], field: ["error"] }
+    else if (typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+      const errorObj = data.errors as Record<string, unknown>;
+      const errorKeys = Object.keys(errorObj);
+      // Only treat as error if there are actual error entries with non-empty arrays
+      if (errorKeys.length > 0) {
+        for (const key of errorKeys) {
+          const messages = errorObj[key];
+          if (Array.isArray(messages) && messages.length > 0) {
+            hasErrors = true;
+            errorMsg = `${key}: ${String(messages[0])}`;
+            break;
+          }
+        }
+      }
+    }
+  } else if (data.error) {
+    hasErrors = true;
+    errorMsg = String(data.error);
+  }
+
+  if (hasErrors) {
     throw new Error(`Splitwise API error: ${errorMsg}`);
   }
 
@@ -115,6 +147,18 @@ export async function createExpense(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/**
+ * Get a single expense by ID
+ */
+export async function getExpenseById(id: number): Promise<SplitwiseExpense> {
+  const expenses = await getAllExpenses({});
+  const expense = expenses.find(e => e.id === id);
+  if (!expense) {
+    throw new Error(`Expense with ID ${id} not found`);
+  }
+  return expense;
 }
 
 /**
