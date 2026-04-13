@@ -15,6 +15,8 @@ export function KeywordManager() {
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bootstrapping, setBootstrapping] = useState(false);
+  const [bootstrapMessage, setBootstrapMessage] = useState('');
 
   const fetchKeywords = async () => {
     try {
@@ -129,12 +131,58 @@ export function KeywordManager() {
     }
   };
 
+  const handleBootstrap = async () => {
+    setBootstrapping(true);
+    setBootstrapMessage('');
+    try {
+      const res = await fetch('/api/keywords/bootstrap', {
+        method: 'POST'
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setBootstrapMessage(`✓ Bootstrapped ${data.learned} rules from history (${data.skipped} skipped)`);
+        // Refresh keywords after bootstrap
+        await fetchKeywords();
+      } else {
+        const data = await res.json();
+        setBootstrapMessage(`✗ Bootstrap failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Bootstrap failed:', error);
+      setBootstrapMessage('✗ Bootstrap failed');
+    } finally {
+      setBootstrapping(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
   }
 
   return (
     <div className="space-y-6">
+      {/* Bootstrap Section */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Seed Rules from History</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Analyze all categorized transactions in Splitwise and learn rules automatically.
+          This will merge new rules with existing keywords (existing rules take precedence).
+        </p>
+        <button
+          onClick={handleBootstrap}
+          disabled={bootstrapping}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {bootstrapping ? 'Bootstrapping...' : 'Bootstrap from History'}
+        </button>
+        {bootstrapMessage && (
+          <div className={`mt-3 p-3 rounded text-sm ${bootstrapMessage.startsWith('✓') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            {bootstrapMessage}
+          </div>
+        )}
+      </div>
+
       {/* Add New Keyword */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Add New Keyword</h2>

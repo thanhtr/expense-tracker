@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpense } from '@/lib/splitwise';
+import { deleteExpense, getExpenseById } from '@/lib/splitwise';
 import { invalidateCache } from '@/lib/cache';
+import { recordCorrection } from '@/lib/services/learned-rules-service';
 
 export async function PATCH(
   request: NextRequest,
@@ -11,14 +12,27 @@ export async function PATCH(
     const resolvedParams = await params;
     const id = parseInt(resolvedParams.id);
 
-    // Note: Splitwise API doesn't support direct category updates.
-    // In a full implementation, this would require deleting and recreating the expense.
-    // For now, we'll return a success response but the category update happens client-side only.
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Category is required' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch the expense to get merchant name
+    const expense = await getExpenseById(id);
+    const merchant = expense.description;
+
+    // Record the correction in learned rules
+    await recordCorrection(merchant, category);
+
+    // Invalidate cache so next fetch gets fresh data
+    invalidateCache('expenses:');
 
     return NextResponse.json({
       id,
       category,
-      note: 'Category updated locally only (Splitwise sync not implemented)'
+      success: true,
     });
   } catch (error) {
     console.error('Update error:', error);

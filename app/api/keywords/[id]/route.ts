@@ -1,41 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  getLearnedRulesStore,
+  saveLearnedRules,
+} from '@/lib/services/learned-rules-service';
 
-// Reference to the keywords array (would come from persistent storage)
-// For now, this is a stub - actual implementation would use database
-interface Keyword {
-  id: string;
-  merchant: string;
-  category: string;
-  priority: number;
-}
-
-const keywordsMap = new Map<string, Keyword>();
-
-export async function PATCH(
+export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const body = await request.json();
+    const resolvedParams = await params;
+    const id = parseInt(resolvedParams.id);
+    const { keyword, category } = await request.json();
 
-    // Stub implementation - in production this would update the database
-    const keyword = keywordsMap.get(id);
-    if (!keyword) {
+    if (keyword === undefined || category === undefined) {
       return NextResponse.json(
-        { error: 'Keyword not found' },
+        { error: 'Keyword and category are required' },
+        { status: 400 }
+      );
+    }
+
+    const store = await getLearnedRulesStore();
+
+    // Get all rules as array
+    const rulesArray = Object.entries(store.rules).map(([key, rule]) => ({
+      key,
+      rule,
+    }));
+
+    // Find rule at index
+    if (id < 0 || id >= rulesArray.length) {
+      return NextResponse.json(
+        { error: 'Rule not found' },
         { status: 404 }
       );
     }
 
-    const updated = { ...keyword, ...body };
-    keywordsMap.set(id, updated);
+    const oldKey = rulesArray[id].key;
+    const normalizedKeyword = keyword.toLowerCase().trim();
 
-    return NextResponse.json(updated);
+    // Delete old rule
+    delete store.rules[oldKey];
+
+    // Add updated rule with new keyword
+    store.rules[normalizedKeyword] = {
+      category,
+      learnedFrom: keyword,
+      learnedAt: new Date().toISOString(),
+      count: store.rules[normalizedKeyword]?.count || 1,
+    };
+
+    await saveLearnedRules(store);
+
+    return NextResponse.json({
+      id,
+      keyword: normalizedKeyword,
+      category,
+      priority: id,
+    });
   } catch (error) {
-    console.error('Keyword update error:', error);
+    console.error('Failed to update rule:', error);
     return NextResponse.json(
-      { error: 'Failed to update keyword' },
+      { error: 'Failed to update rule' },
       { status: 500 }
     );
   }
@@ -46,22 +72,37 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
+    const resolvedParams = await params;
+    const id = parseInt(resolvedParams.id);
 
-    // Stub implementation - in production this would delete from database
-    if (!keywordsMap.has(id)) {
+    const store = await getLearnedRulesStore();
+
+    // Get all rules as array
+    const rulesArray = Object.entries(store.rules).map(([key, rule]) => ({
+      key,
+      rule,
+    }));
+
+    // Find rule at index
+    if (id < 0 || id >= rulesArray.length) {
       return NextResponse.json(
-        { error: 'Keyword not found' },
+        { error: 'Rule not found' },
         { status: 404 }
       );
     }
 
-    keywordsMap.delete(id);
+    const keyToDelete = rulesArray[id].key;
+
+    // Delete the rule
+    delete store.rules[keyToDelete];
+
+    await saveLearnedRules(store);
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Keyword deletion error:', error);
+    console.error('Failed to delete rule:', error);
     return NextResponse.json(
-      { error: 'Failed to delete keyword' },
+      { error: 'Failed to delete rule' },
       { status: 500 }
     );
   }

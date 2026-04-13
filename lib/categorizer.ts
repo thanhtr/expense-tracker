@@ -1,54 +1,28 @@
-import { promises as fs } from 'fs';
-import { join } from 'path';
 import { ParsedTransaction } from '@/lib/types';
+import { getLearnedRulesStore } from '@/lib/services/learned-rules-service';
+import { normalizeMerchant } from '@/lib/merchant-normalizer';
 
-let _merchantMapCache: Array<[string, string]> | null = null;
+/**
+ * Categorize transactions using learned rules from Splitwise sentinel
+ * Learned rules are the only source for categorization
+ */
+export async function categorizeWithLearning(rows: ParsedTransaction[]): Promise<ParsedTransaction[]> {
+  const store = await getLearnedRulesStore();
 
-async function loadMerchantMap(): Promise<Array<[string, string]>> {
-  if (_merchantMapCache !== null) {
-    return _merchantMapCache;
-  }
-
-  try {
-    const filePath = join(process.cwd(), 'merchant_map.csv');
-    const content = await fs.readFile(filePath, 'utf-8');
-    const lines = content.split('\n');
-
-    _merchantMapCache = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#') || trimmed === 'Keyword,Category') {
-        continue;
-      }
-
-      const [keyword, category] = trimmed.split(',').map(s => s.trim());
-      if (keyword && category) {
-        _merchantMapCache.push([keyword.toLowerCase(), category]);
-      }
+  return rows.map(row => {
+    // Check learned rules (exact normalized merchant match)
+    const normalized = normalizeMerchant(row.merchant);
+    if (normalized && store.rules[normalized]) {
+      return {
+        ...row,
+        category: store.rules[normalized].category
+      };
     }
 
-    return _merchantMapCache;
-  } catch (error) {
-    console.error('Error loading merchant_map.csv:', error);
-    return [];
-  }
-}
-
-export function categorize(merchant: string, keywords: Array<[string, string]>): string {
-  const m = merchant.toLowerCase();
-  for (const [keyword, category] of keywords) {
-    if (m.includes(keyword)) {
-      return category;
-    }
-  }
-  return '';
-}
-
-export async function categorizeTransactions(rows: ParsedTransaction[]): Promise<ParsedTransaction[]> {
-  const keywords = await loadMerchantMap();
-
-  return rows.map(row => ({
-    ...row,
-    category: categorize(row.merchant, keywords)
-  }));
+    // No match: leave uncategorized (user will categorize manually)
+    return {
+      ...row,
+      category: ''
+    };
+  });
 }
