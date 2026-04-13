@@ -6,7 +6,7 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
   const datedAfter = dateFrom ? dateFrom.toISOString().split('T')[0] : undefined;
   const datedBefore = dateTo ? dateTo.toISOString().split('T')[0] : undefined;
 
-  const cacheKey = `expenses:${datedAfter ?? 'all'}:${datedBefore ?? 'all'}:${category ?? 'all'}`;
+  const cacheKey = `expenses:${datedAfter ?? 'all'}:${datedBefore ?? 'all'}`;
   const expenses = await withCache(cacheKey, 300, () =>
     getAllExpenses({ datedAfter, datedBefore })
   );
