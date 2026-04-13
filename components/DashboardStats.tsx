@@ -32,18 +32,26 @@ export function DashboardStats() {
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch unfiltered dashboard data to get categories for the selected date range
+  // Fetch unfiltered data when date range changes. Resets category to keep
+  // the dropdown and charts consistent with the new range.
   useEffect(() => {
+    setSelectedCategory('');
+    setData(null);
+    setUnfiltered(null);
+    setLoading(true);
+
     const fetchUnfiltered = async () => {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         const res = await fetch(`/api/dashboard?${params}`);
         if (res.ok) {
-          setUnfiltered(await res.json());
-          setLoading(false);
+          const result = await res.json();
+          setUnfiltered(result);
+          setData(result); // reuse for the "all categories" view — no second fetch needed
         }
       } catch (error) {
         console.error('Failed to fetch unfiltered dashboard stats:', error);
+      } finally {
         setLoading(false);
       }
     };
@@ -51,31 +59,33 @@ export function DashboardStats() {
     fetchUnfiltered();
   }, [dateFrom, dateTo]);
 
-  // Fetch filtered dashboard stats when category changes
+  // Fetch filtered data only when a specific category is selected.
+  // When category is cleared, reuse the already-fetched unfiltered result.
   useEffect(() => {
-    const fetchStats = async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-        if (selectedCategory) {
-          params.set('category', selectedCategory);
-        }
+    if (!selectedCategory) {
+      if (unfiltered) setData(unfiltered); // instant, no network call
+      return;
+    }
 
+    setLoading(true);
+    const fetchFiltered = async () => {
+      try {
+        const params = new URLSearchParams({
+          date_from: dateFrom,
+          date_to: dateTo,
+          category: selectedCategory,
+        });
         const res = await fetch(`/api/dashboard?${params}`);
-        if (res.ok) {
-          setData(await res.json());
-        }
+        if (res.ok) setData(await res.json());
       } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
+        console.error('Failed to fetch filtered dashboard stats:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    if (unfiltered) {
-      fetchStats();
-    }
-  }, [selectedCategory, unfiltered, dateFrom, dateTo]);
+    fetchFiltered();
+  }, [selectedCategory, dateFrom, dateTo]);
 
   if (loading || !unfiltered) {
     return <div className="text-center py-8">Loading...</div>;
