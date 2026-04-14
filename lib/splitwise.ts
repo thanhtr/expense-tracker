@@ -151,12 +151,18 @@ export async function createExpense(
 
 /**
  * Get a single expense by ID
+ * Searches within a 90-day rolling window to avoid fetching all expenses.
+ * Throws if the expense is not found in that window (sentinel/very old expenses
+ * are not expected to be looked up by this path).
  */
 export async function getExpenseById(id: number): Promise<SplitwiseExpense> {
-  const expenses = await getAllExpenses({});
+  const datedAfter = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
+  const expenses = await getAllExpenses({ datedAfter });
   const expense = expenses.find(e => e.id === id);
   if (!expense) {
-    throw new Error(`Expense with ID ${id} not found`);
+    throw new Error(`Expense with ID ${id} not found in the last 90 days`);
   }
   return expense;
 }
