@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardAggregation } from '@/lib/types';
+import { ForecastResult } from '@/lib/services/forecast-service';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, PieChart, Pie } from 'recharts';
 
 const COLORS = ['#1D9E75', '#378ADD', '#D85A30', '#7F77DD', '#D4537E', '#639922', '#BA7517', '#E24B4A'];
@@ -63,6 +64,7 @@ export function DashboardStats() {
   const [loading, setLoading] = useState(true);
   // Categories toggled OFF in the bar chart (independent of the global category filter)
   const [hiddenBarCategories, setHiddenBarCategories] = useState<Set<string>>(new Set());
+  const [forecast, setForecast] = useState<ForecastResult | null>(null);
 
   const applyQuickFilter = (id: QuickFilter) => {
     const { from, to } = getQuickFilterRange(id);
@@ -114,6 +116,19 @@ export function DashboardStats() {
 
     fetchUnfiltered();
   }, [dateFrom, dateTo]);
+
+  // Fetch forecast once on mount — it's date-range independent (always uses last 6 months)
+  useEffect(() => {
+    const fetchForecast = async () => {
+      try {
+        const res = await fetch('/api/forecast');
+        if (res.ok) setForecast(await res.json());
+      } catch (error) {
+        console.error('Failed to fetch forecast:', error);
+      }
+    };
+    fetchForecast();
+  }, []);
 
   // Fetch filtered data only when a specific category is selected.
   // When category is cleared, reuse the already-fetched unfiltered result.
@@ -320,6 +335,73 @@ export function DashboardStats() {
     );
   };
 
+  const renderForecast = () => {
+    if (!forecast) return null;
+
+    const trendIcon = (trend: 'up' | 'down' | 'stable') => {
+      if (trend === 'up') return <span className="text-red-500">↑</span>;
+      if (trend === 'down') return <span className="text-green-500">↓</span>;
+      return <span className="text-gray-400">→</span>;
+    };
+
+    const monthLabel = (() => {
+      const [year, month] = forecast.forecastMonth.split('-');
+      return new Date(parseInt(year), parseInt(month) - 1, 1)
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    })();
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Forecast: {monthLabel}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              EMA prediction based on {forecast.basedOnMonths} month{forecast.basedOnMonths !== 1 ? 's' : ''} of history
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-500 font-medium">Estimated Total</div>
+            <div className="text-2xl font-semibold text-gray-900">{formatCurrency(forecast.nextMonthTotal)}</div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-2 text-xs font-medium text-gray-500">Category</th>
+                <th className="text-right py-2 text-xs font-medium text-gray-500">Last Month</th>
+                <th className="text-right py-2 text-xs font-medium text-gray-500">Forecast</th>
+                <th className="text-right py-2 text-xs font-medium text-gray-500">Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {forecast.byCategory.slice(0, 8).map((row) => (
+                <tr key={row.category} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-2 text-gray-700">{row.category}</td>
+                  <td className="py-2 text-right text-gray-500">
+                    {row.lastMonthActual > 0 ? formatCurrency(row.lastMonthActual) : '—'}
+                  </td>
+                  <td className="py-2 text-right font-medium text-gray-900">
+                    {formatCurrency(row.forecast)}
+                  </td>
+                  <td className="py-2 text-right">{trendIcon(row.trend)}</td>
+                </tr>
+              ))}
+              {forecast.byCategory.length > 8 && (
+                <tr>
+                  <td colSpan={4} className="py-2 text-xs text-gray-400 text-center">
+                    +{forecast.byCategory.length - 8} more categories
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       {/* Filter Bar */}
@@ -429,6 +511,9 @@ export function DashboardStats() {
         {renderPieChart()}
         {renderDailyChart()}
       </div>
+
+      {/* Forecast */}
+      {renderForecast()}
     </div>
   );
 }
