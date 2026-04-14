@@ -7,30 +7,86 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
 const COLORS = ['#1D9E75', '#378ADD', '#D85A30', '#7F77DD', '#D4537E', '#639922', '#BA7517', '#E24B4A'];
 
 /**
- * Get date range for a month (monthsAgo: 0 = this month, 1 = last month, etc.)
+ * Get date range for a calendar month (monthsAgo: 0 = this month, 1 = last month, etc.)
  */
 function getMonthRange(monthsAgo: number): { from: string; to: string; label: string } {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() - monthsAgo;
-  const d = new Date(year, month, 1);
+  const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
 
   const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   const to = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+  const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return { from, to, label };
+}
 
-  return { from, to, label: monthName };
+type QuickFilter = 'this-month' | 'last-month' | 'last-3m' | 'this-year' | 'custom';
+
+const QUICK_FILTERS: { id: QuickFilter; label: string }[] = [
+  { id: 'this-month', label: 'This Month' },
+  { id: 'last-month', label: 'Last Month' },
+  { id: 'last-3m', label: 'Last 3 Months' },
+  { id: 'this-year', label: 'This Year' },
+];
+
+function getQuickFilterRange(id: QuickFilter): { from: string; to: string } {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  switch (id) {
+    case 'this-month':
+      return { from: getMonthRange(0).from, to: getMonthRange(0).to };
+    case 'last-month':
+      return { from: getMonthRange(1).from, to: getMonthRange(1).to };
+    case 'last-3m': {
+      const from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      return {
+        from: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`,
+        to: today,
+      };
+    }
+    case 'this-year':
+      return { from: `${now.getFullYear()}-01-01`, to: today };
+    default:
+      return { from: getMonthRange(0).from, to: getMonthRange(0).to };
+  }
 }
 
 export function DashboardStats() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [dateFrom, setDateFrom] = useState(getMonthRange(0).from);
   const [dateTo, setDateTo] = useState(getMonthRange(0).to);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilter>('this-month');
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
+  // Categories toggled OFF in the bar chart (independent of the global category filter)
+  const [hiddenBarCategories, setHiddenBarCategories] = useState<Set<string>>(new Set());
+
+  const applyQuickFilter = (id: QuickFilter) => {
+    const { from, to } = getQuickFilterRange(id);
+    setActiveQuickFilter(id);
+    setDateFrom(from);
+    setDateTo(to);
+    setSelectedCategory('');
+    setHiddenBarCategories(new Set());
+  };
+
+  const handleDateChange = (field: 'from' | 'to', value: string) => {
+    if (field === 'from') setDateFrom(value);
+    else setDateTo(value);
+    setActiveQuickFilter('custom');
+  };
+
+  const toggleBarCategory = (category: string) => {
+    setHiddenBarCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  };
 
   // Fetch unfiltered data when date range changes. Resets category to keep
   // the dropdown and charts consistent with the new range.
@@ -138,7 +194,7 @@ export function DashboardStats() {
                 <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} /> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+            <Tooltip formatter={(value: unknown) => formatCurrency((value as number) ?? 0)} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -155,9 +211,52 @@ export function DashboardStats() {
       );
     }
 
+    // Categories present in this period (from filtered data)
+    const allCategories = data.byCategory.map(c => c.category);
+    const visibleCategories = allCategories.filter(c => !hiddenBarCategories.has(c));
+
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Spending by Category</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">Daily Spending by Category</h2>
+          {hiddenBarCategories.size > 0 && (
+            <button
+              onClick={() => setHiddenBarCategories(new Set())}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              Show all
+            </button>
+          )}
+        </div>
+
+        {/* Category toggles for the bar chart */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {allCategories.map((cat, i) => {
+            const isVisible = !hiddenBarCategories.has(cat);
+            return (
+              <button
+                key={cat}
+                onClick={() => toggleBarCategory(cat)}
+                title={isVisible ? `Hide ${cat}` : `Show ${cat}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-opacity ${
+                  isVisible ? 'opacity-100' : 'opacity-40'
+                }`}
+                style={{
+                  borderColor: COLORS[i % COLORS.length],
+                  color: isVisible ? COLORS[i % COLORS.length] : '#6b7280',
+                  backgroundColor: isVisible ? `${COLORS[i % COLORS.length]}18` : 'transparent',
+                }}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                />
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+
         <ResponsiveContainer width="100%" height={Math.max(300, data.byDay.length * 20)}>
           <BarChart data={data.byDay} margin={{ left: 60, right: 20, top: 5, bottom: 35 }}>
             <XAxis
@@ -172,14 +271,14 @@ export function DashboardStats() {
               }}
             />
             <YAxis tickFormatter={(v) => `€${v.toFixed(0)}`} width={60} />
-            <Tooltip formatter={(value: any) => formatCurrency(value ?? 0)} /> {/* eslint-disable-line @typescript-eslint/no-explicit-any */}
+            <Tooltip formatter={(value: unknown) => formatCurrency((value as number) ?? 0)} />
             <Legend />
-            {data.byCategory.map((item, i) => (
+            {visibleCategories.map((cat) => (
               <Bar
-                key={item.category}
-                dataKey={item.category}
+                key={cat}
+                dataKey={cat}
                 stackId="a"
-                fill={COLORS[i % COLORS.length]}
+                fill={COLORS[allCategories.indexOf(cat) % COLORS.length]}
                 radius={[4, 4, 0, 0]}
               />
             ))}
@@ -224,7 +323,30 @@ export function DashboardStats() {
   return (
     <div className="space-y-8">
       {/* Filter Bar */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
+        {/* Quick filter buttons */}
+        <div className="flex flex-wrap gap-2">
+          {QUICK_FILTERS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => applyQuickFilter(id)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                activeQuickFilter === id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {activeQuickFilter === 'custom' && (
+            <span className="px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 text-white">
+              Custom
+            </span>
+          )}
+        </div>
+
+        {/* Manual date + category row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
@@ -245,7 +367,7 @@ export function DashboardStats() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => handleDateChange('from', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -255,7 +377,7 @@ export function DashboardStats() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => handleDateChange('to', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
