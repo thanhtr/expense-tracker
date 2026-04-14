@@ -58,7 +58,18 @@ async function loadLearnedRules(): Promise<LearnedRulesStore> {
     (e) => e.description === SENTINEL_DESCRIPTION && !e.deleted_at
   );
 
-  const sentinel = sentinels[0]; // Use first if multiple exist
+  if (sentinels.length > 1) {
+    console.warn(
+      `[LearnedRules] ${sentinels.length} sentinel expenses found — expected 1. ` +
+      `A previous save may have crashed mid-flight. Using the most recently created one. ` +
+      `Run POST /api/keywords/clear then re-bootstrap to clean up.`
+    );
+    // Sort descending by creation date so sentinels[0] is the freshest
+    sentinels.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }
+  const sentinel = sentinels[0];
 
   let store: LearnedRulesStore;
 
