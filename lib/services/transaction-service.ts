@@ -186,23 +186,34 @@ export async function getTransactions(filters: {
     transactions = transactions.filter(t => t.paidBy === filters.paidBy);
   }
 
-  // Sort
-  const sortBy: keyof TransactionWithId = (filters.sortBy as keyof TransactionWithId) || 'date';
-  const order = filters.order || 'desc';
+  // Sort — only allow known, safe fields to prevent runtime errors on arbitrary input
+  const ALLOWED_SORT_FIELDS = ['date', 'amount', 'merchant', 'category'] as const;
+  type AllowedSortField = typeof ALLOWED_SORT_FIELDS[number];
+  const sortBy: AllowedSortField =
+    ALLOWED_SORT_FIELDS.includes(filters.sortBy as AllowedSortField)
+      ? (filters.sortBy as AllowedSortField)
+      : 'date';
+  const order = filters.order === 'asc' ? 'asc' : 'desc';
   transactions.sort((a, b) => {
     const aVal = a[sortBy];
     const bVal = b[sortBy];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((aVal as any) < (bVal as any)) return order === 'asc' ? -1 : 1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((aVal as any) > (bVal as any)) return order === 'asc' ? 1 : -1;
-    return 0;
+    // Type-aware comparison: Dates, numbers, and strings each need their own path
+    if (aVal instanceof Date && bVal instanceof Date) {
+      return order === 'asc' ? aVal.getTime() - bVal.getTime() : bVal.getTime() - aVal.getTime();
+    }
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return order === 'asc' ? aVal - bVal : bVal - aVal;
+    }
+    const aStr = String(aVal ?? '');
+    const bStr = String(bVal ?? '');
+    const cmp = aStr.localeCompare(bStr);
+    return order === 'asc' ? cmp : -cmp;
   });
 
-  // Paginate
-  const limit = filters.limit || 100;
-  const offset = filters.offset || 0;
+  // Paginate — clamp to safe bounds to prevent negative slices or huge result sets
+  const limit = Math.max(1, Math.min(filters.limit || 50, 10_000));
+  const offset = Math.max(0, filters.offset || 0);
   const total = transactions.length;
   const paginated = transactions.slice(offset, offset + limit);
 
