@@ -248,21 +248,21 @@ export async function getLearnedRulesStore(): Promise<LearnedRulesStore> {
   return loadLearnedRules();
 }
 
+// History tracking starts from this date (first month of recorded Splitwise data)
+const HISTORY_START_DATE = '2026-03-01';
+
 /**
  * Bootstrap learned rules from historical Splitwise expenses.
- * Scans the most recent `monthsBack` calendar months (default: 2),
+ * Scans from HISTORY_START_DATE (2026-03-01) up to today,
  * groups by normalized merchant, and uses majority-vote category.
  * Merges with existing rules (existing corrections with count > 1 take precedence).
  */
-export async function bootstrapRulesFromHistory(monthsBack = 2): Promise<{
+export async function bootstrapRulesFromHistory(): Promise<{
   learned: number;
   skipped: number;
 }> {
-  const now = new Date();
-  const datedBefore = now.toISOString().split('T')[0];
-  const from = new Date(now);
-  from.setMonth(from.getMonth() - monthsBack);
-  const datedAfter = from.toISOString().split('T')[0];
+  const datedAfter = HISTORY_START_DATE;
+  const datedBefore = new Date().toISOString().split('T')[0];
 
   const allExpenses = await getAllExpenses({ datedAfter, datedBefore });
   const store = await loadLearnedRules();
