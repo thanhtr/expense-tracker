@@ -249,21 +249,22 @@ export async function getLearnedRulesStore(): Promise<LearnedRulesStore> {
 }
 
 /**
- * Bootstrap learned rules from historical Splitwise expenses
- * Uses only March 2026 transactions to get accurate, curated categories
- * Scans expenses with categories, groups by normalized merchant
- * Uses majority vote when merchant has multiple categories
- * Merges with existing rules (existing corrections with count > 1 take precedence)
+ * Bootstrap learned rules from historical Splitwise expenses.
+ * Scans the most recent `monthsBack` calendar months (default: 2),
+ * groups by normalized merchant, and uses majority-vote category.
+ * Merges with existing rules (existing corrections with count > 1 take precedence).
  */
-export async function bootstrapRulesFromHistory(): Promise<{
+export async function bootstrapRulesFromHistory(monthsBack = 2): Promise<{
   learned: number;
   skipped: number;
 }> {
-  // Use February + March 2026 transactions for more accurate learning
-  const allExpenses = await getAllExpenses({
-    datedAfter: '2026-02-01',
-    datedBefore: '2026-03-31',
-  });
+  const now = new Date();
+  const datedBefore = now.toISOString().split('T')[0];
+  const from = new Date(now);
+  from.setMonth(from.getMonth() - monthsBack);
+  const datedAfter = from.toISOString().split('T')[0];
+
+  const allExpenses = await getAllExpenses({ datedAfter, datedBefore });
   const store = await loadLearnedRules();
 
   // Group expenses by normalized merchant

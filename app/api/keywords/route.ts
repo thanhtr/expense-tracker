@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getLearnedRulesStore,
-  invalidateRulesCache,
 } from '@/lib/services/learned-rules-service';
 
 interface Keyword {
@@ -39,8 +38,6 @@ async function readKeywords(): Promise<Keyword[]> {
 
 export async function GET() {
   try {
-    // Always invalidate cache to get fresh rules
-    invalidateRulesCache();
     const keywords = await readKeywords();
     return NextResponse.json(keywords);
   } catch (error) {
