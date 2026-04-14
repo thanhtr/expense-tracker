@@ -16,16 +16,31 @@ interface Transaction {
 
 interface TransactionRowProps {
   transaction: Transaction;
+  categories: string[];
   onUpdate: (id: number, category: string) => void;
   onDelete: (id: number) => void;
 }
 
-export function TransactionRow({ transaction, onUpdate, onDelete }: TransactionRowProps) {
+export function TransactionRow({ transaction, categories, onUpdate, onDelete }: TransactionRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [category, setCategory] = useState(transaction.category);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
-    await onUpdate(transaction.id, category);
+    setSaving(true);
+    try {
+      await onUpdate(transaction.id, category);
+      setSaved(true);
+      setIsEditing(false);
+      setTimeout(() => setSaved(false), 1500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setCategory(transaction.category);
     setIsEditing(false);
   };
 
@@ -63,19 +78,27 @@ export function TransactionRow({ transaction, onUpdate, onDelete }: TransactionR
       </td>
       <td className="px-4 py-3 text-sm">
         {isEditing ? (
-          <input
-            type="text"
+          <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             autoFocus
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-          />
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white"
+          >
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        ) : saved ? (
+          <span className="inline-block bg-green-100 text-green-700 px-2 py-1 rounded text-sm font-medium">
+            {category} ✓
+          </span>
         ) : (
           <span
             onClick={() => setIsEditing(true)}
+            title={category ? `Click to edit: ${category}` : 'Click to set category'}
             className="inline-block cursor-pointer bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-sm"
           >
-            {category || '⚠'}
+            {category || <span className="text-amber-600" title="No category assigned">⚠ Uncategorized</span>}
           </span>
         )}
       </td>
@@ -84,19 +107,24 @@ export function TransactionRow({ transaction, onUpdate, onDelete }: TransactionR
           : transaction.paidBy === 'thuy' ? 'Thuy'
           : '—'}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-500">{transaction.note?.substring(0, 30)}</td>
+      <td className="px-4 py-3 text-sm text-gray-500" title={transaction.note || undefined}>
+        {transaction.note?.substring(0, 30)}
+        {transaction.note?.length > 30 ? '…' : ''}
+      </td>
       <td className="px-4 py-3 text-sm">
         {isEditing ? (
           <div className="flex gap-1">
             <button
               onClick={handleSave}
-              className="text-green-600 hover:text-green-800 font-medium text-xs"
+              disabled={saving}
+              className="text-green-600 hover:text-green-800 font-medium text-xs disabled:opacity-50"
             >
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
             <button
-              onClick={() => setIsEditing(false)}
-              className="text-gray-500 hover:text-gray-700 font-medium text-xs"
+              onClick={handleCancel}
+              disabled={saving}
+              className="text-gray-500 hover:text-gray-700 font-medium text-xs disabled:opacity-50"
             >
               Cancel
             </button>
