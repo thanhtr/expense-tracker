@@ -25,7 +25,16 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [categories, setCategories] = useState<string[]>([]);
   const limit = 50;
+
+  // Fetch the category list once so rows can show a dropdown
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((r) => r.ok ? r.json() : { categories: [] })
+      .then((data) => setCategories(data.categories ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setOffset(0);
@@ -150,6 +159,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
               <TransactionRow
                 key={transaction.id}
                 transaction={transaction}
+                categories={categories}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
               />
