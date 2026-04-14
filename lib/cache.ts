@@ -7,9 +7,14 @@
 type CacheEntry<T> = { value: T; expiresAt: number };
 const store = new Map<string, CacheEntry<unknown>>();
 
+// Deduplicates concurrent requests for the same cache key:
+// if two callers miss the cache at the same time, only one fetch is made
+const pending = new Map<string, Promise<unknown>>();
+
 /**
  * Execute a fetch function with TTL caching
- * If a non-expired entry exists, return it; otherwise fetch, cache, and return
+ * If a non-expired entry exists, return it; otherwise fetch, cache, and return.
+ * Concurrent callers with the same key share a single in-flight fetch.
  */
 export async function withCache<T>(
   key: string,
@@ -24,10 +29,22 @@ export async function withCache<T>(
     return entry.value;
   }
 
+  // Return the already-in-flight promise if one exists for this key
+  if (pending.has(key)) {
+    console.log(`⏳ Cache miss: ${key}, joining in-flight fetch...`);
+    return pending.get(key) as Promise<T>;
+  }
+
   console.log(`⏳ Cache miss: ${key}, fetching...`);
-  const value = await fetchFn();
-  store.set(key, { value, expiresAt: now + ttlSeconds * 1000 });
-  return value;
+  const promise = fetchFn().then((value) => {
+    store.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+    return value;
+  }).finally(() => {
+    pending.delete(key);
+  });
+
+  pending.set(key, promise);
+  return promise;
 }
 
 /**

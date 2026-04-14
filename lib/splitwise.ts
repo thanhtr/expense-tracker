@@ -45,11 +45,25 @@ async function swFetch<T>(
     ...init?.headers,
   };
 
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    cache: "no-store", // Always fetch fresh from Splitwise
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers,
+      cache: "no-store", // Always fetch fresh from Splitwise
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Splitwise API request timed out after 30s: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = await response.json() as Record<string, unknown>;
 
