@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(0.985 0.003 85);
+  --surface: #ffffff;
+  --surface-2: oklch(0.975 0.004 85);
+  --border: oklch(0.915 0.004 260);
+  --border-strong: oklch(0.86 0.005 260);
+  --foreground: oklch(0.22 0.012 260);
+  --fg-2: oklch(0.44 0.01 260);
+  --fg-3: oklch(0.62 0.008 260);
+
+  --accent: oklch(0.58 0.16 28);
+  --pos: oklch(0.55 0.12 160);
+  --pos-soft: oklch(0.94 0.04 160);
+  --neg: oklch(0.58 0.18 25);
+  --neg-soft: oklch(0.95 0.03 25);
+
+  --c1: oklch(0.58 0.12 30);
+  --c2: oklch(0.62 0.10 75);
+  --c3: oklch(0.60 0.09 155);
+  --c4: oklch(0.55 0.10 225);
+  --c5: oklch(0.52 0.11 290);
+  --c6: oklch(0.60 0.09 340);
+  --c7: oklch(0.66 0.06 200);
+  --c8: oklch(0.70 0.05 60);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border-soft: var(--border);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+.mono, .num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-geist-mono), ui-monospace, monospace; }
+
+/* Dashboard-specific utilities */
+.dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.dash-chip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: 999px; font-size: 11px; font-weight: 500;
+}
+.dash-chip.pos { background: var(--pos-soft); color: oklch(0.32 0.09 160); }
+.dash-chip.neg { background: var(--neg-soft); color: oklch(0.38 0.14 25); }
+.dash-chip.neutral { background: oklch(0.95 0.004 260); color: var(--fg-2); }
+
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px; gap: 1px; }
+.seg button { padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; color: var(--fg-2); cursor: pointer; background: transparent; border: 0; }
+.seg button.active { background: #fff; color: var(--foreground); box-shadow: 0 1px 2px rgba(20,20,40,.04), 0 0 0 1px var(--border); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--fg-2);
+  border: 1px solid var(--border); background: #fff; cursor: pointer;
+}
+.btn-ghost:hover { background: var(--surface-2); color: var(--foreground); }
+
+.tool-label { font-size: 11px; color: var(--fg-3); letter-spacing: .04em; text-transform: uppercase; }
+
+.select-plain {
+  height: 30px; padding: 0 28px 0 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M3 4.5l3 3 3-3' stroke='%236b7280' stroke-width='1.3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 8px center;
+  font-size: 12px; color: var(--foreground); appearance: none; -webkit-appearance: none; cursor: pointer;
+}
+.date-input {
+  height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; font-size: 12px; color: var(--foreground);
+}
+
+.cat-bar-track { height: 6px; background: oklch(0.95 0.004 260); border-radius: 999px; overflow: hidden; }
+.cat-bar-fill { height: 100%; border-radius: 999px; }
+
+.warn-pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px;
+  background: oklch(0.96 0.05 80); border: 1px solid oklch(0.88 0.06 80);
+  color: oklch(0.38 0.08 60); font-size: 12px; font-weight: 500;
+}
+.warn-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: oklch(0.65 0.15 70); }
