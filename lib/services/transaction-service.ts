@@ -27,10 +27,11 @@ interface CreateExpenseRequest extends Record<string, string | number> {
 export async function upsertTransactions(rows: ParsedTransaction[], accountOwner: string = 'tung') {
   let created = 0;
   let skipped = 0;
+  let errors = 0;
 
   // Determine date range
   if (rows.length === 0) {
-    return { imported: 0, duplicates: 0, total: 0, created: 0, skipped: 0 };
+    return { imported: 0, duplicates: 0, errors: 0, total: 0, created: 0, skipped: 0 };
   }
 
   const dates = rows.map(r => r.date);
@@ -85,24 +86,28 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
         date: `${dateStr}T12:00:00Z`,
         category_id: categoryId,
         group_id: String(GROUP_ID),
-        // Paid by account owner, split equally
+        // Paid by account owner, split equally.
+        // Compute shares in integer cents so they always sum to exactly `cost`
+        // (toFixed(2) on half of an odd-cent amount rounds both halves up, e.g.
+        //  299.03 / 2 = 149.515 → 149.52 + 149.52 = 299.04 ≠ 299.03).
         'users__0__user_id': String(paidByUserId),
         'users__0__paid_share': cost,
-        'users__0__owed_share': (parseFloat(cost) / 2).toFixed(2),
+        'users__0__owed_share': (Math.floor(Math.round(parseFloat(cost) * 100) / 2) / 100).toFixed(2),
         'users__1__user_id': String(paidByUserId === USER_ID ? WIFE_ID : USER_ID),
         'users__1__paid_share': '0',
-        'users__1__owed_share': (parseFloat(cost) / 2).toFixed(2),
+        'users__1__owed_share': (Math.ceil(Math.round(parseFloat(cost) * 100) / 2) / 100).toFixed(2),
         details,
       };
 
       await createExpense(body);
       created++;
-    } catch {
-      skipped++;
+    } catch (err) {
+      errors++;
+      console.error(`❌ Failed to create expense "${row.merchant}" ${dateStr} €${cost}:`, err);
     }
   }
 
-  return { imported: created, duplicates: skipped, total: rows.length, created, skipped };
+  return { imported: created, duplicates: skipped, errors, total: rows.length, created, skipped };
 }
 
 /**
