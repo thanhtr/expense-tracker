@@ -10,6 +10,7 @@ export interface SplitwiseExpense {
   date: string;
   description: string;
   cost: string;
+  payment?: boolean; // true for debt-settlement payments between members, not real expenses
   users: Array<{
     user?: { id: number; first_name: string; last_name: string };
     user_id: number;
