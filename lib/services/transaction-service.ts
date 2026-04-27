@@ -38,8 +38,9 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   const dateFrom = new Date(Math.min(...dates.map(d => d.getTime()))).toISOString().split('T')[0];
   const dateTo = new Date(Math.max(...dates.map(d => d.getTime()))).toISOString().split('T')[0];
 
-  // Fetch existing expenses
-  const existing = await getAllExpenses({ datedAfter: dateFrom, datedBefore: dateTo });
+  // Fetch existing expenses (exclude settlements — they are not real shared expenses)
+  const existing = (await getAllExpenses({ datedAfter: dateFrom, datedBefore: dateTo }))
+    .filter(e => !e.payment);
   const existingCounts = buildExistingKeys(existing);
 
   // Determine who paid based on accountOwner
@@ -142,7 +143,7 @@ export async function getTransactions(filters: {
 
   // Convert Splitwise expenses to our transaction format
   let transactions: TransactionWithId[] = expenses
-    .filter(exp => !exp.deleted_at)
+    .filter(exp => !exp.deleted_at && !exp.payment)
     .map((exp) => {
       const details = parseExpenseDetails(exp.details);
       const categoryName = details.category || exp.category?.name || '';

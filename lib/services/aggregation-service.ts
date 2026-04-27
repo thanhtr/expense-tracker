@@ -13,7 +13,7 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
 
   // Convert to transaction format and filter
   const allTransactions = expenses
-    .filter(exp => !exp.deleted_at)
+    .filter(exp => !exp.deleted_at && !exp.payment)
     .map(exp => {
       const details = parseExpenseDetails(exp.details);
       const categoryName = details.category || exp.category?.name || '';
