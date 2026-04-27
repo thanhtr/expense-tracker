@@ -301,8 +301,8 @@ export async function bootstrapRulesFromHistory(): Promise<{
     // Details.category may be stale (from when transaction was created), not what user set later.
     const category = exp.category?.name;
 
-    // Skip if no category
-    if (!category) {
+    // Skip if no category, or if it's a catch-all that provides no useful signal
+    if (!category || category === 'General') {
       continue;
     }
 
