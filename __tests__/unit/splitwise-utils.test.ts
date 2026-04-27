@@ -20,7 +20,7 @@ describe('Splitwise utilities', () => {
   });
 
   describe('buildExistingKeys', () => {
-    it('should build set of dedup keys from expenses array', () => {
+    it('should build count map of dedup keys from expenses array', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const expenses: any[] = [
         {
@@ -40,8 +40,31 @@ describe('Splitwise utilities', () => {
       ];
 
       const keys = buildExistingKeys(expenses);
-      expect(keys.has('2026-04-10|Amazon|45.67')).toBe(true);
-      expect(keys.has('2026-04-11|Starbucks|5.50')).toBe(true);
+      expect(keys.get('2026-04-10|Amazon|45.67')).toBe(1);
+      expect(keys.get('2026-04-11|Starbucks|5.50')).toBe(1);
+    });
+
+    it('should count duplicate keys (same merchant/amount/day twice)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const expenses: any[] = [
+        {
+          id: 1,
+          date: '2026-04-10T12:00:00Z',
+          description: 'Starbucks',
+          cost: '4.50',
+          deleted_at: null,
+        },
+        {
+          id: 2,
+          date: '2026-04-10T12:00:00Z',
+          description: 'Starbucks',
+          cost: '4.50',
+          deleted_at: null,
+        },
+      ];
+
+      const keys = buildExistingKeys(expenses);
+      expect(keys.get('2026-04-10|Starbucks|4.50')).toBe(2);
     });
 
     it('should skip deleted expenses', () => {
@@ -64,11 +87,11 @@ describe('Splitwise utilities', () => {
       ];
 
       const keys = buildExistingKeys(expenses);
-      expect(keys.has('2026-04-10|Amazon|45.67')).toBe(true);
+      expect(keys.get('2026-04-10|Amazon|45.67')).toBe(1);
       expect(keys.has('2026-04-11|Deleted Item|100.00')).toBe(false);
     });
 
-    it('should return empty set for empty array', () => {
+    it('should return empty map for empty array', () => {
       const keys = buildExistingKeys([]);
       expect(keys.size).toBe(0);
     });

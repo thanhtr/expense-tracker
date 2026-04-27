@@ -202,16 +202,19 @@ export function makeDedupKey(
 }
 
 /**
- * Build set of dedup keys from existing Splitwise expenses
+ * Build count map of dedup keys from existing Splitwise expenses.
+ * Uses a Map<key, count> so that N identical purchases on the same day
+ * are each counted separately — allowing a second legitimate purchase
+ * to be created even when one already exists in Splitwise.
  */
-export function buildExistingKeys(expenses: SplitwiseExpense[]): Set<string> {
-  const keys = new Set<string>();
+export function buildExistingKeys(expenses: SplitwiseExpense[]): Map<string, number> {
+  const keys = new Map<string, number>();
   for (const exp of expenses) {
     if (exp.deleted_at === null || !exp.deleted_at) {
       const dateStr = exp.date.slice(0, 10); // YYYY-MM-DD
       const cost = parseFloat(exp.cost).toFixed(2);
       const key = makeDedupKey(dateStr, exp.description, cost);
-      keys.add(key);
+      keys.set(key, (keys.get(key) ?? 0) + 1);
     }
   }
   return keys;
