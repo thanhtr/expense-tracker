@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       created: result.created,
       skipped: result.skipped,
+      errors: result.errors,
       total: result.total,
       message: result.total === 0
         ? 'No transactions found in file. Check format and column names.'
