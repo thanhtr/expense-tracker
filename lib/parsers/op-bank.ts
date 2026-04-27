@@ -58,8 +58,13 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               // Try to find columns by various name variations (including OP Bank Finnish names)
               const amountStr = findColumn(r, ['Määrä EUROA', 'Amount EUR', 'Määrä EUR', 'Summa', 'Amount']);
               const dateStr = findColumn(r, ['Kirjauspäivä', 'Arvopäivä', 'EntryDate', 'Päivämäärä', 'Date']);
-              const merchantStr = findColumn(r, ['Saaja/Maksaja', 'Recipient/Payer', 'Saaja', 'Maksaja', 'Description', 'Kuvaus']);
-              const noteStr = findColumn(r, ['Viesti', 'Selitys', 'Message', 'Selite', 'Note']);
+              // Recipient/payer name — intentionally excludes generic description column names
+              // (Kuvaus, Description) which in OP CSVs often hold the transaction type
+              // ("TILISIIRTO", "PAYMENT") rather than the actual payee.
+              const recipientStr = findColumn(r, ['Saaja/Maksaja', 'Recipient/Payer', 'Saaja', 'Maksaja']);
+              // Transaction-type description — used as fallback when payee name is absent
+              const descStr = findColumn(r, ['Selite', 'Kuvaus', 'Description']);
+              const noteStr = findColumn(r, ['Viesti', 'Selitys', 'Message', 'Note']);
 
               if (!amountStr || !dateStr) {
                 console.log(`   ⚠️ Skipping row: missing amount or date`);
@@ -68,7 +73,10 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
 
               const amount = parseFinnishAmount(amountStr);
               const date = new Date(dateStr.replace(/"/g, ''));
-              const merchant = (merchantStr?.trim() || '').replace(/"/g, '') || 'Unknown';
+              const recipient = (recipientStr?.trim() || '').replace(/"/g, '');
+              const desc = (descStr?.trim() || '').replace(/"/g, '');
+              // Prefer the actual payee name; fall back to the transaction-type description
+              const merchant = recipient || desc || 'Unknown';
               const note = (noteStr?.replace(/"/g, '').trim()) || '';
 
               if (isNaN(date.getTime())) {
