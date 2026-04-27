@@ -39,13 +39,17 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
 
   // Fetch existing expenses
   const existing = await getAllExpenses({ datedAfter: dateFrom, datedBefore: dateTo });
-  const existingKeys = buildExistingKeys(existing);
+  const existingCounts = buildExistingKeys(existing);
 
   // Determine who paid based on accountOwner
   const paidByUserId = accountOwner === 'thuy' ? WIFE_ID : USER_ID;
 
   // Create expenses
-  const createdKeys = new Set<string>();
+  // seenCount tracks how many times each dedup key has been processed in this
+  // batch. A transaction is a duplicate only when seenCount < existingCount,
+  // so two real purchases with the same merchant/amount/date on the same day
+  // are each handled correctly regardless of what is already in Splitwise.
+  const seenCount = new Map<string, number>();
   for (const row of rows) {
     // Skip income transactions
     if (row.type === 'Income') {
@@ -57,12 +61,11 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     const cost = Math.abs(row.amount).toFixed(2);
     const dedupKey = makeDedupKey(dateStr, row.merchant, cost);
 
-    // Check for duplicates in Splitwise or within current batch
-    if (existingKeys.has(dedupKey)) {
-      skipped++;
-      continue;
-    }
-    if (createdKeys.has(dedupKey)) {
+    const seen = seenCount.get(dedupKey) ?? 0;
+    seenCount.set(dedupKey, seen + 1);
+
+    // Skip if this occurrence is already covered by an existing Splitwise entry
+    if (seen < (existingCounts.get(dedupKey) ?? 0)) {
       skipped++;
       continue;
     }
@@ -93,7 +96,6 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
       };
 
       await createExpense(body);
-      createdKeys.add(dedupKey);
       created++;
     } catch {
       skipped++;
