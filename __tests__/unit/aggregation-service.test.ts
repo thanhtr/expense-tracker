@@ -132,8 +132,9 @@ describe('getDashboardStats', () => {
     expect(stats.transactionCount).toBe(3);
   });
 
-  it('should filter by category (applied in service layer)', async () => {
-    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce(mockRows);
+  it('should filter by category (passed to prisma where)', async () => {
+    const filtered = mockRows.filter(r => r.category === 'Shopping');
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce(filtered);
 
     const stats = await getDashboardStats(undefined, undefined, 'Shopping');
 

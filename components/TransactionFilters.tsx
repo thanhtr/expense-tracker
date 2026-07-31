@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ACCOUNT_NAMES } from '@/lib/constants';
 
 export interface TransactionFilterValues {
   dateFrom?: string;
@@ -24,6 +25,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
   const [merchant, setMerchant] = useState('');
   const [type, setType] = useState('');
   const [paidBy, setPaidBy] = useState('');
+  const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
@@ -51,7 +53,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       account: account || undefined,
-      category: category || undefined,
+      category: uncategorizedOnly ? '__uncategorized__' : (category || undefined),
       merchant: merchant || undefined,
       type: type || undefined,
       paidBy: paidBy || undefined
@@ -66,6 +68,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
     setMerchant('');
     setType('');
     setPaidBy('');
+    setUncategorizedOnly(false);
     onFilter({});
   };
 
@@ -98,9 +101,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All</option>
-            <option value="OP Bank">OP Bank</option>
-            <option value="Amex">Amex</option>
-            <option value="Finnair Visa">Finnair Visa</option>
+            {ACCOUNT_NAMES.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
         <div>
@@ -120,8 +121,8 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={categoriesLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            disabled={categoriesLoading || uncategorizedOnly}
           >
             <option value="">All</option>
             {categories.map((cat) => (
@@ -155,7 +156,16 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={uncategorizedOnly}
+            onChange={(e) => setUncategorizedOnly(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Uncategorized only
+        </label>
         <button
           onClick={handleFilter}
           className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"

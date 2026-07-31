@@ -233,6 +233,52 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
   );
 }
 
+function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={{ stroke: 'var(--border)' }}
+          tickFormatter={(m: string) => {
+            const [y, mo] = m.split('-');
+            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+          }}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v: number) => `€${Math.round(v)}`}
+          width={44}
+        />
+        <Tooltip
+          cursor={{ fill: 'oklch(0.95 0.004 260)' }}
+          contentStyle={{
+            background: 'oklch(0.22 0.012 260)',
+            border: 'none',
+            borderRadius: 6,
+            color: '#fff',
+            fontSize: 11,
+            padding: '8px 10px',
+          }}
+          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+          itemStyle={{ color: '#fff', fontSize: 11 }}
+          formatter={(value) => fmtEUR(Number(value ?? 0))}
+          labelFormatter={(label) => {
+            const m = label as string;
+            const [y, mo] = m.split('-');
+            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          }}
+        />
+        <Bar dataKey="amount" fill={CAT_COLORS[3]} radius={[3, 3, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 // Recent transactions list (reads from /api/transactions)
 type RecentTx = {
   id: number;
@@ -627,6 +673,21 @@ export function DashboardStats() {
           )}
         </div>
       </div>
+
+      {/* Monthly trend */}
+      {data.byMonth.length > 1 && (
+        <div className="dash-card">
+          <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
+            <div>
+              <h3 className="text-[13px] font-semibold m-0">Monthly trend</h3>
+              <div className="text-[12px] text-[var(--fg-3)]">Total expenses per month</div>
+            </div>
+          </div>
+          <div className="p-[0_12px_12px]">
+            <MonthlyChart data={data.byMonth} />
+          </div>
+        </div>
+      )}
 
       {/* Recent activity */}
       <div className="dash-card">

@@ -18,7 +18,11 @@ let _rulesCache: LearnedRulesStore | null = null;
 let _rulesCacheExpiry: number = 0;
 const RULES_CACHE_TTL_SECONDS = 300;
 
-const HISTORY_START_DATE = '2026-03-01';
+function rollingStartDate(): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 2);
+  return d.toISOString().slice(0, 10);
+}
 
 async function loadLearnedRules(): Promise<LearnedRulesStore> {
   const now = Date.now();
@@ -122,7 +126,7 @@ export async function getLearnedRulesStore(): Promise<LearnedRulesStore> {
 }
 
 export async function bootstrapRulesFromHistory(): Promise<{ learned: number; skipped: number }> {
-  const datedAfter = new Date(HISTORY_START_DATE);
+  const datedAfter = new Date(rollingStartDate());
 
   const transactions = await prisma.transaction.findMany({
     where: {

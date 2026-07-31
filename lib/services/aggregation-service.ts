@@ -12,12 +12,11 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
     where.date = dateFilter;
   }
 
+  if (category) where.category = category;
+
   const allTransactions = await prisma.transaction.findMany({ where });
 
-  let expenseTransactions = allTransactions.filter(t => t.type === 'Expense');
-  if (category) {
-    expenseTransactions = expenseTransactions.filter(t => t.category === category);
-  }
+  const expenseTransactions = allTransactions.filter(t => t.type === 'Expense');
   const incomeTransactions = allTransactions.filter(t => t.type === 'Income');
 
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);

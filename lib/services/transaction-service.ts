@@ -90,7 +90,11 @@ export async function getTransactions(filters: {
     if (filters.dateTo) (where.date as Prisma.DateTimeFilter).lte = new Date(filters.dateTo);
   }
   if (filters.account) where.account = filters.account;
-  if (filters.category) where.category = filters.category;
+  if (filters.category === '__uncategorized__') {
+    where.category = '';
+  } else if (filters.category) {
+    where.category = filters.category;
+  }
   if (filters.type) where.type = filters.type;
   if (filters.paidBy) where.paidBy = filters.paidBy;
   if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };

@@ -25,8 +25,20 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [categories, setCategories] = useState<string[]>([]);
   const limit = 50;
+
+  const handleSort = (field: 'date' | 'amount') => {
+    if (sortBy === field) {
+      setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+    setOffset(0);
+  };
 
   // Fetch the category list once so rows can show a dropdown
   useEffect(() => {
@@ -47,8 +59,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         const params = new URLSearchParams();
         params.set('limit', limit.toString());
         params.set('offset', offset.toString());
-        params.set('sort_by', 'date');
-        params.set('order', 'desc');
+        params.set('sort_by', sortBy);
+        params.set('order', sortOrder);
 
         if (filters.dateFrom) params.set('date_from', filters.dateFrom);
         if (filters.dateTo) params.set('date_to', filters.dateTo);
@@ -72,7 +84,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     };
 
     fetchTransactions();
-  }, [offset, filters, limit]);
+  }, [offset, filters, limit, sortBy, sortOrder]);
 
   const handleUpdate = async (id: number, category: string) => {
     try {
@@ -144,10 +156,14 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('date')}>
+                Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Account</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Merchant</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-700">Amount</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('amount')}>
+                Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Category</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Paid By</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Note</th>
