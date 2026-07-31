@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
       ? new Date(searchParams.get('date_to')!)
       : undefined;
     const category = searchParams.get('category') ?? undefined;
+    const paidBy = searchParams.get('paid_by') ?? undefined;
+    const account = searchParams.get('account') ?? undefined;
 
-    const stats = await getDashboardStats(dateFrom, dateTo, category);
+    const stats = await getDashboardStats(dateFrom, dateTo, category, paidBy, account);
 
     return NextResponse.json(stats);
   } catch (error) {

@@ -2,7 +2,13 @@ import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { DashboardAggregation } from '@/lib/types';
 
-export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category?: string): Promise<DashboardAggregation> {
+export async function getDashboardStats(
+  dateFrom?: Date,
+  dateTo?: Date,
+  category?: string,
+  paidBy?: string,
+  account?: string,
+): Promise<DashboardAggregation> {
   const where: Prisma.TransactionWhereInput = {};
 
   if (dateFrom || dateTo) {
@@ -13,6 +19,8 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
   }
 
   if (category) where.category = category;
+  if (paidBy) where.paidBy = paidBy;
+  if (account) where.account = account;
 
   const allTransactions = await prisma.transaction.findMany({ where });
 

@@ -28,6 +28,9 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [categories, setCategories] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkStatus, setBulkStatus] = useState('');
   const limit = 50;
 
   const handleSort = (field: 'date' | 'amount') => {
@@ -40,6 +43,46 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     setOffset(0);
   };
 
+  const handleSelect = (id: number, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    setSelectedIds(checked ? new Set(transactions.map(t => t.id)) : new Set());
+  };
+
+  const handleBulkCategorize = async () => {
+    if (!bulkCategory || selectedIds.size === 0) return;
+    setBulkStatus('Saving…');
+    try {
+      const res = await fetch('/api/transactions/bulk-categorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), category: bulkCategory }),
+      });
+      if (res.ok) {
+        const { updated } = await res.json();
+        setTransactions(prev =>
+          prev.map(t => selectedIds.has(t.id) ? { ...t, category: bulkCategory } : t)
+        );
+        setSelectedIds(new Set());
+        setBulkCategory('');
+        setBulkStatus(`Updated ${updated} transaction${updated === 1 ? '' : 's'}`);
+        setTimeout(() => setBulkStatus(''), 3000);
+      } else {
+        setBulkStatus('Failed to update');
+        setTimeout(() => setBulkStatus(''), 3000);
+      }
+    } catch {
+      setBulkStatus('Failed to update');
+      setTimeout(() => setBulkStatus(''), 3000);
+    }
+  };
+
   // Fetch the category list once so rows can show a dropdown
   useEffect(() => {
     fetch('/api/categories')
@@ -50,6 +93,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
 
   useEffect(() => {
     setOffset(0);
+    setSelectedIds(new Set());
   }, [filters]);
 
   useEffect(() => {
@@ -69,6 +113,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         if (filters.merchant) params.set('merchant', filters.merchant);
         if (filters.type) params.set('type', filters.type);
         if (filters.paidBy) params.set('paid_by', filters.paidBy);
+        if (filters.amountMin) params.set('amount_min', filters.amountMin);
+        if (filters.amountMax) params.set('amount_max', filters.amountMax);
 
         const res = await fetch(`/api/transactions?${params}`);
         if (res.ok) {
@@ -152,10 +198,49 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         </button>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+          <span className="text-blue-700 font-medium">{selectedIds.size} selected</span>
+          <select
+            value={bulkCategory}
+            onChange={(e) => setBulkCategory(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-sm"
+          >
+            <option value="">Choose category…</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button
+            onClick={handleBulkCategorize}
+            disabled={!bulkCategory}
+            className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Apply
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
+          >
+            Deselect all
+          </button>
+          {bulkStatus && <span className="text-green-700 font-medium">{bulkStatus}</span>}
+        </div>
+      )}
+      {!selectedIds.size && bulkStatus && (
+        <div className="text-sm text-green-700 font-medium px-1">{bulkStatus}</div>
+      )}
+
       <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th className="px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('date')}>
                 Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
               </th>
@@ -178,6 +263,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                 categories={categories}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
+                selected={selectedIds.has(transaction.id)}
+                onSelect={handleSelect}
               />
             ))}
           </tbody>
