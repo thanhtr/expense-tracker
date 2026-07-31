@@ -124,6 +124,7 @@ jobs:
       run: npx prisma migrate deploy
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        PRISMA_MIGRATE_ADVISORY_LOCKING: '0'
 
     - name: Deploy to Vercel
       run: npx vercel --prod --yes
