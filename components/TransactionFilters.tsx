@@ -11,6 +11,8 @@ export interface TransactionFilterValues {
   category?: string;
   paidBy?: string;
   merchant?: string;
+  amountMin?: string;
+  amountMax?: string;
 }
 
 interface TransactionFiltersProps {
@@ -25,6 +27,8 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
   const [merchant, setMerchant] = useState('');
   const [type, setType] = useState('');
   const [paidBy, setPaidBy] = useState('');
+  const [amountMin, setAmountMin] = useState('');
+  const [amountMax, setAmountMax] = useState('');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -56,7 +60,9 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
       category: uncategorizedOnly ? '__uncategorized__' : (category || undefined),
       merchant: merchant || undefined,
       type: type || undefined,
-      paidBy: paidBy || undefined
+      paidBy: paidBy || undefined,
+      amountMin: amountMin || undefined,
+      amountMax: amountMax || undefined,
     });
   };
 
@@ -68,6 +74,8 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
     setMerchant('');
     setType('');
     setPaidBy('');
+    setAmountMin('');
+    setAmountMax('');
     setUncategorizedOnly(false);
     onFilter({});
   };
@@ -151,6 +159,30 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
             value={merchant}
             onChange={(e) => setMerchant(e.target.value)}
             placeholder="Filter merchant..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Min € (abs)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amountMin}
+            onChange={(e) => setAmountMin(e.target.value)}
+            placeholder="e.g. 10"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Max € (abs)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amountMax}
+            onChange={(e) => setAmountMax(e.target.value)}
+            placeholder="e.g. 200"
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

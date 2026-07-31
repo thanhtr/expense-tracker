@@ -9,6 +9,9 @@ export async function GET(request: NextRequest) {
     const paidByParam = searchParams.get('paid_by');
     const paidBy = paidByParam ? (paidByParam as 'tung' | 'thuy' | 'other') : undefined;
 
+    const amountMinRaw = searchParams.get('amount_min');
+    const amountMaxRaw = searchParams.get('amount_max');
+
     const result = await getTransactions({
       dateFrom: searchParams.get('date_from') || undefined,
       dateTo: searchParams.get('date_to') || undefined,
@@ -17,6 +20,8 @@ export async function GET(request: NextRequest) {
       merchant: searchParams.get('merchant') || undefined,
       type: searchParams.get('type') || undefined,
       paidBy,
+      amountMin: amountMinRaw ? parseFloat(amountMinRaw) : undefined,
+      amountMax: amountMaxRaw ? parseFloat(amountMaxRaw) : undefined,
       sortBy: searchParams.get('sort_by') || 'date',
       order: searchParams.get('order') || 'desc',
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 100,

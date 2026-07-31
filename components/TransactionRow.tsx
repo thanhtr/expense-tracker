@@ -19,9 +19,11 @@ interface TransactionRowProps {
   categories: string[];
   onUpdate: (id: number, category: string) => void;
   onDelete: (id: number) => void;
+  selected?: boolean;
+  onSelect?: (id: number, checked: boolean) => void;
 }
 
-export function TransactionRow({ transaction, categories, onUpdate, onDelete }: TransactionRowProps) {
+export function TransactionRow({ transaction, categories, onUpdate, onDelete, selected, onSelect }: TransactionRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [category, setCategory] = useState(transaction.category);
   const [saving, setSaving] = useState(false);
@@ -69,7 +71,17 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete }: 
   const amountPrefix = transaction.type === 'Expense' ? '−' : '+';
 
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50">
+    <tr className={`border-b border-gray-200 hover:bg-gray-50 ${selected ? 'bg-blue-50' : ''}`}>
+      {onSelect && (
+        <td className="px-3 py-3">
+          <input
+            type="checkbox"
+            checked={selected ?? false}
+            onChange={(e) => onSelect(transaction.id, e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+        </td>
+      )}
       <td className="px-4 py-3 text-sm">{formatDate(transaction.date)}</td>
       <td className="px-4 py-3 text-sm">{transaction.account}</td>
       <td className="px-4 py-3 text-sm">{transaction.merchant}</td>
