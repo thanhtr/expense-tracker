@@ -1,6 +1,10 @@
+import { loadEnvConfig } from '@next/env';
+
+const { combinedEnv } = loadEnvConfig(process.cwd());
+
 const config = {
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: combinedEnv.DATABASE_URL,
   },
 };
 

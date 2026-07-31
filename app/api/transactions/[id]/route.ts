@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deleteExpense, getExpenseById } from '@/lib/splitwise';
-import { invalidateCache } from '@/lib/cache';
+import { prisma } from '@/lib/db';
 import { recordCorrection } from '@/lib/services/learned-rules-service';
 
 export async function PATCH(
@@ -13,27 +12,18 @@ export async function PATCH(
     const id = parseInt(resolvedParams.id);
 
     if (!category) {
-      return NextResponse.json(
-        { error: 'Category is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Category is required' }, { status: 400 });
     }
 
-    // Fetch the expense to get merchant name
-    const expense = await getExpenseById(id);
-    const merchant = expense.description;
+    const tx = await prisma.transaction.findUnique({ where: { id } });
+    if (!tx) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
 
-    // Record the correction in learned rules
-    await recordCorrection(merchant, category);
+    await recordCorrection(tx.merchant, category);
+    await prisma.transaction.update({ where: { id }, data: { category } });
 
-    // Invalidate cache so next fetch gets fresh data
-    invalidateCache('expenses:');
-
-    return NextResponse.json({
-      id,
-      category,
-      success: true,
-    });
+    return NextResponse.json({ id, category, success: true });
   } catch (error) {
     console.error('Update error:', error);
     return NextResponse.json(
@@ -51,10 +41,7 @@ export async function DELETE(
     const resolvedParams = await params;
     const id = parseInt(resolvedParams.id);
 
-    await deleteExpense(id);
-
-    // Invalidate cache so next fetch gets fresh data
-    invalidateCache('expenses:');
+    await prisma.transaction.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

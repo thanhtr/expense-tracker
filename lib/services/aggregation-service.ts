@@ -1,33 +1,18 @@
-import { getAllExpenses, parseExpenseDetails } from '@/lib/splitwise';
+import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { DashboardAggregation } from '@/lib/types';
-import { withCache } from '@/lib/cache';
 
 export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category?: string): Promise<DashboardAggregation> {
-  const datedAfter = dateFrom ? dateFrom.toISOString().split('T')[0] : undefined;
-  const datedBefore = dateTo ? dateTo.toISOString().split('T')[0] : undefined;
+  const where: Prisma.TransactionWhereInput = {};
 
-  const cacheKey = `expenses:${datedAfter ?? 'all'}:${datedBefore ?? 'all'}`;
-  const expenses = await withCache(cacheKey, 300, () =>
-    getAllExpenses({ datedAfter, datedBefore })
-  );
+  if (dateFrom || dateTo) {
+    const dateFilter: Prisma.DateTimeFilter = {};
+    if (dateFrom) dateFilter.gte = dateFrom;
+    if (dateTo) dateFilter.lte = dateTo;
+    where.date = dateFilter;
+  }
 
-  // Convert to transaction format and filter
-  const allTransactions = expenses
-    .filter(exp => !exp.deleted_at && !exp.payment)
-    .map(exp => {
-      const details = parseExpenseDetails(exp.details);
-      const categoryName = details.category || exp.category?.name || '';
-      const isExpense = parseFloat(exp.cost) > 0;
-
-      return {
-        date: new Date(exp.date),
-        account: details.account || 'Splitwise',
-        merchant: exp.description,
-        amount: isExpense ? -parseFloat(exp.cost) : parseFloat(exp.cost),
-        type: isExpense ? 'Expense' : 'Income',
-        category: categoryName,
-      };
-    });
+  const allTransactions = await prisma.transaction.findMany({ where });
 
   let expenseTransactions = allTransactions.filter(t => t.type === 'Expense');
   if (category) {
@@ -38,7 +23,6 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-  // By category
   const byCategory = expenseTransactions.reduce((acc, t) => {
     const cat = t.category || '⚠ Uncategorized';
     acc[cat] = (acc[cat] || 0) + Math.abs(t.amount);
@@ -49,15 +33,13 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 
-  // By account
   const byAccount = expenseTransactions.reduce((acc, t) => {
     acc[t.account] = (acc[t.account] || 0) + Math.abs(t.amount);
     return acc;
   }, {} as Record<string, number>);
 
-  // By month
   const byMonth = expenseTransactions.reduce((acc, t) => {
-    const month = t.date.toISOString().slice(0, 7); // YYYY-MM
+    const month = t.date.toISOString().slice(0, 7);
     acc[month] = (acc[month] || 0) + Math.abs(t.amount);
     return acc;
   }, {} as Record<string, number>);
@@ -68,17 +50,15 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
 
   const uncategorizedCount = expenseTransactions.filter(t => !t.category).length;
 
-  // Extract all unique categories from unfiltered expenses
-  const allExpensesUnfiltered = allTransactions.filter(t => t.type === 'Expense');
   const allCategories = Array.from(
     new Set(
-      allExpensesUnfiltered
+      allTransactions
+        .filter(t => t.type === 'Expense')
         .map(t => t.category)
-        .filter(cat => cat) // exclude empty strings
+        .filter(Boolean)
     )
   ).sort();
 
-  // By day - group expenses by YYYY-MM-DD with category breakdown
   const dayMap: Record<string, Record<string, number>> = {};
   for (const t of expenseTransactions) {
     const day = t.date.toISOString().slice(0, 10);
@@ -90,7 +70,6 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, cats]) => ({ day, ...cats }));
 
-  // Top transaction - single highest amount expense
   const topTransaction = expenseTransactions.length > 0
     ? (() => {
         const max = expenseTransactions.reduce((maxT, t) =>
@@ -100,12 +79,10 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
           merchant: max.merchant,
           amount: Math.abs(max.amount),
           category: max.category || '⚠ Uncategorized',
-          date: max.date.toISOString().slice(0, 10)
+          date: max.date.toISOString().slice(0, 10),
         };
       })()
     : null;
-
-  const transactionCount = expenseTransactions.length;
 
   return {
     totalExpenses,
@@ -118,6 +95,6 @@ export async function getDashboardStats(dateFrom?: Date, dateTo?: Date, category
     uncategorizedCount,
     allCategories,
     topTransaction,
-    transactionCount
+    transactionCount: expenseTransactions.length,
   };
 }

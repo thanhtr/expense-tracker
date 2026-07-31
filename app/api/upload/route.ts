@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseOPBank, parseAmex, parseFinnair } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
-import { invalidateCache } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,11 +48,6 @@ export async function POST(request: NextRequest) {
 
     // Create in Splitwise
     const result = await upsertTransactions(rows, accountOwner);
-
-    // Invalidate cache so next fetch gets fresh data
-    if (result.created > 0) {
-      invalidateCache('expenses:');
-    }
 
     return NextResponse.json({
       created: result.created,

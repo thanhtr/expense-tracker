@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server';
-import { getAllExpenses } from '@/lib/splitwise';
-import { USER_ID, WIFE_ID, GROUP_ID } from '@/lib/constants';
+import { prisma } from '@/lib/db';
 
 interface TestResult {
   status: 'OK' | 'ERROR';
-  expenses_found?: number;
   message?: string;
   error?: string;
+  count?: number;
 }
 
 interface HealthCheck {
   timestamp: string;
   status: 'HEALTHY' | 'UNHEALTHY';
   environment: {
-    SPLITWISE_API_KEY_SET: boolean;
-    SPLITWISE_USER_ID: string;
-    SPLITWISE_WIFE_ID: string;
-    SPLITWISE_GROUP_ID: string;
+    DATABASE_URL_SET: boolean;
   };
   tests: Record<string, TestResult>;
 }
@@ -26,35 +22,27 @@ export async function GET() {
     timestamp: new Date().toISOString(),
     status: 'UNHEALTHY',
     environment: {
-      SPLITWISE_API_KEY_SET: !!process.env.SPLITWISE_API_KEY,
-      SPLITWISE_USER_ID: String(USER_ID),
-      SPLITWISE_WIFE_ID: String(WIFE_ID),
-      SPLITWISE_GROUP_ID: String(GROUP_ID),
+      DATABASE_URL_SET: !!process.env.DATABASE_URL,
     },
     tests: {},
   };
 
-  // Test 1: Can we fetch from Splitwise?
   try {
-    console.log('🏥 Health check: Testing Splitwise API...');
-    const expenses = await getAllExpenses({ datedAfter: '2020-01-01' });
-    checks.tests.splitwise_api = {
+    const count = await prisma.transaction.count();
+    checks.tests.database = {
       status: 'OK',
-      expenses_found: expenses.length,
-      message: `Successfully fetched ${expenses.length} expenses from Splitwise`,
+      message: `Database connected, ${count} transactions`,
+      count,
     };
   } catch (error) {
-    checks.tests.splitwise_api = {
+    checks.tests.database = {
       status: 'ERROR',
       error: error instanceof Error ? error.message : String(error),
     };
   }
 
-  // Overall status
   const allOk = Object.values(checks.tests).every((t) => t.status === 'OK');
   checks.status = allOk ? 'HEALTHY' : 'UNHEALTHY';
 
-  return NextResponse.json(checks, {
-    status: allOk ? 200 : 500,
-  });
+  return NextResponse.json(checks, { status: allOk ? 200 : 500 });
 }

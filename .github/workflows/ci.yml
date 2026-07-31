@@ -34,16 +34,18 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Generate Prisma client
+      run: npx prisma generate
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     - name: Run linter
       run: npm run lint
 
     - name: Build application
       run: npm run build
       env:
-        SPLITWISE_API_KEY: ${{ secrets.SPLITWISE_API_KEY }}
-        SPLITWISE_USER_ID: ${{ secrets.SPLITWISE_USER_ID }}
-        SPLITWISE_WIFE_ID: ${{ secrets.SPLITWISE_WIFE_ID }}
-        SPLITWISE_GROUP_ID: ${{ secrets.SPLITWISE_GROUP_ID }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Type check
       run: npx tsc --noEmit
@@ -74,13 +76,15 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Generate Prisma client
+      run: npx prisma generate
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     - name: Run unit tests
       run: npm test
       env:
-        SPLITWISE_API_KEY: test-key
-        SPLITWISE_USER_ID: '123'
-        SPLITWISE_WIFE_ID: '456'
-        SPLITWISE_GROUP_ID: '789'
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Generate coverage report
       run: npm run test:coverage
@@ -111,47 +115,15 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Set Vercel environment variables
-      run: |
-        # Load variables from .env.production
-        set -a
-        source .env.production
-        set +a
-
-        echo "Setting Vercel environment variables..."
-
-        # Set each variable in Vercel
-        for VAR_NAME in SPLITWISE_API_KEY SPLITWISE_USER_ID SPLITWISE_WIFE_ID SPLITWISE_GROUP_ID; do
-          VAR_VALUE="${!VAR_NAME}"
-
-          # Skip if empty
-          if [ -z "$VAR_VALUE" ]; then
-            echo "⚠ Skipping $VAR_NAME (empty)"
-            continue
-          fi
-
-          echo "Setting $VAR_NAME..."
-
-          # Create/update variable via Vercel API
-          RESPONSE=$(curl -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"key\":\"$VAR_NAME\",\"value\":\"$VAR_VALUE\",\"type\":\"plain\",\"target\":[\"production\"]}")
-
-          # Check if successful
-          if echo "$RESPONSE" | grep -q "\"key\":\"$VAR_NAME\""; then
-            echo "✓ $VAR_NAME set successfully"
-          else
-            echo "Response: $RESPONSE"
-            echo "⚠ Warning: Failed to set $VAR_NAME (may already exist)"
-          fi
-        done
-
-        echo "Environment variables configured for Vercel"
+    - name: Generate Prisma client
+      run: npx prisma generate
       env:
-        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        SPLITWISE_API_KEY: ${{ secrets.SPLITWISE_API_KEY }}
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Deploy to Vercel
       run: npx vercel --prod --yes
@@ -188,13 +160,15 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Generate Prisma client
+      run: npx prisma generate
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     - name: Build application
       run: npm run build
       env:
-        SPLITWISE_API_KEY: test-key
-        SPLITWISE_USER_ID: '123'
-        SPLITWISE_WIFE_ID: '456'
-        SPLITWISE_GROUP_ID: '789'
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Install Playwright browsers
       run: npx playwright install --with-deps chromium
@@ -203,10 +177,7 @@ jobs:
       run: npm run test:e2e
       env:
         CI: 'true'
-        SPLITWISE_API_KEY: test-key
-        SPLITWISE_USER_ID: '123'
-        SPLITWISE_WIFE_ID: '456'
-        SPLITWISE_GROUP_ID: '789'
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v6

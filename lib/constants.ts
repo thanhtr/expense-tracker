@@ -1,12 +1,4 @@
 /**
- * Constants and mappings for Splitwise sync
- */
-
-export const USER_ID = parseInt(process.env.SPLITWISE_USER_ID || "2206773"); // Tung
-export const WIFE_ID = parseInt(process.env.SPLITWISE_WIFE_ID || "14152499"); // Thuy
-export const GROUP_ID = parseInt(process.env.SPLITWISE_GROUP_ID || "7014251"); // 🐷🐞
-
-/**
  * Splitwise category IDs for all categories and subcategories
  * Maps category/subcategory names to their IDs from Splitwise API
  */
@@ -73,12 +65,4 @@ export const CATEGORY_MAP: Record<string, number> = {
 // Default category
 export const DEFAULT_CATEGORY_ID = 18; // General
 
-/**
- * Mapping from account name to user ID (who paid)
- * All accounts belong to Tung (USER_ID)
- */
-export const ACCOUNT_TO_USER: Record<string, number> = {
-  "OP Bank": USER_ID,
-  "Amex": USER_ID,
-  "Finnair Visa": USER_ID,
-};
+export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa"] as const;

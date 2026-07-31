@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @db.Date
+  account   String   @default("Unknown")
+  merchant  String
+  amount    Float
+  note      String   @default("")
+  type      String
+  category  String   @default("")
+  paidBy    String   @default("tung")
+  dedupKey  String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([category])
+  @@index([account])
+  @@index([type])
+  @@index([paidBy])
+}
+
+model LearnedRule {
+  id            Int      @id @default(autoincrement())
+  normalizedKey String   @unique
+  category      String
+  learnedFrom   String
+  learnedAt     DateTime @default(now())
+  count         Int      @default(1)
+  updatedAt     DateTime @updatedAt
+
+  @@index([normalizedKey])
+}

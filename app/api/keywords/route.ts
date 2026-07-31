@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  getLearnedRulesStore,
-} from '@/lib/services/learned-rules-service';
+import { prisma } from '@/lib/db';
+import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 
 interface Keyword {
   id: number;
@@ -10,42 +9,19 @@ interface Keyword {
   priority: number;
 }
 
-async function readKeywords(): Promise<Keyword[]> {
-  try {
-    // Read learned rules from Splitwise sentinel
-    const store = await getLearnedRulesStore();
-
-    const keywords: Keyword[] = [];
-    let priority = 0;
-
-    // Convert learned rules to keyword format
-    for (const [normalizedKey, rule] of Object.entries(store.rules || {})) {
-      keywords.push({
-        id: priority,
-        keyword: normalizedKey,
-        category: rule.category,
-        priority,
-      });
-      priority++;
-    }
-
-    return keywords;
-  } catch (error) {
-    console.error('Failed to read learned rules:', error);
-    return [];
-  }
-}
-
 export async function GET() {
   try {
-    const keywords = await readKeywords();
+    const rows = await prisma.learnedRule.findMany({ orderBy: { id: 'asc' } });
+    const keywords: Keyword[] = rows.map((row) => ({
+      id: row.id,
+      keyword: row.normalizedKey,
+      category: row.category,
+      priority: row.id,
+    }));
     return NextResponse.json(keywords);
   } catch (error) {
     console.error('Failed to read learned rules:', error);
-    return NextResponse.json(
-      { error: 'Failed to read learned rules' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to read learned rules' }, { status: 500 });
   }
 }
 
@@ -54,45 +30,33 @@ export async function POST(request: NextRequest) {
     const { keyword, category } = await request.json();
 
     if (!keyword || !category) {
-      return NextResponse.json(
-        { error: 'Keyword and category are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Keyword and category are required' }, { status: 400 });
     }
 
-    // Get existing rules
-    const store = await getLearnedRulesStore();
     const normalizedKeyword = keyword.toLowerCase().trim();
 
-    // Check for duplicate
-    if (store.rules[normalizedKeyword]) {
-      return NextResponse.json(
-        { error: 'Rule already exists for this keyword' },
-        { status: 409 }
-      );
+    const existing = await prisma.learnedRule.findUnique({ where: { normalizedKey: normalizedKeyword } });
+    if (existing) {
+      return NextResponse.json({ error: 'Rule already exists for this keyword' }, { status: 409 });
     }
 
-    // Add new rule to store
-    store.rules[normalizedKeyword] = {
-      category,
-      learnedFrom: keyword,
-      learnedAt: new Date().toISOString(),
-      count: 1,
-    };
+    const row = await prisma.learnedRule.create({
+      data: {
+        normalizedKey: normalizedKeyword,
+        category,
+        learnedFrom: keyword,
+        count: 1,
+      },
+    });
 
-    // Save back to Splitwise
-    const { saveLearnedRules } = await import('@/lib/services/learned-rules-service');
-    await saveLearnedRules(store);
+    invalidateRulesCache();
 
-    const keywords = await readKeywords();
-    const newKeyword = keywords.find((k) => k.keyword === normalizedKeyword);
-
-    return NextResponse.json(newKeyword || { keyword: normalizedKeyword, category }, { status: 201 });
+    return NextResponse.json(
+      { id: row.id, keyword: row.normalizedKey, category: row.category, priority: row.id },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Failed to add rule:', error);
-    return NextResponse.json(
-      { error: 'Failed to add rule' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to add rule' }, { status: 500 });
   }
 }
