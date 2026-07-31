@@ -25,6 +25,21 @@ export function normalizeMerchant(merchant: string): string {
     normalized = normalized.replace(suffix, '');
   }
 
+  // Strip Finnish city/location suffixes e.g. "S-Market Kerava" → "s-market"
+  const finnishCities = [
+    'helsinki', 'espoo', 'vantaa', 'tampere', 'turku', 'oulu',
+    'kerava', 'järvenpää', 'hyvinkää', 'kirkkonummi', 'nurmijärvi',
+    'tuusula', 'klaukkala', 'lohja', 'porvoo', 'lahti', 'kuopio',
+  ];
+  for (const city of finnishCities) {
+    const candidate = normalized.replace(new RegExp(`\\s+${city}$`, 'i'), '').trim();
+    if (candidate.length > 3) normalized = candidate;
+  }
+
+  // Strip trailing branch numbers e.g. "Alko 001" → "alko"
+  const candidateBranch = normalized.replace(/\s+\d{1,3}$/, '').trim();
+  if (candidateBranch.length > 3) normalized = candidateBranch;
+
   // Remove extra whitespace
   normalized = normalized.replace(/\s+/g, ' ').trim();
 

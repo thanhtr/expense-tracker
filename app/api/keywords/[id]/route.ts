@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
+import { CATEGORIES } from '@/lib/constants';
 
 export async function PUT(
   request: NextRequest,
@@ -13,6 +14,10 @@ export async function PUT(
 
     if (keyword === undefined || category === undefined) {
       return NextResponse.json({ error: 'Keyword and category are required' }, { status: 400 });
+    }
+
+    if (!(CATEGORIES as readonly string[]).includes(category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
     const normalizedKeyword = keyword.toLowerCase().trim();

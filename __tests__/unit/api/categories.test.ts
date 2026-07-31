@@ -1,47 +1,41 @@
 import { describe, it, expect } from 'vitest';
-import { CATEGORY_MAP } from '../../../lib/constants';
+import { CATEGORIES } from '../../../lib/constants';
 
 describe('GET /api/categories', () => {
   it('should return a sorted list of all category names', () => {
-    const categories = Object.keys(CATEGORY_MAP).sort();
+    const categories = [...CATEGORIES].sort();
 
-    expect(categories).toContain('Clothing');
-    expect(categories).toContain('Dining out');
+    expect(categories).toContain('Groceries');
+    expect(categories).toContain('Dining Out');
     expect(categories).toContain('Transportation');
     expect(Array.isArray(categories)).toBe(true);
   });
 
   it('should return non-empty category list', () => {
-    const categories = Object.keys(CATEGORY_MAP);
-    expect(categories.length).toBeGreaterThan(0);
+    expect(CATEGORIES.length).toBeGreaterThan(0);
   });
 
-  it('should include all expected categories from CATEGORY_MAP', () => {
-    const expectedCategories = [
-      'Entertainment',
-      'Dining out',
+  it('should include all expected categories', () => {
+    const expected = [
       'Groceries',
+      'Dining Out',
       'Transportation',
-      'Plane',
-      'Home',
+      'Travel & Flights',
+      'Subscriptions',
+      'Rent & Housing',
       'Utilities',
-      'Rent',
-      'Mortgage',
+      'Investments',
       'Insurance',
-      'General',
+      'Other',
     ];
 
-    const categories = Object.keys(CATEGORY_MAP);
-
-    expectedCategories.forEach((cat) => {
-      expect(categories).toContain(cat);
+    expected.forEach((cat) => {
+      expect(CATEGORIES).toContain(cat);
     });
   });
 
   it('should not have duplicate category names', () => {
-    const categories = Object.keys(CATEGORY_MAP);
-    const uniqueCategories = new Set(categories);
-
-    expect(categories.length).toBe(uniqueCategories.size);
+    const unique = new Set(CATEGORIES);
+    expect(CATEGORIES.length).toBe(unique.size);
   });
 });

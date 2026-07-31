@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { recordCorrection } from '@/lib/services/learned-rules-service';
+import { CATEGORIES } from '@/lib/constants';
 
 export async function PATCH(
   request: NextRequest,
@@ -13,6 +14,10 @@ export async function PATCH(
 
     if (!category) {
       return NextResponse.json({ error: 'Category is required' }, { status: 400 });
+    }
+
+    if (!(CATEGORIES as readonly string[]).includes(category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
     const tx = await prisma.transaction.findUnique({ where: { id } });

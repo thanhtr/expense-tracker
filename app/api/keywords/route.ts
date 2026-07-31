@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
+import { CATEGORIES } from '@/lib/constants';
 
 interface Keyword {
   id: number;
@@ -31,6 +32,10 @@ export async function POST(request: NextRequest) {
 
     if (!keyword || !category) {
       return NextResponse.json({ error: 'Keyword and category are required' }, { status: 400 });
+    }
+
+    if (!(CATEGORIES as readonly string[]).includes(category)) {
+      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
     const normalizedKeyword = keyword.toLowerCase().trim();
