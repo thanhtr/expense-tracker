@@ -24,26 +24,21 @@ interface TransactionRowProps {
 }
 
 export function TransactionRow({ transaction, categories, onUpdate, onDelete, selected, onSelect }: TransactionRowProps) {
-  const [isEditing, setIsEditing] = useState(false);
   const [category, setCategory] = useState(transaction.category);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleCategoryChange = async (newCategory: string) => {
+    if (newCategory === category) return;
+    setCategory(newCategory);
+    setStatus('saving');
     try {
-      await onUpdate(transaction.id, category);
-      setSaved(true);
-      setIsEditing(false);
-      setTimeout(() => setSaved(false), 1500);
-    } finally {
-      setSaving(false);
+      await onUpdate(transaction.id, newCategory);
+      setStatus('saved');
+      setTimeout(() => setStatus('idle'), 1500);
+    } catch {
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 2000);
     }
-  };
-
-  const handleCancel = () => {
-    setCategory(transaction.category);
-    setIsEditing(false);
   };
 
   const handleDelete = async () => {
@@ -53,22 +48,28 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
   };
 
   const formatDate = (date: string | Date) => {
-    if (typeof date === 'string') {
-      return date.split('T')[0];
-    }
+    if (typeof date === 'string') return date.split('T')[0];
     return date.toISOString().split('T')[0];
   };
 
-  const formatCurrency = (n: number) => {
-    return new Intl.NumberFormat('fi-FI', {
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat('fi-FI', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(Math.abs(n));
-  };
 
   const amountColor = transaction.type === 'Expense' ? 'text-red-600' : 'text-green-600';
   const amountPrefix = transaction.type === 'Expense' ? '−' : '+';
+
+  const selectCls = [
+    'cursor-pointer rounded text-sm border border-transparent px-2 py-1',
+    'bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500',
+    status === 'saving' ? 'opacity-50' : '',
+    status === 'saved' ? 'bg-green-100 border-green-300 text-green-800' : '',
+    status === 'error' ? 'bg-red-100 border-red-300 text-red-800' : '',
+    !category ? 'text-amber-600' : '',
+  ].join(' ');
 
   return (
     <tr className={`border-b border-gray-200 hover:bg-gray-50 ${selected ? 'bg-blue-50' : ''}`}>
@@ -89,30 +90,19 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
         {amountPrefix}{formatCurrency(transaction.amount)}
       </td>
       <td className="px-4 py-3 text-sm">
-        {isEditing ? (
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            autoFocus
-            className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white"
-          >
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        ) : saved ? (
-          <span className="inline-block bg-green-100 text-green-700 px-2 py-1 rounded text-sm font-medium">
-            {category} ✓
-          </span>
-        ) : (
-          <span
-            onClick={() => setIsEditing(true)}
-            title={category ? `Click to edit: ${category}` : 'Click to set category'}
-            className="inline-block cursor-pointer bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-sm"
-          >
-            {category || <span className="text-amber-600" title="No category assigned">⚠ Uncategorized</span>}
-          </span>
-        )}
+        <select
+          value={category}
+          onChange={(e) => handleCategoryChange(e.target.value)}
+          disabled={status === 'saving'}
+          className={selectCls}
+        >
+          {!category && <option value="">⚠ Uncategorized</option>}
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {status === 'saved' && <span className="ml-1 text-green-600 text-xs">✓</span>}
+        {status === 'error' && <span className="ml-1 text-red-600 text-xs">✗</span>}
       </td>
       <td className="px-4 py-3 text-sm">
         {transaction.paidBy === 'tung' ? 'Tung'
@@ -124,31 +114,12 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
         {transaction.note?.length > 30 ? '…' : ''}
       </td>
       <td className="px-4 py-3 text-sm">
-        {isEditing ? (
-          <div className="flex gap-1">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="text-green-600 hover:text-green-800 font-medium text-xs disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={saving}
-              className="text-gray-500 hover:text-gray-700 font-medium text-xs disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleDelete}
-            className="text-red-600 hover:text-red-800 font-medium text-xs"
-          >
-            Delete
-          </button>
-        )}
+        <button
+          onClick={handleDelete}
+          className="text-red-600 hover:text-red-800 font-medium text-xs"
+        >
+          Delete
+        </button>
       </td>
     </tr>
   );
