@@ -163,7 +163,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Min € (abs)</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Min amount €</label>
           <input
             type="number"
             min="0"
@@ -175,7 +175,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Max € (abs)</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">Max amount €</label>
           <input
             type="number"
             min="0"

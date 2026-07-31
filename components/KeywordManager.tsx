@@ -11,6 +11,7 @@ interface Keyword {
 
 export function KeywordManager() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,10 @@ export function KeywordManager() {
 
   useEffect(() => {
     fetchKeywords();
+    fetch('/api/categories')
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then(data => setCategories(data.categories ?? []))
+      .catch(() => {});
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -131,6 +136,23 @@ export function KeywordManager() {
     }
   };
 
+  const handleUpdateCategory = async (id: number, newCat: string) => {
+    const kw = keywords.find(k => k.id === id);
+    if (!kw) return;
+    try {
+      const res = await fetch(`/api/keywords/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: kw.keyword, category: newCat, priority: kw.priority }),
+      });
+      if (res.ok) {
+        setKeywords(prev => prev.map(k => k.id === id ? { ...k, category: newCat } : k));
+      }
+    } catch (err) {
+      console.error('Failed to update category:', err);
+    }
+  };
+
   const handleBootstrap = async () => {
     setBootstrapping(true);
     setBootstrapMessage('');
@@ -200,13 +222,14 @@ export function KeywordManager() {
             </div>
             <div className="sm:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <input
-                type="text"
+              <select
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
-                placeholder="e.g., 'Subscriptions'"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">Select category…</option>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div className="sm:col-span-1 flex items-end">
               <button
@@ -245,7 +268,15 @@ export function KeywordManager() {
               {keywords.map((keyword) => (
                 <tr key={keyword.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">{keyword.keyword}</td>
-                  <td className="px-6 py-3 text-sm text-gray-700">{keyword.category}</td>
+                  <td className="px-6 py-3 text-sm">
+                    <select
+                      value={keyword.category}
+                      onChange={(e) => handleUpdateCategory(keyword.id, e.target.value)}
+                      className="cursor-pointer rounded text-sm border border-transparent px-2 py-1 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </td>
                   <td className="px-6 py-3 text-sm text-gray-600">{keyword.priority}</td>
                   <td className="px-6 py-3 text-sm">
                     <div className="flex gap-2">

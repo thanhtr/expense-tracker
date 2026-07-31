@@ -140,12 +140,18 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-green-900 mb-4">Upload Result</h3>
           <div className="space-y-2 text-sm text-green-800">
-            <div>✓ <strong>{result.created}</strong> transaction(s) created in Splitwise</div>
+            <div>✓ <strong>{result.created}</strong> transaction(s) imported</div>
             {result.skipped > 0 && (
               <div>⚠ <strong>{result.skipped}</strong> duplicate(s) skipped</div>
             )}
             <div className="text-gray-700 mt-2">Total processed: {result.total}</div>
           </div>
+          <a
+            href="/transactions"
+            className="inline-block mt-4 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-md hover:bg-green-800"
+          >
+            View transactions →
+          </a>
         </div>
       )}
     </div>

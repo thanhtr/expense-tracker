@@ -124,9 +124,9 @@ describe('learned-rules-service', () => {
 
   describe('lookupLearnedCategory', () => {
     it('should return category for known merchant', async () => {
-      vi.mocked(prisma.learnedRule.findUnique).mockResolvedValueOnce(
-        makeRule({ normalizedKey: 'espresso house', category: 'Dining Out' })
-      );
+      vi.mocked(prisma.learnedRule.findMany).mockResolvedValueOnce([
+        makeRule({ normalizedKey: 'espresso house', category: 'Dining Out' }),
+      ]);
 
       const result = await lookupLearnedCategory('ESPRESSO HOUSE OY');
 
@@ -134,7 +134,7 @@ describe('learned-rules-service', () => {
     });
 
     it('should return null for unknown merchant', async () => {
-      vi.mocked(prisma.learnedRule.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(prisma.learnedRule.findMany).mockResolvedValueOnce([]);
 
       const result = await lookupLearnedCategory('Unknown Merchant');
 

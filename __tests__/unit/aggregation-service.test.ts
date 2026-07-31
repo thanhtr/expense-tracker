@@ -5,6 +5,7 @@ vi.mock('../../lib/db', () => ({
   prisma: {
     transaction: {
       findMany: vi.fn(),
+      aggregate: vi.fn(),
     },
   },
 }));
@@ -59,6 +60,7 @@ const mockRows = [
 describe('getDashboardStats', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValue({ _sum: { amount: 0 }, _avg: {}, _min: {}, _max: {}, _count: { _all: 0 } } as never);
   });
 
   it('should compute totalExpenses correctly', async () => {

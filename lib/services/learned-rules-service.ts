@@ -112,8 +112,8 @@ export async function lookupLearnedCategory(rawMerchant: string): Promise<string
   const normalized = normalizeMerchant(rawMerchant);
   if (!normalized) return null;
 
-  const row = await prisma.learnedRule.findUnique({ where: { normalizedKey: normalized } });
-  return row?.category ?? null;
+  const store = await loadLearnedRules();
+  return store.rules[normalized]?.category ?? null;
 }
 
 export function invalidateRulesCache(): void {

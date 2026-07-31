@@ -25,6 +25,8 @@ model Transaction {
   @@index([account])
   @@index([type])
   @@index([paidBy])
+  @@index([date, type])
+  @@index([category, date])
 }
 
 model LearnedRule {

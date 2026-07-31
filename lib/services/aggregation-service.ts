@@ -22,13 +22,19 @@ export async function getDashboardStats(
   if (paidBy) where.paidBy = paidBy;
   if (account) where.account = account;
 
-  const allTransactions = await prisma.transaction.findMany({ where });
-
-  const expenseTransactions = allTransactions.filter(t => t.type === 'Expense');
-  const incomeTransactions = allTransactions.filter(t => t.type === 'Income');
+  const [expenseTransactions, incomeAggregate] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { ...where, type: 'Expense' },
+      select: { date: true, category: true, account: true, amount: true, merchant: true },
+    }),
+    prisma.transaction.aggregate({
+      where: { ...where, type: 'Income' },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = incomeAggregate._sum.amount ?? 0;
 
   const byCategory = expenseTransactions.reduce((acc, t) => {
     const cat = t.category || '⚠ Uncategorized';
@@ -58,12 +64,7 @@ export async function getDashboardStats(
   const uncategorizedCount = expenseTransactions.filter(t => !t.category).length;
 
   const allCategories = Array.from(
-    new Set(
-      allTransactions
-        .filter(t => t.type === 'Expense')
-        .map(t => t.category)
-        .filter(Boolean)
-    )
+    new Set(expenseTransactions.map(t => t.category).filter(Boolean))
   ).sort();
 
   const dayMap: Record<string, Record<string, number>> = {};
