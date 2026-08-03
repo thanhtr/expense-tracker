@@ -18,6 +18,7 @@ export function KeywordManager() {
   const [error, setError] = useState('');
   const [bootstrapping, setBootstrapping] = useState(false);
   const [bootstrapMessage, setBootstrapMessage] = useState('');
+  const [search, setSearch] = useState('');
 
   const fetchKeywords = async () => {
     try {
@@ -208,6 +209,20 @@ export function KeywordManager() {
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Keywords ({keywords.length})</h2>
           <p className="text-xs text-gray-500 mt-1">Rules match by longest keyword — more specific rules win automatically.</p>
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search keywords or categories…"
+              className="w-64 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {search && (
+              <span className="text-xs text-gray-500">
+                {keywords.filter(k => k.keyword.toLowerCase().includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).length} of {keywords.length}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -221,7 +236,7 @@ export function KeywordManager() {
               </tr>
             </thead>
             <tbody>
-              {keywords.map((keyword) => (
+              {keywords.filter(k => !search || k.keyword.toLowerCase().includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).map((keyword) => (
                 <tr key={keyword.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">{keyword.keyword}</td>
                   <td className="px-6 py-3 text-sm">

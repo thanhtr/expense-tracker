@@ -48,12 +48,11 @@ test.describe('Dashboard', () => {
 
     await page.waitForTimeout(500);
 
-    // Get all KPI cards (dash-card elements in the grid). 4th one should be Transactions.
-    const cards = page.locator('div.dash-card');
-    await expect(cards.nth(3)).toBeVisible();
+    // Find the Transactions KPI card by its label text
+    const transactionsCard = page.locator('.dash-card').filter({ hasText: 'Transactions' }).first();
+    await expect(transactionsCard).toBeVisible();
 
-    // Get the value from the 4th card (index 3)
-    const transactionsCard = cards.nth(3);
+    // The value div is the second child div (after the label div)
     const valueText = await transactionsCard.locator('div').nth(1).textContent();
     expect(valueText).toContain('3');
   });
