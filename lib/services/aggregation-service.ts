@@ -40,7 +40,7 @@ export async function getDashboardStats(
   const [expenseTransactions, incomeAggregate] = await Promise.all([
     prisma.transaction.findMany({
       where: { ...where, type: 'Expense' },
-      select: { date: true, category: true, account: true, amount: true, merchant: true },
+      select: { date: true, category: true, account: true, amount: true, merchant: true, paidBy: true },
     }),
     prisma.transaction.aggregate({
       where: { ...where, type: 'Income' },
@@ -65,6 +65,14 @@ export async function getDashboardStats(
     acc[t.account] = (acc[t.account] || 0) + Math.abs(t.amount);
     return acc;
   }, {} as Record<string, number>);
+
+  const byPersonMap = expenseTransactions.reduce((acc, t) => {
+    acc[t.paidBy] = (acc[t.paidBy] || 0) + Math.abs(t.amount);
+    return acc;
+  }, {} as Record<string, number>);
+  const byPersonArray = Object.entries(byPersonMap)
+    .map(([person, amount]) => ({ person, amount }))
+    .sort((a, b) => b.amount - a.amount);
 
   const byMonth = expenseTransactions.reduce((acc, t) => {
     const month = t.date.toISOString().slice(0, 7);
@@ -113,6 +121,7 @@ export async function getDashboardStats(
     net: totalIncome - totalExpenses,
     byCategory: byCategoryArray,
     byAccount,
+    byPerson: byPersonArray,
     byMonth: byMonthArray,
     byDay: byDayArray,
     uncategorizedCount,
