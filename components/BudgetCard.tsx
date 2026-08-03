@@ -23,6 +23,9 @@ function fmtEUR(n: number) {
 }
 
 function ProgressBar({ spent, limit }: { spent: number; limit: number }) {
+  if (limit <= 0) {
+    return <div className="w-full h-[6px] bg-gray-100 rounded-full" />;
+  }
   const pct = Math.min((spent / limit) * 100, 100);
   const over = spent > limit;
   const warn = pct >= 70 && pct < 100;
@@ -98,6 +101,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
   };
 
   const handleDelete = async (id: number) => {
+    if (!confirm('Remove this budget?')) return;
     const res = await fetch(`/api/budgets/${id}`, { method: 'DELETE' });
     if (res.ok) setBudgets(prev => prev.filter(x => x.id !== id));
   };
