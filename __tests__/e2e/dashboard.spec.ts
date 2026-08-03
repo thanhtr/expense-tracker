@@ -17,7 +17,7 @@ test.describe('Dashboard', () => {
     await expect(page.locator('text=Daily Average')).toBeVisible();
 
     // Wait for charts to be visible (Recharts renders them)
-    await expect(page.locator('svg').first()).toBeVisible();
+    await expect(page.locator('.recharts-surface').first()).toBeVisible();
   });
 
   test('should display correct total expenses', async ({ page }) => {

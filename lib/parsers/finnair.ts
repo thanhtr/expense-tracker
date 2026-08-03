@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { ParsedTransaction } from '@/lib/types';
+import { parseFinnishAmount } from './utils';
 
 function findColumn(row: Record<string, string>, names: string[]): string | undefined {
   const lowerNames = names.map(n => n.toLowerCase());
@@ -42,7 +43,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
 
             const date = new Date(dateStr.trim());
             const merchant = (merchantStr?.trim()) || 'Unknown';
-            const amount = parseFloat(amountStr.trim());
+            const amount = parseFinnishAmount(amountStr.trim());
 
             if (isNaN(date.getTime())) {
               console.log(`   ⚠️ Invalid date: ${dateStr}`);

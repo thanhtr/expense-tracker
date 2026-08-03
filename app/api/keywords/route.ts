@@ -7,7 +7,7 @@ interface Keyword {
   id: number;
   keyword: string;
   category: string;
-  priority: number;
+  count: number;
 }
 
 export async function GET() {
@@ -17,7 +17,7 @@ export async function GET() {
       id: row.id,
       keyword: row.normalizedKey,
       category: row.category,
-      priority: row.id,
+      count: row.count,
     }));
     return NextResponse.json(keywords);
   } catch (error) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     invalidateRulesCache();
 
     return NextResponse.json(
-      { id: row.id, keyword: row.normalizedKey, category: row.category, priority: row.id },
+      { id: row.id, keyword: row.normalizedKey, category: row.category, count: row.count },
       { status: 201 }
     );
   } catch (error) {

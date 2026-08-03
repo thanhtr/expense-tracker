@@ -50,7 +50,7 @@ export async function PUT(
       id: updated.id,
       keyword: updated.normalizedKey,
       category: updated.category,
-      priority: updated.id,
+      count: updated.count,
     });
   } catch (error) {
     console.error('Failed to update rule:', error);

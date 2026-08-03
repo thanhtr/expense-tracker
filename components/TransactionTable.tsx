@@ -188,7 +188,9 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div className="text-sm text-gray-600">
-          Showing {offset + 1} to {Math.min(offset + limit, total)} of {total} transactions
+          {total === 0
+            ? '0 transactions'
+            : `Showing ${offset + 1} to ${Math.min(offset + limit, total)} of ${total} transactions`}
         </div>
         <button
           onClick={handleExport}
@@ -256,17 +258,27 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((transaction) => (
-              <TransactionRow
-                key={transaction.id}
-                transaction={transaction}
-                categories={categories}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
-                selected={selectedIds.has(transaction.id)}
-                onSelect={handleSelect}
-              />
-            ))}
+            {!loading && transactions.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-12 text-center text-sm text-gray-500">
+                  {Object.values(filters).some(Boolean)
+                    ? 'No transactions match your filters'
+                    : 'No transactions yet — upload a CSV to get started'}
+                </td>
+              </tr>
+            ) : (
+              transactions.map((transaction) => (
+                <TransactionRow
+                  key={transaction.id}
+                  transaction={transaction}
+                  categories={categories}
+                  onUpdate={handleUpdate}
+                  onDelete={handleDelete}
+                  selected={selectedIds.has(transaction.id)}
+                  onSelect={handleSelect}
+                />
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -6,7 +6,7 @@ interface Keyword {
   id: number;
   keyword: string;
   category: string;
-  priority: number;
+  count?: number;
 }
 
 export function KeywordManager() {
@@ -91,51 +91,6 @@ export function KeywordManager() {
     }
   };
 
-  const handleUpdatePriority = async (id: number, direction: 'up' | 'down') => {
-    const index = keywords.findIndex(k => k.id === id);
-    if (index === -1) return;
-
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === keywords.length - 1) return;
-
-    const newKeywords = [...keywords];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-
-    // Swap priorities
-    const temp = newKeywords[index].priority;
-    newKeywords[index].priority = newKeywords[targetIndex].priority;
-    newKeywords[targetIndex].priority = temp;
-
-    setKeywords(newKeywords);
-
-    // Update both
-    try {
-      await Promise.all([
-        fetch(`/api/keywords/${newKeywords[index].id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keyword: newKeywords[index].keyword,
-            category: newKeywords[index].category,
-            priority: newKeywords[index].priority
-          })
-        }),
-        fetch(`/api/keywords/${newKeywords[targetIndex].id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            keyword: newKeywords[targetIndex].keyword,
-            category: newKeywords[targetIndex].category,
-            priority: newKeywords[targetIndex].priority
-          })
-        })
-      ]);
-    } catch (error) {
-      console.error('Failed to update priority:', error);
-      fetchKeywords(); // Refresh on error
-    }
-  };
-
   const handleUpdateCategory = async (id: number, newCat: string) => {
     const kw = keywords.find(k => k.id === id);
     if (!kw) return;
@@ -143,7 +98,7 @@ export function KeywordManager() {
       const res = await fetch(`/api/keywords/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: kw.keyword, category: newCat, priority: kw.priority }),
+        body: JSON.stringify({ keyword: kw.keyword, category: newCat }),
       });
       if (res.ok) {
         setKeywords(prev => prev.map(k => k.id === id ? { ...k, category: newCat } : k));
@@ -252,6 +207,7 @@ export function KeywordManager() {
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Keywords ({keywords.length})</h2>
+          <p className="text-xs text-gray-500 mt-1">Rules match by longest keyword — more specific rules win automatically.</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -260,7 +216,7 @@ export function KeywordManager() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700">Keyword</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700">Category</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700">Priority</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700">Matches</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-700">Actions</th>
               </tr>
             </thead>
@@ -277,29 +233,11 @@ export function KeywordManager() {
                       {categories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </td>
-                  <td className="px-6 py-3 text-sm text-gray-600">{keyword.priority}</td>
+                  <td className={`px-6 py-3 text-sm ${!keyword.count || keyword.count < 5 ? 'text-gray-400' : 'text-gray-700'}`}>
+                    {keyword.count ?? 1}
+                  </td>
                   <td className="px-6 py-3 text-sm">
                     <div className="flex gap-1">
-                      <button
-                        onClick={() => handleUpdatePriority(keyword.id, 'up')}
-                        disabled={keywords[0].id === keyword.id}
-                        title="Increase priority"
-                        className="p-1.5 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleUpdatePriority(keyword.id, 'down')}
-                        disabled={keywords[keywords.length - 1].id === keyword.id}
-                        title="Decrease priority"
-                        className="p-1.5 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
                       <button
                         onClick={() => handleDelete(keyword.id)}
                         title="Delete keyword"
