@@ -21,6 +21,7 @@ export interface DashboardAggregation {
   net: number;
   byCategory: { category: string; amount: number }[];
   byAccount: Record<string, number>;
+  byPerson: { person: string; amount: number }[];
   byMonth: { month: string; amount: number }[];
   byDay: { day: string; [key: string]: number | string }[];
   uncategorizedCount: number;
