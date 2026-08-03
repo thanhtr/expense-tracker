@@ -499,6 +499,22 @@ export function DashboardStats() {
     return best;
   }, [data, prevData, byCategoryPrevMap]);
 
+  // Categories for the trend chart: union of all categories seen across all months.
+  // displayCategories only covers the current period's top categories; byCategoryMonth
+  // may include categories from earlier months that aren't in the latest slice.
+  const trendCategories = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    for (const row of data.byCategoryMonth) {
+      for (const key of Object.keys(row)) {
+        if (key !== 'month') seen.add(key);
+      }
+    }
+    const current = data.byCategory.map(c => c.category);
+    return current.filter(c => seen.has(c))
+      .concat([...seen].filter(c => !current.includes(c)));
+  }, [data]);
+
   if (loading && !data) return <div className="text-center py-8 text-[var(--fg-3)]">Loading…</div>;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
@@ -782,7 +798,7 @@ export function DashboardStats() {
             </div>
           </div>
           <div className="p-[0_12px_4px]">
-            <CategoryTrendChart data={data.byCategoryMonth} categories={displayCategories} />
+            <CategoryTrendChart data={data.byCategoryMonth} categories={trendCategories} />
             {data.byCategory.length > 0 && (
               <div className="flex flex-wrap gap-[10px] mt-[4px] mb-[12px] px-[8px] text-[11px] text-[var(--fg-2)]">
                 {data.byCategory.slice(0, 6).map((c, i) => (
