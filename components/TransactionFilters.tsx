@@ -61,6 +61,10 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
       .finally(() => setCategoriesLoading(false));
   }, []);
 
+  // Keep a stable ref to onFilter so it never needs to be a dep
+  const onFilterRef = useRef(onFilter);
+  useEffect(() => { onFilterRef.current = onFilter; });
+
   // Skip the initial render so we don't duplicate the TransactionTable's own mount fetch
   const isInitialRender = useRef(true);
   useEffect(() => {
@@ -68,7 +72,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
       isInitialRender.current = false;
       return;
     }
-    onFilter({
+    onFilterRef.current({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       account: account || undefined,
@@ -79,7 +83,7 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
       amountMin: debouncedAmountMin || undefined,
       amountMax: debouncedAmountMax || undefined,
     });
-  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, onFilter]);
+  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax]);
 
   const handleReset = () => {
     setDateFrom('');

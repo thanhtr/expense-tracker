@@ -219,7 +219,7 @@ export function KeywordManager() {
             />
             {search && (
               <span className="text-xs text-gray-500">
-                {keywords.filter(k => k.keyword.includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).length} of {keywords.length}
+                {keywords.filter(k => k.keyword.toLowerCase().includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).length} of {keywords.length}
               </span>
             )}
           </div>
@@ -236,7 +236,7 @@ export function KeywordManager() {
               </tr>
             </thead>
             <tbody>
-              {keywords.filter(k => !search || k.keyword.includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).map((keyword) => (
+              {keywords.filter(k => !search || k.keyword.toLowerCase().includes(search.toLowerCase()) || k.category.toLowerCase().includes(search.toLowerCase())).map((keyword) => (
                 <tr key={keyword.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-6 py-3 text-sm font-medium text-gray-900">{keyword.keyword}</td>
                   <td className="px-6 py-3 text-sm">
