@@ -1,7 +1,7 @@
 # Expense Tracker Web - Project Summary
 
-**Last Updated:** April 12, 2026
-**Key Tech Stack:** Next.js 16.2.2, React, TypeScript, Tailwind CSS, Recharts 3.8.1, Splitwise API
+**Last Updated:** August 3, 2026
+**Key Tech Stack:** Next.js 16.2.2, React, TypeScript, Tailwind CSS, Recharts 3.8.1, PostgreSQL (Neon)
 
 ---
 
@@ -595,8 +595,8 @@ SPLITWISE_USER_ID=...
 WIFE_ID=...
 ```
 
-### Database (Unused at Runtime)
-Schema is defined in `prisma/schema.prisma` but not used. To activate:
+### Database
+PostgreSQL (Neon) is active. Schema: `Transaction`, `LearnedRule`, `Budget` models.
 ```bash
 npx prisma migrate dev
 npx prisma generate
@@ -604,15 +604,36 @@ npx prisma generate
 
 ---
 
+## Recent Changes (August 2026)
+
+### Quick wins (branch: `fix/quick-wins`)
+- **A1**: Finnair parser now uses `parseFinnishAmount` instead of `parseFloat` — handles comma-decimal Finnish amounts correctly
+- **A2**: Removed non-functional ↑/↓ priority buttons from KeywordManager — categorizer uses longest-match, not priority order; added explanatory note
+- **A3**: `LearnedRule.count` now exposed in `/api/keywords` GET response and shown as "Matches" column (dim for count < 5 = low confidence)
+- **C3**: TransactionTable shows an empty-state message when no transactions match filters
+
+### UX improvements (branch: `feat/live-filters`)
+- **A4**: TransactionFilters fires `onFilter` on every input change — selects/dates/checkboxes immediately, merchant/amount after 300 ms debounce. "Apply Filters" button removed.
+- **A5**: Reset button shows active filter count badge e.g. "Reset (3)"
+- **C4**: KeywordManager has a client-side search input that filters keyword table by keyword or category; shows "N of M" count
+
+### Per-person spending (branch: `feat/per-person-spending`)
+- **B3**: Added `byPerson` aggregation to `DashboardAggregation` (keyed by `paidBy`). Dashboard Insights card shows Tung / Thuy / Other spending row.
+
+### Category trend chart (branch: `feat/category-trends`)
+- **B1**: Added `byCategoryMonth` to `DashboardAggregation`. New "Category trend" stacked bar chart on dashboard (visible when period spans > 1 month).
+
+### Budget tracking (branch: `feat/budget-tracking`)
+- **B2**: New `Budget` DB model (category unique, monthlyLimit). API: `GET/POST /api/budgets`, `DELETE /api/budgets/[id]`. `BudgetCard` component on dashboard shows progress bars (green/amber/red at 0–70%/70–100%/>100%). Click any limit value to edit in-place. "+ Add budget" adds categories not yet budgeted.
+
+---
+
 ## Next Steps / Future Improvements
 
-1. **Persistence**: Activate Prisma/PostgreSQL to store transactions locally for faster queries and offline support
-2. **More Parsers**: Add bank statement parsers for accounts not using Splitwise
-3. **Budgeting**: Add monthly budget goals by category
-4. **Trends**: Historical spending trends (year-over-year, moving averages)
-5. **Receipts**: Attach and store receipt images
-6. **Sharing**: Share expense reports with family members
-7. **Mobile**: Add mobile-responsive optimizations or native app
+1. **More Parsers**: Add bank statement parsers for more accounts
+2. **Receipts**: Attach and store receipt images
+3. **Sharing**: Share expense reports with family members
+4. **Trends**: Year-over-year comparison, moving averages
 
 ---
 
