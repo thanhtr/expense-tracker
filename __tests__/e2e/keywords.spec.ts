@@ -54,6 +54,12 @@ test.describe('Keywords Page', () => {
         },
       });
     });
+
+    await page.route('**/api/categories*', async (route) => {
+      await route.fulfill({
+        json: { categories: ['Entertainment', 'Food & Groceries', 'Shopping', 'Subscriptions', 'Transport'] },
+      });
+    });
   });
 
   test('should navigate to keywords page', async ({ page }) => {
@@ -115,13 +121,13 @@ test.describe('Keywords Page', () => {
 
     await page.waitForTimeout(500);
 
-    // Find and fill the keyword input
-    const keywordInput = page.locator('input[placeholder*="keyword"]').first();
-    const categoryInput = page.locator('input[placeholder*="category"]').first();
+    // Find and fill the keyword input (the "Add New Keyword" form input, not the search box)
+    const keywordInput = page.locator('form input[type="text"]').first();
+    const categorySelect = page.locator('form select').first();
 
     if (await keywordInput.count() > 0) {
       await keywordInput.fill('hulu');
-      await categoryInput.fill('Entertainment');
+      await categorySelect.selectOption('Entertainment');
 
       // Submit the form
       const submitButton = page.locator('button:has-text("Add Keyword")');
