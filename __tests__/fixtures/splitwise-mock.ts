@@ -32,6 +32,7 @@ export interface DashboardAggregation {
   allCategories: string[];
   transactionCount: number;
   uncategorizedCount: number;
+  byPerson: Array<{ person: string; amount: number }>;
 }
 
 export function mockExpense(overrides?: Partial<ParsedTransaction>): ParsedTransaction {
@@ -135,6 +136,13 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
 
   const allCategories = Array.from(new Set(expenses.map((t) => t.category)));
 
+  const byPersonMap = expenses.reduce((acc, t) => {
+    if (!t.paidBy) return acc;
+    acc[t.paidBy] = (acc[t.paidBy] || 0) + t.amount;
+    return acc;
+  }, {} as Record<string, number>);
+  const byPerson = Object.entries(byPersonMap).map(([person, amount]) => ({ person, amount }));
+
   return {
     totalExpenses,
     totalIncome,
@@ -147,6 +155,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     allCategories,
     transactionCount: expenses.length,
     uncategorizedCount: expenses.filter((t) => !t.category || t.category === '').length,
+    byPerson,
   };
 }
 
