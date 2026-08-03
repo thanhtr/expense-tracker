@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ACCOUNT_NAMES } from '@/lib/constants';
 
 export interface TransactionFilterValues {
@@ -33,38 +33,53 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  // Fetch available categories on mount
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch('/api/categories');
-        if (res.ok) {
-          const data = await res.json();
-          setCategories(data.categories);
-        }
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      } finally {
-        setCategoriesLoading(false);
-      }
-    };
+  // Debounced versions of text/number inputs
+  const [debouncedMerchant, setDebouncedMerchant] = useState('');
+  const [debouncedAmountMin, setDebouncedAmountMin] = useState('');
+  const [debouncedAmountMax, setDebouncedAmountMax] = useState('');
 
-    fetchCategories();
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedMerchant(merchant), 300);
+    return () => clearTimeout(t);
+  }, [merchant]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAmountMin(amountMin), 300);
+    return () => clearTimeout(t);
+  }, [amountMin]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedAmountMax(amountMax), 300);
+    return () => clearTimeout(t);
+  }, [amountMax]);
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then(data => setCategories(data.categories ?? []))
+      .catch(() => {})
+      .finally(() => setCategoriesLoading(false));
   }, []);
 
-  const handleFilter = () => {
+  // Skip the initial render so we don't duplicate the TransactionTable's own mount fetch
+  const isInitialRender = useRef(true);
+  useEffect(() => {
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
     onFilter({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       account: account || undefined,
       category: uncategorizedOnly ? '__uncategorized__' : (category || undefined),
-      merchant: merchant || undefined,
+      merchant: debouncedMerchant || undefined,
       type: type || undefined,
       paidBy: paidBy || undefined,
-      amountMin: amountMin || undefined,
-      amountMax: amountMax || undefined,
+      amountMin: debouncedAmountMin || undefined,
+      amountMax: debouncedAmountMax || undefined,
     });
-  };
+  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, onFilter]);
 
   const handleReset = () => {
     setDateFrom('');
@@ -79,6 +94,8 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
     setUncategorizedOnly(false);
     onFilter({});
   };
+
+  const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 space-y-4">
@@ -199,16 +216,10 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           Uncategorized only
         </label>
         <button
-          onClick={handleFilter}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
-        >
-          Apply Filters
-        </button>
-        <button
           onClick={handleReset}
           className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300"
         >
-          Reset
+          {activeCount > 0 ? `Reset (${activeCount})` : 'Reset'}
         </button>
       </div>
     </div>
