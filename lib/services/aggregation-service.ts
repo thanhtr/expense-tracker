@@ -67,6 +67,7 @@ export async function getDashboardStats(
   }, {} as Record<string, number>);
 
   const byPersonMap = expenseTransactions.reduce((acc, t) => {
+    if (!t.paidBy) return acc;
     acc[t.paidBy] = (acc[t.paidBy] || 0) + Math.abs(t.amount);
     return acc;
   }, {} as Record<string, number>);
