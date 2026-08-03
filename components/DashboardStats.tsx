@@ -654,6 +654,18 @@ export function DashboardStats() {
                 ))}
               </div>
             )}
+            {data.byPerson.length > 0 && (
+              <div className="col-span-2 flex items-end justify-between pt-[4px] gap-[12px] border-t border-[var(--border)] mt-[4px]">
+                {data.byPerson.map(({ person, amount }) => (
+                  <div key={person} className="min-w-0">
+                    <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">
+                      {person === 'tung' ? 'Tung' : person === 'thuy' ? 'Thuy' : 'Other'}
+                    </div>
+                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(amount)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
