@@ -102,8 +102,12 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Remove this budget?')) return;
-    const res = await fetch(`/api/budgets/${id}`, { method: 'DELETE' });
-    if (res.ok) setBudgets(prev => prev.filter(x => x.id !== id));
+    try {
+      const res = await fetch(`/api/budgets/${id}`, { method: 'DELETE' });
+      if (res.ok) setBudgets(prev => prev.filter(x => x.id !== id));
+    } catch {
+      // network error — leave state unchanged
+    }
   };
 
   const unusedCategories = categories.filter(c => !budgets.find(b => b.category === c));
