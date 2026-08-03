@@ -102,6 +102,17 @@ export async function getDashboardStats(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, cats]) => ({ day, ...cats }));
 
+  const monthMap: Record<string, Record<string, number>> = {};
+  for (const t of expenseTransactions) {
+    const month = t.date.toISOString().slice(0, 7);
+    if (!monthMap[month]) monthMap[month] = {};
+    const cat = t.category || '⚠ Uncategorized';
+    monthMap[month][cat] = (monthMap[month][cat] || 0) + Math.abs(t.amount);
+  }
+  const byCategoryMonthArray = Object.entries(monthMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, cats]) => ({ month, ...cats }));
+
   const topTransaction = expenseTransactions.length > 0
     ? (() => {
         const max = expenseTransactions.reduce((maxT, t) =>
@@ -124,6 +135,7 @@ export async function getDashboardStats(
     byAccount,
     byPerson: byPersonArray,
     byMonth: byMonthArray,
+    byCategoryMonth: byCategoryMonthArray,
     byDay: byDayArray,
     uncategorizedCount,
     allCategories,

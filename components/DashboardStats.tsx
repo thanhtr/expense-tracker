@@ -233,6 +233,60 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
   );
 }
 
+function CategoryTrendChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={{ stroke: 'var(--border)' }}
+          tickFormatter={(m: string) => {
+            const [y, mo] = m.split('-');
+            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+          }}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(v: number) => `€${Math.round(v)}`}
+          width={44}
+        />
+        <Tooltip
+          cursor={{ fill: 'oklch(0.95 0.004 260)' }}
+          contentStyle={{
+            background: 'oklch(0.22 0.012 260)',
+            border: 'none',
+            borderRadius: 6,
+            color: '#fff',
+            fontSize: 11,
+            padding: '8px 10px',
+          }}
+          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+          itemStyle={{ color: '#fff', fontSize: 11 }}
+          formatter={(value) => fmtEUR(Number(value ?? 0))}
+          labelFormatter={(label) => {
+            const m = label as string;
+            const [y, mo] = m.split('-');
+            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          }}
+        />
+        {categories.map((cat, i) => (
+          <Bar
+            key={cat}
+            dataKey={cat}
+            stackId="a"
+            fill={CAT_COLORS[i % CAT_COLORS.length]}
+            radius={i === categories.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+          />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
   return (
     <ResponsiveContainer width="100%" height={220}>
@@ -444,6 +498,22 @@ export function DashboardStats() {
     }
     return best;
   }, [data, prevData, byCategoryPrevMap]);
+
+  // Categories for the trend chart: union of all categories seen across all months.
+  // displayCategories only covers the current period's top categories; byCategoryMonth
+  // may include categories from earlier months that aren't in the latest slice.
+  const trendCategories = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    for (const row of data.byCategoryMonth) {
+      for (const key of Object.keys(row)) {
+        if (key !== 'month') seen.add(key);
+      }
+    }
+    const current = data.byCategory.map(c => c.category);
+    return current.filter(c => seen.has(c))
+      .concat([...seen].filter(c => !current.includes(c)));
+  }, [data]);
 
   if (loading && !data) return <div className="text-center py-8 text-[var(--fg-3)]">Loading…</div>;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
@@ -714,6 +784,34 @@ export function DashboardStats() {
           </div>
           <div className="p-[0_12px_12px]">
             <MonthlyChart data={data.byMonth} />
+          </div>
+        </div>
+      )}
+
+      {/* Category trend by month */}
+      {data.byCategoryMonth.length > 1 && (
+        <div className="dash-card">
+          <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
+            <div>
+              <h3 className="text-[13px] font-semibold m-0">Category trend</h3>
+              <div className="text-[12px] text-[var(--fg-3)]">Spending by category per month</div>
+            </div>
+          </div>
+          <div className="p-[0_12px_4px]">
+            <CategoryTrendChart data={data.byCategoryMonth} categories={trendCategories} />
+            {data.byCategory.length > 0 && (
+              <div className="flex flex-wrap gap-[10px] mt-[4px] mb-[12px] px-[8px] text-[11px] text-[var(--fg-2)]">
+                {data.byCategory.slice(0, 6).map((c, i) => (
+                  <span key={c.category} className="inline-flex items-center gap-[5px]">
+                    <span className="w-[8px] h-[8px] rounded-[2px] inline-block" style={{ background: CAT_COLORS[i % CAT_COLORS.length] }} />
+                    {c.category}
+                  </span>
+                ))}
+                {data.byCategory.length > 6 && (
+                  <span className="text-[var(--fg-3)]">+{data.byCategory.length - 6} more</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -33,6 +33,7 @@ export interface DashboardAggregation {
   transactionCount: number;
   uncategorizedCount: number;
   byPerson: Array<{ person: string; amount: number }>;
+  byCategoryMonth: Array<{ month: string; [key: string]: number | string }>;
 }
 
 export function mockExpense(overrides?: Partial<ParsedTransaction>): ParsedTransaction {
@@ -143,6 +144,17 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
   }, {} as Record<string, number>);
   const byPerson = Object.entries(byPersonMap).map(([person, amount]) => ({ person, amount }));
 
+  const byMonthCatMap = new Map<string, Record<string, number>>();
+  expenses.forEach((t) => {
+    const month = t.date.substring(0, 7);
+    if (!byMonthCatMap.has(month)) byMonthCatMap.set(month, {});
+    const row = byMonthCatMap.get(month)!;
+    row[t.category] = (row[t.category] || 0) + t.amount;
+  });
+  const byCategoryMonth = Array.from(byMonthCatMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, cats]) => ({ month, ...cats }));
+
   return {
     totalExpenses,
     totalIncome,
@@ -156,6 +168,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     transactionCount: expenses.length,
     uncategorizedCount: expenses.filter((t) => !t.category || t.category === '').length,
     byPerson,
+    byCategoryMonth,
   };
 }
 
