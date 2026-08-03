@@ -5,6 +5,7 @@ import { DashboardAggregation } from '@/lib/types';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
+import { BudgetCard } from './BudgetCard';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
 const CAT_COLORS = [
@@ -815,6 +816,12 @@ export function DashboardStats() {
           </div>
         </div>
       )}
+
+      {/* Budgets */}
+      <BudgetCard
+        spentByCategory={Object.fromEntries(data.byCategory.map(c => [c.category, c.amount]))}
+        categories={unfiltered?.allCategories ?? []}
+      />
 
       {/* Recent activity */}
       <div className="dash-card">
