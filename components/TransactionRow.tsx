@@ -84,7 +84,7 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
         </td>
       )}
       <td className="px-4 py-3 text-sm">{formatDate(transaction.date)}</td>
-      <td className="px-4 py-3 text-sm">{transaction.account}</td>
+      <td className="hidden md:table-cell px-4 py-3 text-sm">{transaction.account}</td>
       <td className="px-4 py-3 text-sm">{transaction.merchant}</td>
       <td className={`px-4 py-3 text-sm text-right font-medium ${amountColor}`}>
         {amountPrefix}{formatCurrency(transaction.amount)}
@@ -104,12 +104,12 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
         {status === 'saved' && <span className="ml-1 text-green-600 text-xs">✓</span>}
         {status === 'error' && <span className="ml-1 text-red-600 text-xs">✗</span>}
       </td>
-      <td className="px-4 py-3 text-sm">
+      <td className="hidden md:table-cell px-4 py-3 text-sm">
         {transaction.paidBy === 'tung' ? 'Tung'
           : transaction.paidBy === 'thuy' ? 'Thuy'
           : '—'}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-500" title={transaction.note || undefined}>
+      <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-500" title={transaction.note || undefined}>
         {transaction.note?.substring(0, 30)}
         {transaction.note?.length > 30 ? '…' : ''}
       </td>

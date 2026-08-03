@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDashboardStats } from '../../lib/services/aggregation-service';
+import { getDashboardStats, invalidateDashboardCache } from '../../lib/services/aggregation-service';
 
 vi.mock('../../lib/db', () => ({
   prisma: {
@@ -60,6 +60,7 @@ const mockRows = [
 describe('getDashboardStats', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateDashboardCache();
     vi.mocked(prisma.transaction.aggregate).mockResolvedValue({ _sum: { amount: 0 }, _avg: {}, _min: {}, _max: {}, _count: { _all: 0 } } as never);
   });
 

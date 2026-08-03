@@ -2,6 +2,17 @@ import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { DashboardAggregation } from '@/lib/types';
 
+const _cache = new Map<string, { data: DashboardAggregation; expiry: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function cacheKey(dateFrom?: Date, dateTo?: Date, category?: string, paidBy?: string, account?: string): string {
+  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', category ?? '', paidBy ?? '', account ?? ''].join('|');
+}
+
+export function invalidateDashboardCache(): void {
+  _cache.clear();
+}
+
 export async function getDashboardStats(
   dateFrom?: Date,
   dateTo?: Date,
@@ -9,6 +20,10 @@ export async function getDashboardStats(
   paidBy?: string,
   account?: string,
 ): Promise<DashboardAggregation> {
+  const key = cacheKey(dateFrom, dateTo, category, paidBy, account);
+  const cached = _cache.get(key);
+  if (cached && Date.now() < cached.expiry) return cached.data;
+
   const where: Prisma.TransactionWhereInput = {};
 
   if (dateFrom || dateTo) {
@@ -92,7 +107,7 @@ export async function getDashboardStats(
       })()
     : null;
 
-  return {
+  const result: DashboardAggregation = {
     totalExpenses,
     totalIncome,
     net: totalIncome - totalExpenses,
@@ -105,4 +120,7 @@ export async function getDashboardStats(
     topTransaction,
     transactionCount: expenseTransactions.length,
   };
+
+  _cache.set(key, { data: result, expiry: Date.now() + CACHE_TTL_MS });
+  return result;
 }

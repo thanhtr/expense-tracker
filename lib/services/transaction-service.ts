@@ -7,40 +7,47 @@ function makeDedupKey(date: string, merchant: string, cost: string): string {
 }
 
 export async function upsertTransactions(rows: ParsedTransaction[], accountOwner: string = 'tung') {
-  let created = 0;
-  let skipped = 0;
-  let errors = 0;
-
   if (rows.length === 0) {
     return { imported: 0, duplicates: 0, errors: 0, total: 0, created: 0, skipped: 0 };
   }
 
   const paidBy = accountOwner === 'thuy' ? 'thuy' : 'tung';
 
+  // Separate income (always skipped) from expense candidates
+  const expenseRows = rows.filter(r => r.type !== 'Income');
+  const incomeSkipped = rows.length - expenseRows.length;
+
+  // Build dedupKey for every expense row (suffix for intra-batch duplicates)
   const seenCount = new Map<string, number>();
-
-  for (const row of rows) {
-    if (row.type === 'Income') {
-      skipped++;
-      continue;
-    }
-
+  const candidates = expenseRows.map(row => {
     const dateStr = row.date.toISOString().split('T')[0];
     const cost = Math.abs(row.amount).toFixed(2);
     const baseKey = makeDedupKey(dateStr, row.merchant, cost);
-
     const seen = seenCount.get(baseKey) ?? 0;
     seenCount.set(baseKey, seen + 1);
-
-    // Append suffix for multiple identical purchases on same day
     const dedupKey = seen === 0 ? baseKey : `${baseKey}|${seen}`;
+    return { row, dedupKey, dateStr, cost };
+  });
 
+  // Single query to find all already-existing dedupKeys
+  const existingRows = await prisma.transaction.findMany({
+    where: { dedupKey: { in: candidates.map(c => c.dedupKey) } },
+    select: { dedupKey: true },
+  });
+  const existingKeys = new Set(
+    existingRows.map(r => r.dedupKey).filter((k): k is string => k !== null)
+  );
+
+  let created = 0;
+  let skipped = incomeSkipped;
+  let errors = 0;
+
+  for (const { row, dedupKey, dateStr, cost } of candidates) {
+    if (existingKeys.has(dedupKey)) {
+      skipped++;
+      continue;
+    }
     try {
-      const existing = await prisma.transaction.findUnique({ where: { dedupKey }, select: { id: true } });
-      if (existing) {
-        skipped++;
-        continue;
-      }
       await prisma.transaction.create({
         data: {
           date: row.date,

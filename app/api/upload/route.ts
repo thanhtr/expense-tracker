@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseOPBank, parseAmex, parseFinnair } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
+import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,8 +47,8 @@ export async function POST(request: NextRequest) {
     // Filter to expenses only
     rows = rows.filter(r => r.type === 'Expense');
 
-    // Create in Splitwise
     const result = await upsertTransactions(rows, accountOwner);
+    invalidateDashboardCache();
 
     return NextResponse.json({
       created: result.created,

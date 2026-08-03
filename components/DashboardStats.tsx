@@ -320,17 +320,34 @@ function RecentActivity() {
         const dotColor = t.type === 'Income' ? 'var(--pos)' : CAT_COLORS[catIndex];
         const dateStr = new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         return (
-          <div key={t.id ?? idx} className="grid grid-cols-[72px_1fr_auto_110px] gap-[12px] items-center py-[10px] border-t border-[var(--border)] first:border-t-0">
-            <div className="text-[12px] text-[var(--fg-3)] mono">{dateStr}</div>
-            <div className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{t.merchant}</div>
-            <span className="inline-flex items-center gap-[5px] text-[11px] font-medium text-[var(--fg-2)] bg-[oklch(0.96_0.004_260)] px-[7px] py-[3px] rounded-full">
-              <span className="w-[6px] h-[6px] rounded-full" style={{ background: dotColor }} />
-              {t.category || 'Uncategorized'}
-            </span>
-            <div
-              className={`mono text-[13px] text-right whitespace-nowrap ${isExpense ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]'}`}
-            >
-              {isExpense ? '−' : '+'}{fmtEUR(signed)}
+          <div key={t.id ?? idx} className="py-[10px] border-t border-[var(--border)] first:border-t-0">
+            {/* Desktop layout */}
+            <div className="hidden sm:grid grid-cols-[72px_1fr_auto_110px] gap-[12px] items-center">
+              <div className="text-[12px] text-[var(--fg-3)] mono">{dateStr}</div>
+              <div className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{t.merchant}</div>
+              <span className="inline-flex items-center gap-[5px] text-[11px] font-medium text-[var(--fg-2)] bg-[oklch(0.96_0.004_260)] px-[7px] py-[3px] rounded-full">
+                <span className="w-[6px] h-[6px] rounded-full" style={{ background: dotColor }} />
+                {t.category || 'Uncategorized'}
+              </span>
+              <div className={`mono text-[13px] text-right whitespace-nowrap ${isExpense ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]'}`}>
+                {isExpense ? '−' : '+'}{fmtEUR(signed)}
+              </div>
+            </div>
+            {/* Mobile layout */}
+            <div className="flex sm:hidden justify-between items-start gap-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{t.merchant}</div>
+                <div className="flex items-center gap-[6px] mt-[3px]">
+                  <span className="text-[11px] text-[var(--fg-3)] mono">{dateStr}</span>
+                  <span className="inline-flex items-center gap-[4px] text-[10px] font-medium text-[var(--fg-2)] bg-[oklch(0.96_0.004_260)] px-[6px] py-[2px] rounded-full">
+                    <span className="w-[5px] h-[5px] rounded-full" style={{ background: dotColor }} />
+                    {t.category || 'Uncategorized'}
+                  </span>
+                </div>
+              </div>
+              <div className={`mono text-[13px] whitespace-nowrap flex-shrink-0 ${isExpense ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]'}`}>
+                {isExpense ? '−' : '+'}{fmtEUR(signed)}
+              </div>
             </div>
           </div>
         );

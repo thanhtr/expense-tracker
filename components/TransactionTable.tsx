@@ -244,14 +244,14 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('date')}>
                 Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Account</th>
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Account</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Merchant</th>
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('amount')}>
                 Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Category</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Paid By</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Note</th>
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Paid By</th>
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Note</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Actions</th>
             </tr>
           </thead>
