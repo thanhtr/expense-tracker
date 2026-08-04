@@ -24,14 +24,14 @@ function fmtEUR(n: number) {
 
 function ProgressBar({ spent, limit }: { spent: number; limit: number }) {
   if (limit <= 0) {
-    return <div className="w-full h-[6px] bg-gray-100 rounded-full" />;
+    return <div className="w-full h-[6px] bg-surface-2 rounded-full" />;
   }
   const pct = Math.min((spent / limit) * 100, 100);
   const over = spent > limit;
   const warn = pct >= 70 && pct < 100;
   const color = over ? 'bg-red-500' : warn ? 'bg-amber-400' : 'bg-emerald-500';
   return (
-    <div className="w-full h-[6px] bg-gray-100 rounded-full overflow-hidden">
+    <div className="w-full h-[6px] bg-surface-2 rounded-full overflow-hidden">
       <div
         className={`h-full rounded-full transition-all ${color}`}
         style={{ width: `${pct}%` }}
@@ -212,7 +212,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
             <select
               value={newCategory}
               onChange={e => setNewCategory(e.target.value)}
-              className="px-[8px] py-[4px] border border-gray-300 rounded text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-[8px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select category…</option>
               {unusedCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -227,7 +227,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
                 onChange={e => setNewLimit(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false); }}
                 placeholder="limit"
-                className="w-[72px] px-[6px] py-[4px] border border-gray-300 rounded text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-[72px] px-[6px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <button
@@ -239,7 +239,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
             </button>
             <button
               onClick={() => { setAdding(false); setNewCategory(''); setNewLimit(''); }}
-              className="px-[10px] py-[4px] bg-gray-100 text-[var(--fg-2)] text-[12px] font-medium rounded hover:bg-gray-200"
+              className="px-[10px] py-[4px] bg-surface-2 text-[var(--fg-2)] text-[12px] font-medium rounded hover:bg-[var(--border)]"
             >
               Cancel
             </button>

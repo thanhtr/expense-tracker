@@ -64,7 +64,7 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
 
   const selectCls = [
     'cursor-pointer rounded text-sm border border-transparent px-2 py-1',
-    'bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500',
+    'bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-2 focus:ring-blue-500',
     status === 'saving' ? 'opacity-50' : '',
     status === 'saved' ? 'bg-green-100 border-green-300 text-green-800' : '',
     status === 'error' ? 'bg-red-100 border-red-300 text-red-800' : '',
@@ -72,14 +72,14 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
   ].join(' ');
 
   return (
-    <tr className={`border-b border-gray-200 hover:bg-gray-50 ${selected ? 'bg-blue-50' : ''}`}>
+    <tr className={`border-b border-border-soft hover:bg-surface-2 ${selected ? 'bg-blue-50' : ''}`}>
       {onSelect && (
         <td className="px-3 py-3">
           <input
             type="checkbox"
             checked={selected ?? false}
             onChange={(e) => onSelect(transaction.id, e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
           />
         </td>
       )}
@@ -109,7 +109,7 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
           : transaction.paidBy === 'thuy' ? 'Thuy'
           : '—'}
       </td>
-      <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-500" title={transaction.note || undefined}>
+      <td className="hidden md:table-cell px-4 py-3 text-sm text-fg-3" title={transaction.note || undefined}>
         {transaction.note?.substring(0, 30)}
         {transaction.note?.length > 30 ? '…' : ''}
       </td>

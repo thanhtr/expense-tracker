@@ -187,7 +187,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-fg-2">
           {total === 0
             ? '0 transactions'
             : `Showing ${offset + 1} to ${Math.min(offset + limit, total)} of ${total} transactions`}
@@ -206,7 +206,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           <select
             value={bulkCategory}
             onChange={(e) => setBulkCategory(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
+            className="px-2 py-1 border border-border-soft rounded bg-surface text-foreground text-sm"
           >
             <option value="">Choose category…</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -220,7 +220,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300"
+            className="px-3 py-1 bg-surface-2 text-fg-2 rounded text-sm font-medium hover:bg-[var(--border)]"
           >
             Deselect all
           </button>
@@ -231,36 +231,36 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         <div className="text-sm text-green-700 font-medium px-1">{bulkStatus}</div>
       )}
 
-      <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
+      <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-surface-2 border-b border-border-soft">
             <tr>
               <th className="px-3 py-3">
                 <input
                   type="checkbox"
                   checked={transactions.length > 0 && selectedIds.size === transactions.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('date')}>
-                Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
+              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
+                Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
               </th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Account</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Merchant</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-100" onClick={() => handleSort('amount')}>
-                Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-gray-400">↕</span>}
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Merchant</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
+                Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Category</th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Paid By</th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-700">Note</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-700">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
+              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Actions</th>
             </tr>
           </thead>
           <tbody>
             {!loading && transactions.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-4 py-12 text-center text-sm text-fg-3">
                   {Object.values(filters).some(Boolean)
                     ? 'No transactions match your filters'
                     : 'No transactions yet — upload a CSV to get started'}
@@ -287,7 +287,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         <button
           onClick={() => setOffset(Math.max(0, offset - limit))}
           disabled={offset === 0}
-          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-surface-2 text-fg-2 text-sm font-medium rounded-md hover:bg-[var(--border)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </button>
@@ -302,7 +302,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                 className={`px-3 py-2 text-sm font-medium rounded-md ${
                   page === currentPage
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    : 'bg-surface-2 text-fg-2 hover:bg-[var(--border)]'
                 }`}
               >
                 {page}
@@ -313,7 +313,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         <button
           onClick={() => setOffset(offset + limit)}
           disabled={offset + limit >= total}
-          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-surface-2 text-fg-2 text-sm font-medium rounded-md hover:bg-[var(--border)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next
         </button>

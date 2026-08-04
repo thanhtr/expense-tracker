@@ -203,7 +203,7 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
           width={44}
         />
         <Tooltip
-          cursor={{ fill: 'oklch(0.95 0.004 260)' }}
+          cursor={{ fill: 'var(--surface-2)' }}
           contentStyle={{
             background: 'oklch(0.22 0.012 260)',
             border: 'none',
@@ -256,7 +256,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           width={44}
         />
         <Tooltip
-          cursor={{ fill: 'oklch(0.95 0.004 260)' }}
+          cursor={{ fill: 'var(--surface-2)' }}
           contentStyle={{
             background: 'oklch(0.22 0.012 260)',
             border: 'none',
@@ -310,7 +310,7 @@ function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
           width={44}
         />
         <Tooltip
-          cursor={{ fill: 'oklch(0.95 0.004 260)' }}
+          cursor={{ fill: 'var(--surface-2)' }}
           contentStyle={{
             background: 'oklch(0.22 0.012 260)',
             border: 'none',
