@@ -166,7 +166,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
                       <button
                         onClick={() => handleEditSave(b.id, b.category)}
                         disabled={saving}
-                        className="text-[11px] text-blue-600 hover:text-blue-800 font-medium"
+                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
                       >
                         Save
                       </button>
@@ -179,14 +179,14 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
                     </>
                   ) : (
                     <>
-                      <span className={`mono text-[12px] ${over ? 'text-red-600 font-semibold' : 'text-[var(--fg-2)]'}`}>
+                      <span className={`mono text-[12px] ${over ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-[var(--fg-2)]'}`}>
                         {fmtEUR(spent)} / <button
                           onClick={() => { setEditingId(b.id); setEditLimit(String(b.monthlyLimit)); }}
                           className="hover:underline cursor-pointer"
                           title="Click to edit limit"
                         >{fmtEUR(b.monthlyLimit)}</button>
                       </span>
-                      <span className={`text-[11px] mono ${over ? 'text-red-600 font-semibold' : pct >= 70 ? 'text-amber-600' : 'text-[var(--fg-3)]'}`}>
+                      <span className={`text-[11px] mono ${over ? 'text-red-600 dark:text-red-400 font-semibold' : pct >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--fg-3)]'}`}>
                         {pct.toFixed(0)}%
                       </span>
                       <button

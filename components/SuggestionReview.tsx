@@ -74,7 +74,7 @@ export function SuggestionReview() {
     return <div className="text-center py-12 text-fg-3">Loading suggestions…</div>;
   }
   if (error) {
-    return <div className="text-center py-8 text-red-600">{error}</div>;
+    return <div className="text-center py-8 text-red-600 dark:text-red-400">{error}</div>;
   }
 
   const pending = groups.filter(g => g.action === 'idle');
@@ -141,7 +141,7 @@ export function SuggestionReview() {
                 <span className="text-foreground font-medium">{group.merchant}</span>
                 <button
                   onClick={() => setGroups(prev => prev.map((x, i) => i === idx ? { ...x, action: 'idle' } : x))}
-                  className="text-blue-600 text-xs hover:underline"
+                  className="text-blue-600 dark:text-blue-400 text-xs hover:underline"
                 >
                   Undo
                 </button>
@@ -162,7 +162,7 @@ export function SuggestionReview() {
                 <div className="text-sm text-fg-3 flex flex-wrap items-center gap-2">
                   <span>Current: <span className="text-fg-2">{uniqueCurrentCats.join(', ')}</span></span>
                   <span className="text-fg-3">→</span>
-                  <span>Suggested: <span className="text-blue-600 font-medium">{group.suggestedCategory}</span></span>
+                  <span>Suggested: <span className="text-blue-600 dark:text-blue-400 font-medium">{group.suggestedCategory}</span></span>
                 </div>
               </div>
 
@@ -197,7 +197,7 @@ export function SuggestionReview() {
               {group.transactions.slice(0, 3).map(t => (
                 <div key={t.id} className="px-4 py-2 flex items-center justify-between text-xs text-fg-3 border-b border-border-soft last:border-0">
                   <span>{t.date}</span>
-                  <span className={t.currentCategory ? 'text-fg-2' : 'text-amber-600'}>
+                  <span className={t.currentCategory ? 'text-fg-2' : 'text-amber-600 dark:text-amber-400'}>
                     {t.currentCategory || '⚠ Uncategorized'}
                   </span>
                   <span className="mono">€{t.amount.toFixed(2)}</span>

@@ -121,8 +121,8 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-800">{error}</p>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+              <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
             </div>
           )}
 
@@ -137,9 +137,9 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
       </div>
 
       {result && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-green-900 mb-4">Upload Result</h3>
-          <div className="space-y-2 text-sm text-green-800">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-green-900 dark:text-green-200 mb-4">Upload Result</h3>
+          <div className="space-y-2 text-sm text-green-800 dark:text-green-300">
             <div>✓ <strong>{result.created}</strong> transaction(s) imported</div>
             {result.skipped > 0 && (
               <div>⚠ <strong>{result.skipped}</strong> duplicate(s) skipped</div>

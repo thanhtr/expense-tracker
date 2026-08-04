@@ -141,7 +141,7 @@ export function KeywordManager() {
   return (
     <div className="space-y-6">
       {/* Bootstrap Section */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-2">Seed Rules from History</h2>
         <p className="text-sm text-fg-2 mb-4">
           Analyze all categorized transactions in Splitwise and learn rules automatically.
@@ -155,7 +155,7 @@ export function KeywordManager() {
           {bootstrapping ? 'Bootstrapping...' : 'Bootstrap from History'}
         </button>
         {bootstrapMessage && (
-          <div className={`mt-3 p-3 rounded text-sm ${bootstrapMessage.startsWith('✓') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+          <div className={`mt-3 p-3 rounded text-sm ${bootstrapMessage.startsWith('✓') ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'}`}>
             {bootstrapMessage}
           </div>
         )}
@@ -198,8 +198,8 @@ export function KeywordManager() {
           </div>
         </form>
         {error && (
-          <div className="mt-3 bg-red-50 border border-red-200 rounded p-3">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
+            <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
           </div>
         )}
       </div>
@@ -256,7 +256,7 @@ export function KeywordManager() {
                       <button
                         onClick={() => handleDelete(keyword.id)}
                         title="Delete keyword"
-                        className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        className="p-1.5 rounded text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
