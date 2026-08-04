@@ -102,43 +102,43 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
   const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 space-y-4">
+    <div className="bg-surface rounded-lg border border-border-soft p-4 mb-6 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Date From</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Date From</label>
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Date To</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Date To</label>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Account</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Account</label>
           <select
             value={account}
             onChange={(e) => setAccount(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All</option>
             {ACCOUNT_NAMES.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Type</label>
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All</option>
             <option value="Income">Income</option>
@@ -146,11 +146,11 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Category</label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             disabled={categoriesLoading || uncategorizedOnly}
           >
             <option value="">All</option>
@@ -162,11 +162,11 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Paid By</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Paid By</label>
           <select
             value={paidBy}
             onChange={(e) => setPaidBy(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All</option>
             <option value="tung">Tung</option>
@@ -174,17 +174,17 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Merchant</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Merchant</label>
           <input
             type="text"
             value={merchant}
             onChange={(e) => setMerchant(e.target.value)}
             placeholder="Filter merchant..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Min amount €</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Min amount €</label>
           <input
             type="number"
             min="0"
@@ -192,11 +192,11 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
             value={amountMin}
             onChange={(e) => setAmountMin(e.target.value)}
             placeholder="e.g. 10"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Max amount €</label>
+          <label className="block text-xs font-medium text-fg-2 mb-1">Max amount €</label>
           <input
             type="number"
             min="0"
@@ -204,24 +204,24 @@ export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
             value={amountMax}
             onChange={(e) => setAmountMax(e.target.value)}
             placeholder="e.g. 200"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-fg-2 cursor-pointer">
           <input
             type="checkbox"
             checked={uncategorizedOnly}
             onChange={(e) => setUncategorizedOnly(e.target.checked)}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
           />
           Uncategorized only
         </label>
         <button
           onClick={handleReset}
-          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300"
+          className="px-4 py-2 bg-surface-2 text-fg-2 text-sm font-medium rounded-md hover:bg-[var(--border)]"
         >
           {activeCount > 0 ? `Reset (${activeCount})` : 'Reset'}
         </button>

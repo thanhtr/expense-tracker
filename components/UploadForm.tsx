@@ -76,16 +76,16 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-surface rounded-lg border border-border-soft p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+              <label className="block text-sm font-medium text-fg-2 mb-2">Account Type</label>
               <select
                 value={accountType}
                 onChange={(e) => setAccountType(e.target.value)}
                 disabled={loading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="op">OP Bank</option>
                 <option value="amex">Amex</option>
@@ -94,12 +94,12 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Account Owner</label>
+              <label className="block text-sm font-medium text-fg-2 mb-2">Account Owner</label>
               <select
                 value={accountOwner}
                 onChange={(e) => setAccountOwner(e.target.value)}
                 disabled={loading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="tung">Tung (Me)</option>
                 <option value="thuy">Thuy (Wife)</option>
@@ -108,16 +108,16 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">CSV File</label>
+            <label className="block text-sm font-medium text-fg-2 mb-2">CSV File</label>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
               onChange={handleFileChange}
               disabled={loading}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+              className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm"
             />
-            {file && <p className="mt-2 text-sm text-gray-600">Selected: {file.name}</p>}
+            {file && <p className="mt-2 text-sm text-fg-2">Selected: {file.name}</p>}
           </div>
 
           {error && (
@@ -144,7 +144,7 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
             {result.skipped > 0 && (
               <div>⚠ <strong>{result.skipped}</strong> duplicate(s) skipped</div>
             )}
-            <div className="text-gray-700 mt-2">Total processed: {result.total}</div>
+            <div className="text-fg-2 mt-2">Total processed: {result.total}</div>
           </div>
           <a
             href="/transactions"
