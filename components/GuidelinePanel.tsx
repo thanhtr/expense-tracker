@@ -118,11 +118,11 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
                     <span className="text-[13px] font-medium">{BUCKET_LABELS[b.bucket]}</span>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0 text-[12px] mono">
-                    <span className={b.over ? 'text-red-600 font-semibold' : b.warn ? 'text-amber-600' : 'text-[var(--fg-2)]'}>
+                    <span className={b.over ? 'text-red-600 dark:text-red-400 font-semibold' : b.warn ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--fg-2)]'}>
                       {b.actualPct.toFixed(0)}% actual
                     </span>
                     <span className="text-[var(--fg-3)]">vs {b.targetPct.toFixed(0)}% target</span>
-                    <span className={b.over ? 'text-red-600 font-semibold' : 'text-[var(--fg-2)]'}>
+                    <span className={b.over ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-[var(--fg-2)]'}>
                       {fmtEUR(b.spent)}
                     </span>
                     {b.over && (

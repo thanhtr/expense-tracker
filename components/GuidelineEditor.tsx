@@ -181,7 +181,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
                 </div>
               </div>
             ))}
-            <div className={`text-[12px] font-medium ${Math.abs(total - 100) > 0.01 ? 'text-red-600' : 'text-pos'}`}>
+            <div className={`text-[12px] font-medium ${Math.abs(total - 100) > 0.01 ? 'text-red-600 dark:text-red-400' : 'text-pos'}`}>
               Total: {total.toFixed(0)}% {Math.abs(total - 100) > 0.01 ? '(must equal 100)' : '✓'}
             </div>
           </div>
@@ -240,7 +240,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-surface border-t border-border-soft px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-          {err && <span className="text-[12px] text-red-600">{err}</span>}
+          {err && <span className="text-[12px] text-red-600 dark:text-red-400">{err}</span>}
           {!err && <span />}
           <div className="flex gap-3">
             <button

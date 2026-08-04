@@ -29,7 +29,7 @@ function CategoryPills({ categories, dominant }: { categories: Seller['categorie
           key={c.category}
           className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${
             c.category === dominant
-              ? 'bg-blue-50 border-blue-200 text-blue-700'
+              ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
               : 'bg-surface-2 border-border-soft text-fg-3'
           }`}
         >
@@ -37,7 +37,7 @@ function CategoryPills({ categories, dominant }: { categories: Seller['categorie
         </span>
       ))}
       {uncategorized && (
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium border border-amber-200 bg-amber-50 text-amber-700">
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300">
           ⚠ {uncategorized.count} uncategorized
         </span>
       )}
@@ -115,7 +115,7 @@ export function SellerTable() {
   };
 
   if (loading) return <div className="text-center py-12 text-fg-3">Loading sellers…</div>;
-  if (error) return <div className="text-center py-8 text-red-600">{error}</div>;
+  if (error) return <div className="text-center py-8 text-red-600 dark:text-red-400">{error}</div>;
 
   const mixedCount = sellers.filter(s => s.isMixed || !s.dominantCategory).length;
 
@@ -139,7 +139,7 @@ export function SellerTable() {
           />
           Mixed / uncategorized only
           {mixedCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[11px] font-medium rounded-full border border-amber-200">
+            <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 text-[11px] font-medium rounded-full border border-amber-200 dark:border-amber-800">
               {mixedCount}
             </span>
           )}
@@ -196,7 +196,7 @@ export function SellerTable() {
                     <td className="px-4 py-3">
                       <div className="font-medium text-sm text-foreground">{seller.merchant}</div>
                       {seller.isMixed && (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium mt-0.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
                           mixed categories
                         </span>
@@ -228,7 +228,7 @@ export function SellerTable() {
                           </button>
                         )}
                         {state === 'saved' && <span className="text-pos text-[12px]">✓ saved</span>}
-                        {state === 'error' && <span className="text-red-600 text-[12px]">✗ failed</span>}
+                        {state === 'error' && <span className="text-red-600 dark:text-red-400 text-[12px]">✗ failed</span>}
                       </div>
                     </td>
                   </tr>

@@ -43,14 +43,14 @@ function RowCard({
         {row.dedupKey ?? 'no key'}
       </span>
       {isSuspect && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
           suspect
         </span>
       )}
       <button
         onClick={() => onDelete(row.id)}
         disabled={deleting}
-        className="px-2 py-0.5 text-[11px] font-medium rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-40 shrink-0"
+        className="px-2 py-0.5 text-[11px] font-medium rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-40 shrink-0"
       >
         {deleting ? '…' : 'Delete'}
       </button>
@@ -118,7 +118,7 @@ export function DuplicateReview() {
   };
 
   if (loading) return <div className="text-center py-12 text-fg-3">Scanning for duplicates…</div>;
-  if (error) return <div className="text-center py-8 text-red-600">{error}</div>;
+  if (error) return <div className="text-center py-8 text-red-600 dark:text-red-400">{error}</div>;
   if (!data || data.total === 0) {
     return (
       <div className="text-center py-12 text-fg-3">
@@ -138,7 +138,7 @@ export function DuplicateReview() {
         <span>{data.total} groups</span>
         <span className="text-fg-3">·</span>
         <span>
-          <span className="text-amber-600 font-medium">{suspectCount}</span> suspect rows
+          <span className="text-amber-600 dark:text-amber-400 font-medium">{suspectCount}</span> suspect rows
           (suffix dedupKey — likely from overlapping CSV uploads)
         </span>
       </div>

@@ -201,8 +201,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-          <span className="text-blue-700 font-medium">{selectedIds.size} selected</span>
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+          <span className="text-blue-700 dark:text-blue-300 font-medium">{selectedIds.size} selected</span>
           <select
             value={bulkCategory}
             onChange={(e) => setBulkCategory(e.target.value)}
@@ -224,11 +224,11 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           >
             Deselect all
           </button>
-          {bulkStatus && <span className="text-green-700 font-medium">{bulkStatus}</span>}
+          {bulkStatus && <span className="text-green-700 dark:text-green-400 font-medium">{bulkStatus}</span>}
         </div>
       )}
       {!selectedIds.size && bulkStatus && (
-        <div className="text-sm text-green-700 font-medium px-1">{bulkStatus}</div>
+        <div className="text-sm text-green-700 dark:text-green-400 font-medium px-1">{bulkStatus}</div>
       )}
 
       <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
