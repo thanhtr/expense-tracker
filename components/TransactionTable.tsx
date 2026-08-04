@@ -232,10 +232,10 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
       )}
 
       <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
-        <table className="w-full">
+        <table className="w-full table-fixed">
           <thead className="bg-surface-2 border-b border-border-soft">
             <tr>
-              <th className="px-3 py-3">
+              <th className="w-9 px-3 py-3">
                 <input
                   type="checkbox"
                   checked={transactions.length > 0 && selectedIds.size === transactions.length}
@@ -243,18 +243,20 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                   className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
+              <th className="w-24 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
                 Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
               </th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
+              <th className="hidden md:table-cell w-28 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Merchant</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
+              <th className="w-24 px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
                 Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
+              <th className="hidden sm:table-cell w-36 px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
+              <th className="hidden md:table-cell w-20 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
               <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Actions</th>
+              <th className="w-10 px-2 py-3 text-left text-xs font-medium text-fg-2">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
