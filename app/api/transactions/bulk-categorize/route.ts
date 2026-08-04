@@ -5,20 +5,22 @@ import { CATEGORIES } from '@/lib/constants';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ids, category } = body as { ids: number[]; category: string };
+    const { ids, merchant, category } = body as { ids?: number[]; merchant?: string; category: string };
 
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: 'ids must be a non-empty array' }, { status: 400 });
-    }
     if (!(CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
-    const result = await prisma.transaction.updateMany({
-      where: { id: { in: ids } },
-      data: { category },
-    });
+    let where: Parameters<typeof prisma.transaction.updateMany>[0]['where'];
+    if (merchant !== undefined) {
+      where = { merchant, type: 'Expense' };
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      where = { id: { in: ids } };
+    } else {
+      return NextResponse.json({ error: 'Provide ids or merchant' }, { status: 400 });
+    }
 
+    const result = await prisma.transaction.updateMany({ where, data: { category } });
     return NextResponse.json({ updated: result.count });
   } catch (error) {
     console.error('Bulk categorize error:', error);
