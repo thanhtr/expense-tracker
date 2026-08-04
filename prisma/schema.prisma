@@ -25,7 +25,9 @@ model Transaction {
   @@index([account])
   @@index([type])
   @@index([paidBy])
-  @@index([date, type])
+  @@index([merchant])
+  @@index([amount])
+  @@index([type, date])
   @@index([category, date])
 }
 
@@ -54,5 +56,4 @@ model LearnedRule {
   count         Int      @default(1)
   updatedAt     DateTime @updatedAt
 
-  @@index([normalizedKey])
 }

@@ -37,95 +37,119 @@ export async function getDashboardStats(
   if (paidBy) where.paidBy = paidBy;
   if (account) where.account = account;
 
-  const [expenseTransactions, incomeAggregate] = await Promise.all([
-    prisma.transaction.findMany({
-      where: { ...where, type: 'Expense' },
-      select: { date: true, category: true, account: true, amount: true, merchant: true, paidBy: true },
+  const expenseWhere = { ...where, type: 'Expense' };
+
+  const [
+    byCategoryGroups,
+    byAccountGroups,
+    byPersonGroups,
+    byDayCatGroups,
+    totalAgg,
+    uncategorizedCount,
+    incomeAggregate,
+    topTx,
+  ] = await Promise.all([
+    prisma.transaction.groupBy({
+      by: ['category'],
+      where: expenseWhere,
+      _sum: { amount: true },
+    }),
+    prisma.transaction.groupBy({
+      by: ['account'],
+      where: expenseWhere,
+      _sum: { amount: true },
+    }),
+    prisma.transaction.groupBy({
+      by: ['paidBy'],
+      where: expenseWhere,
+      _sum: { amount: true },
+    }),
+    // Date is @db.Date so grouping by date gives one row per (day, category)
+    prisma.transaction.groupBy({
+      by: ['date', 'category'],
+      where: expenseWhere,
+      _sum: { amount: true },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.transaction.aggregate({
+      where: expenseWhere,
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    prisma.transaction.count({
+      where: { ...expenseWhere, category: '' },
     }),
     prisma.transaction.aggregate({
       where: { ...where, type: 'Income' },
       _sum: { amount: true },
     }),
+    prisma.transaction.findFirst({
+      where: expenseWhere,
+      select: { merchant: true, amount: true, category: true, date: true },
+      orderBy: { amount: 'asc' }, // most negative = largest expense
+    }),
   ]);
 
-  const totalExpenses = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const totalExpenses = Math.abs(totalAgg._sum.amount ?? 0);
   const totalIncome = incomeAggregate._sum.amount ?? 0;
+  const transactionCount = totalAgg._count.id;
 
-  const byCategory = expenseTransactions.reduce((acc, t) => {
-    const cat = t.category || '⚠ Uncategorized';
-    acc[cat] = (acc[cat] || 0) + Math.abs(t.amount);
-    return acc;
-  }, {} as Record<string, number>);
-
-  const byCategoryArray = Object.entries(byCategory)
-    .map(([category, amount]) => ({ category, amount }))
+  const byCategoryArray = byCategoryGroups
+    .map(g => ({ category: g.category || '⚠ Uncategorized', amount: Math.abs(g._sum.amount ?? 0) }))
     .sort((a, b) => b.amount - a.amount);
 
-  const byAccount = expenseTransactions.reduce((acc, t) => {
-    acc[t.account] = (acc[t.account] || 0) + Math.abs(t.amount);
-    return acc;
-  }, {} as Record<string, number>);
+  const allCategories = byCategoryGroups
+    .map(g => g.category)
+    .filter(Boolean)
+    .sort();
 
-  const byPersonMap = expenseTransactions.reduce((acc, t) => {
-    if (!t.paidBy) return acc;
-    acc[t.paidBy] = (acc[t.paidBy] || 0) + Math.abs(t.amount);
-    return acc;
-  }, {} as Record<string, number>);
-  const byPersonArray = Object.entries(byPersonMap)
-    .map(([person, amount]) => ({ person, amount }))
+  const byAccount = Object.fromEntries(
+    byAccountGroups.map(g => [g.account, Math.abs(g._sum.amount ?? 0)])
+  );
+
+  const byPersonArray = byPersonGroups
+    .filter(g => g.paidBy)
+    .map(g => ({ person: g.paidBy, amount: Math.abs(g._sum.amount ?? 0) }))
     .sort((a, b) => b.amount - a.amount);
 
-  const byMonth = expenseTransactions.reduce((acc, t) => {
-    const month = t.date.toISOString().slice(0, 7);
-    acc[month] = (acc[month] || 0) + Math.abs(t.amount);
-    return acc;
-  }, {} as Record<string, number>);
+  // Derive byMonth, byDay, byCategoryMonth from the single grouped time-series query
+  const byMonthMap: Record<string, number> = {};
+  const dayMap: Record<string, Record<string, number>> = {};
+  const monthMap: Record<string, Record<string, number>> = {};
 
-  const byMonthArray = Object.entries(byMonth)
+  for (const g of byDayCatGroups) {
+    const day = g.date.toISOString().slice(0, 10);
+    const month = day.slice(0, 7);
+    const cat = g.category || '⚠ Uncategorized';
+    const amt = Math.abs(g._sum.amount ?? 0);
+
+    byMonthMap[month] = (byMonthMap[month] ?? 0) + amt;
+
+    if (!dayMap[day]) dayMap[day] = {};
+    dayMap[day][cat] = (dayMap[day][cat] ?? 0) + amt;
+
+    if (!monthMap[month]) monthMap[month] = {};
+    monthMap[month][cat] = (monthMap[month][cat] ?? 0) + amt;
+  }
+
+  const byMonthArray = Object.entries(byMonthMap)
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
-  const uncategorizedCount = expenseTransactions.filter(t => !t.category).length;
-
-  const allCategories = Array.from(
-    new Set(expenseTransactions.map(t => t.category).filter(Boolean))
-  ).sort();
-
-  const dayMap: Record<string, Record<string, number>> = {};
-  for (const t of expenseTransactions) {
-    const day = t.date.toISOString().slice(0, 10);
-    if (!dayMap[day]) dayMap[day] = {};
-    const cat = t.category || '⚠ Uncategorized';
-    dayMap[day][cat] = (dayMap[day][cat] || 0) + Math.abs(t.amount);
-  }
   const byDayArray = Object.entries(dayMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, cats]) => ({ day, ...cats }));
 
-  const monthMap: Record<string, Record<string, number>> = {};
-  for (const t of expenseTransactions) {
-    const month = t.date.toISOString().slice(0, 7);
-    if (!monthMap[month]) monthMap[month] = {};
-    const cat = t.category || '⚠ Uncategorized';
-    monthMap[month][cat] = (monthMap[month][cat] || 0) + Math.abs(t.amount);
-  }
   const byCategoryMonthArray = Object.entries(monthMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, cats]) => ({ month, ...cats }));
 
-  const topTransaction = expenseTransactions.length > 0
-    ? (() => {
-        const max = expenseTransactions.reduce((maxT, t) =>
-          Math.abs(t.amount) > Math.abs(maxT.amount) ? t : maxT
-        );
-        return {
-          merchant: max.merchant,
-          amount: Math.abs(max.amount),
-          category: max.category || '⚠ Uncategorized',
-          date: max.date.toISOString().slice(0, 10),
-        };
-      })()
-    : null;
+  const topTransaction = topTx ? {
+    merchant: topTx.merchant,
+    amount: Math.abs(topTx.amount),
+    category: topTx.category || '⚠ Uncategorized',
+    date: topTx.date.toISOString().slice(0, 10),
+  } : null;
 
   const result: DashboardAggregation = {
     totalExpenses,
@@ -140,7 +164,7 @@ export async function getDashboardStats(
     uncategorizedCount,
     allCategories,
     topTransaction,
-    transactionCount: expenseTransactions.length,
+    transactionCount,
   };
 
   _cache.set(key, { data: result, expiry: Date.now() + CACHE_TTL_MS });

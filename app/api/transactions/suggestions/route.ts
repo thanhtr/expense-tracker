@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { lookupLearnedCategory } from '@/lib/services/learned-rules-service';
+import { getLearnedRulesStore } from '@/lib/services/learned-rules-service';
 import { normalizeMerchant } from '@/lib/merchant-normalizer';
 
 export interface SuggestionGroup {
@@ -28,18 +28,22 @@ export async function GET(): Promise<NextResponse> {
       orderBy: { date: 'desc' },
     });
 
+    const rulesStore = await getLearnedRulesStore();
+
     // Group candidates by (normalizedMerchant, suggestedCategory) where suggestion ≠ current
     const groups = new Map<string, SuggestionGroup>();
 
     for (const row of rows) {
-      const suggested = await lookupLearnedCategory(row.merchant);
+      const normalized = normalizeMerchant(row.merchant);
+      if (!normalized) continue;
+      const suggested = rulesStore.rules[normalized]?.category ?? null;
       if (!suggested) continue;
 
       const currentCat = row.category ?? '';
       // Flag if: (a) no current category, or (b) current category differs from suggestion
       if (suggested === currentCat) continue;
 
-      const key = `${normalizeMerchant(row.merchant)}|||${suggested}`;
+      const key = `${normalized}|||${suggested}`;
       if (!groups.has(key)) {
         groups.set(key, {
           merchant: row.merchant,
