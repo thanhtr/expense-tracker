@@ -15,6 +15,7 @@ export default function TransactionsPage() {
         <div className="flex gap-2">
           <Link href="/transactions/sellers" className="btn-ghost text-[12px]">Sellers →</Link>
           <Link href="/transactions/suggestions" className="btn-ghost text-[12px]">Suggestions →</Link>
+          <Link href="/transactions/duplicates" className="btn-ghost text-[12px]">Duplicates →</Link>
         </div>
       </div>
       <TransactionFilters onFilter={setFilters} />

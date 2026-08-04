@@ -2,8 +2,8 @@ import { prisma } from '@/lib/db';
 import { ParsedTransaction, TransactionWithId } from '@/lib/types';
 import { Prisma } from '@prisma/client';
 
-function makeDedupKey(date: string, merchant: string, cost: string): string {
-  return `${date}|${merchant}|${cost}`;
+function makeDedupKey(date: string, account: string, merchant: string, cost: string): string {
+  return `${date}|${account}|${merchant}|${cost}`;
 }
 
 export async function upsertTransactions(rows: ParsedTransaction[], accountOwner: string = 'tung') {
@@ -22,7 +22,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   const candidates = expenseRows.map(row => {
     const dateStr = row.date.toISOString().split('T')[0];
     const cost = Math.abs(row.amount).toFixed(2);
-    const baseKey = makeDedupKey(dateStr, row.merchant, cost);
+    const baseKey = makeDedupKey(dateStr, row.account, row.merchant, cost);
     const seen = seenCount.get(baseKey) ?? 0;
     seenCount.set(baseKey, seen + 1);
     const dedupKey = seen === 0 ? baseKey : `${baseKey}|${seen}`;
