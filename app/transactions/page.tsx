@@ -10,9 +10,9 @@ export default function TransactionsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Transactions</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-3 mb-8">
+        <h1 className="text-3xl font-bold text-foreground mr-auto">Transactions</h1>
+        <div className="flex flex-wrap gap-2">
           <Link href="/transactions/sellers" className="btn-ghost text-[12px]">Sellers →</Link>
           <Link href="/transactions/suggestions" className="btn-ghost text-[12px]">Suggestions →</Link>
           <Link href="/transactions/duplicates" className="btn-ghost text-[12px]">Duplicates →</Link>

@@ -85,11 +85,11 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
       )}
       <td className="px-4 py-3 text-sm">{formatDate(transaction.date)}</td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">{transaction.account}</td>
-      <td className="px-4 py-3 text-sm">{transaction.merchant}</td>
+      <td className="px-4 py-3 text-sm truncate max-w-0" title={transaction.merchant}>{transaction.merchant}</td>
       <td className={`px-4 py-3 text-sm text-right font-medium ${amountColor}`}>
         {amountPrefix}{formatCurrency(transaction.amount)}
       </td>
-      <td className="px-4 py-3 text-sm">
+      <td className="hidden sm:table-cell px-4 py-3 text-sm">
         <select
           value={category}
           onChange={(e) => handleCategoryChange(e.target.value)}

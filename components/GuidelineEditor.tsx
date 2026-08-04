@@ -114,12 +114,12 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-16 px-2 sm:px-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-surface border border-border-soft rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <div className="sticky top-0 bg-surface border-b border-border-soft px-6 py-4 flex items-center justify-between">
+      <div className="relative bg-surface border border-border-soft rounded-xl shadow-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[80vh] overflow-y-auto">
+        <div className="sticky top-0 bg-surface border-b border-border-soft px-4 sm:px-6 py-4 flex items-center justify-between">
           <h2 className="text-[15px] font-semibold text-foreground">Configure Spending Guidelines</h2>
           <button onClick={onClose} className="text-fg-3 hover:text-foreground p-1">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -128,7 +128,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           {/* Presets */}
           <div>
             <div className="text-[11px] font-medium text-fg-3 uppercase tracking-wide mb-2">Presets</div>
@@ -153,9 +153,9 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
           <div className="space-y-4">
             <div className="text-[11px] font-medium text-fg-3 uppercase tracking-wide">Target Percentages</div>
             {BUCKETS.map(b => (
-              <div key={b} className="flex items-center gap-4">
-                <div className="flex items-center gap-2 w-24 flex-shrink-0">
-                  <span className="inline-block w-[8px] h-[8px] rounded-full" style={{ background: BUCKET_COLORS[b] }} />
+              <div key={b} className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 w-16 sm:w-24 shrink-0">
+                  <span className="inline-block w-[8px] h-[8px] rounded-full shrink-0" style={{ background: BUCKET_COLORS[b] }} />
                   <span className="text-[13px] font-medium text-foreground">{BUCKET_LABELS[b]}</span>
                 </div>
                 <input
@@ -165,17 +165,17 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
                   step={1}
                   value={pcts[b]}
                   onChange={e => setPcts(prev => ({ ...prev, [b]: Number(e.target.value) }))}
-                  className="flex-1"
+                  className="flex-1 min-w-0"
                   style={{ accentColor: BUCKET_COLORS[b] }}
                 />
-                <div className="flex items-center gap-1 w-16 flex-shrink-0">
+                <div className="flex items-center gap-1 shrink-0">
                   <input
                     type="number"
                     min={0}
                     max={100}
                     value={pcts[b]}
                     onChange={e => setPcts(prev => ({ ...prev, [b]: Math.max(0, Math.min(100, Number(e.target.value))) }))}
-                    className="w-12 px-1 py-0.5 border border-border-soft rounded bg-surface text-foreground text-[12px] text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-10 px-1 py-0.5 border border-border-soft rounded bg-surface text-foreground text-[12px] text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <span className="text-[12px] text-fg-3">%</span>
                 </div>
@@ -239,7 +239,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-surface border-t border-border-soft px-6 py-4 flex items-center justify-between gap-4">
+        <div className="sticky bottom-0 bg-surface border-t border-border-soft px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           {err && <span className="text-[12px] text-red-600">{err}</span>}
           {!err && <span />}
           <div className="flex gap-3">
