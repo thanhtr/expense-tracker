@@ -37,6 +37,14 @@ model Budget {
   updatedAt    DateTime @updatedAt
 }
 
+model GuidelineBucket {
+  id         Int      @id @default(autoincrement())
+  bucket     String   @unique  // "needs" | "wants" | "savings"
+  targetPct  Float             // e.g. 50.0
+  categories String            // JSON-encoded string[]
+  updatedAt  DateTime @updatedAt
+}
+
 model LearnedRule {
   id            Int      @id @default(autoincrement())
   normalizedKey String   @unique
