@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { toast } from 'sonner';
 import type { Transaction } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -14,7 +14,7 @@ interface TransactionRowProps {
   onSelect?: (id: number, checked: boolean) => void;
 }
 
-export function TransactionRow({ transaction, categories, onUpdate, onDelete, selected, onSelect }: TransactionRowProps) {
+export const TransactionRow = memo(function TransactionRow({ transaction, categories, onUpdate, onDelete, selected, onSelect }: TransactionRowProps) {
   const [category, setCategory] = useState(transaction.category);
   const [saving, setSaving] = useState(false);
 
@@ -108,4 +108,4 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
       </td>
     </tr>
   );
-}
+});

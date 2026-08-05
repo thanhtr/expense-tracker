@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { TransactionRow } from './TransactionRow';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
@@ -75,13 +75,13 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     setOffset(0);
   };
 
-  const handleSelect = (id: number, checked: boolean) => {
+  const handleSelect = useCallback((id: number, checked: boolean) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (checked) { next.add(id); } else { next.delete(id); }
       return next;
     });
-  };
+  }, []);
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedIds(checked ? new Set(transactions.map(t => t.id)) : new Set());
@@ -150,7 +150,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     fetchTransactions();
   }, [offset, filters, limit, sortBy, sortOrder]);
 
-  const handleUpdate = async (id: number, category: string) => {
+  const handleUpdate = useCallback(async (id: number, category: string) => {
     try {
       const res = await fetch(`/api/transactions/${id}`, {
         method: 'PATCH',
@@ -159,27 +159,27 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
       });
 
       if (res.ok) {
-        setTransactions(transactions.map(t => t.id === id ? { ...t, category } : t));
+        setTransactions(prev => prev.map(t => t.id === id ? { ...t, category } : t));
       }
     } catch (error) {
       console.error('Failed to update transaction:', error);
     }
-  };
+  }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     try {
       const res = await fetch(`/api/transactions/${id}`, {
         method: 'DELETE'
       });
 
       if (res.ok) {
-        setTransactions(transactions.filter(t => t.id !== id));
-        setTotal(total - 1);
+        setTransactions(prev => prev.filter(t => t.id !== id));
+        setTotal(prev => prev - 1);
       }
     } catch (error) {
       console.error('Failed to delete transaction:', error);
     }
-  };
+  }, []);
 
   const handleExport = async () => {
     const params = buildTransactionFilterParams(filters);
