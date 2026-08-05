@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 interface Keyword {
   id: number;
@@ -15,9 +16,7 @@ export function KeywordManager() {
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [bootstrapping, setBootstrapping] = useState(false);
-  const [bootstrapMessage, setBootstrapMessage] = useState('');
   const [search, setSearch] = useState('');
 
   const fetchKeywords = async () => {
@@ -29,7 +28,7 @@ export function KeywordManager() {
       }
     } catch (error) {
       console.error('Failed to fetch keywords:', error);
-      setError('Failed to load keywords');
+      toast.error('Failed to load keywords');
     } finally {
       setLoading(false);
     }
@@ -46,7 +45,7 @@ export function KeywordManager() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyword.trim() || !newCategory.trim()) {
-      setError('Please fill in both fields');
+      toast.error('Please fill in both fields');
       return;
     }
 
@@ -65,14 +64,13 @@ export function KeywordManager() {
         setKeywords([...keywords, keyword]);
         setNewKeyword('');
         setNewCategory('');
-        setError('');
       } else {
         const data = await res.json();
-        setError(data.error || 'Failed to add keyword');
+        toast.error(data.error || 'Failed to add keyword');
       }
     } catch (error) {
       console.error('Failed to add keyword:', error);
-      setError('An error occurred');
+      toast.error('An error occurred');
     }
   };
 
@@ -111,7 +109,6 @@ export function KeywordManager() {
 
   const handleBootstrap = async () => {
     setBootstrapping(true);
-    setBootstrapMessage('');
     try {
       const res = await fetch('/api/keywords/bootstrap', {
         method: 'POST'
@@ -119,16 +116,15 @@ export function KeywordManager() {
 
       if (res.ok) {
         const data = await res.json();
-        setBootstrapMessage(`✓ Bootstrapped ${data.learned} rules from history (${data.skipped} skipped)`);
-        // Refresh keywords after bootstrap
+        toast.success(`Bootstrapped ${data.learned} rules from history (${data.skipped} skipped)`);
         await fetchKeywords();
       } else {
         const data = await res.json();
-        setBootstrapMessage(`✗ Bootstrap failed: ${data.error || 'Unknown error'}`);
+        toast.error(`Bootstrap failed: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Bootstrap failed:', error);
-      setBootstrapMessage('✗ Bootstrap failed');
+      toast.error('Bootstrap failed');
     } finally {
       setBootstrapping(false);
     }
@@ -154,11 +150,6 @@ export function KeywordManager() {
         >
           {bootstrapping ? 'Bootstrapping...' : 'Bootstrap from History'}
         </button>
-        {bootstrapMessage && (
-          <div className={`mt-3 p-3 rounded text-sm ${bootstrapMessage.startsWith('✓') ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'}`}>
-            {bootstrapMessage}
-          </div>
-        )}
       </div>
 
       {/* Add New Keyword */}
@@ -197,11 +188,6 @@ export function KeywordManager() {
             </div>
           </div>
         </form>
-        {error && (
-          <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
-            <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-          </div>
-        )}
       </div>
 
       {/* Keywords List */}
