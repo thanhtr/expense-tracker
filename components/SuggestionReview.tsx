@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import type { SuggestionGroup } from '@/app/api/transactions/suggestions/route';
 
 type ActionState = 'idle' | 'saving' | 'done' | 'skipped';
@@ -32,7 +33,7 @@ export function SuggestionReview() {
           selectedCategory: g.suggestedCategory,
         })));
       })
-      .catch(() => setError('Failed to load suggestions'))
+      .catch(() => { setError('Failed to load suggestions'); toast.error('Failed to load suggestions'); })
       .finally(() => setLoading(false));
   }, []);
 

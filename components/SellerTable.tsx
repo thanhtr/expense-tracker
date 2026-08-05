@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import { CATEGORIES } from '@/lib/constants';
 import type { Seller } from '@/app/api/transactions/sellers/route';
 
 type SortKey = 'count' | 'totalAmount' | 'merchant';
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 function SortIcon({ k, sortKey, sortAsc }: { k: SortKey; sortKey: SortKey; sortAsc: boolean }) {
   if (sortKey !== k) return <span className="text-fg-3 text-[10px]">↕</span>;
@@ -52,7 +52,7 @@ export function SellerTable() {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('count');
   const [sortAsc, setSortAsc] = useState(false);
-  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
+  const [savingMerchants, setSavingMerchants] = useState<Set<string>>(new Set());
   const [pendingCat, setPendingCat] = useState<Record<string, string>>({});
   const [showMixedOnly, setShowMixedOnly] = useState(false);
 
@@ -87,7 +87,7 @@ export function SellerTable() {
   }, [sellers, search, sortKey, sortAsc, showMixedOnly]);
 
   const handleApply = async (merchant: string, category: string) => {
-    setSaveStates(p => ({ ...p, [merchant]: 'saving' }));
+    setSavingMerchants(p => new Set(p).add(merchant));
     try {
       const res = await fetch('/api/transactions/bulk-categorize', {
         method: 'POST',
@@ -102,15 +102,14 @@ export function SellerTable() {
                 categories: [{ category, count: updated }] }
             : s
         ));
-        setSaveStates(p => ({ ...p, [merchant]: 'saved' }));
-        setTimeout(() => setSaveStates(p => ({ ...p, [merchant]: 'idle' })), 2000);
+        toast.success(`Updated ${updated} transaction${updated === 1 ? '' : 's'} for ${merchant}`);
       } else {
-        setSaveStates(p => ({ ...p, [merchant]: 'error' }));
-        setTimeout(() => setSaveStates(p => ({ ...p, [merchant]: 'idle' })), 2000);
+        toast.error(`Failed to update ${merchant}`);
       }
     } catch {
-      setSaveStates(p => ({ ...p, [merchant]: 'error' }));
-      setTimeout(() => setSaveStates(p => ({ ...p, [merchant]: 'idle' })), 2000);
+      toast.error(`Failed to update ${merchant}`);
+    } finally {
+      setSavingMerchants(p => { const n = new Set(p); n.delete(merchant); return n; });
     }
   };
 
@@ -189,7 +188,7 @@ export function SellerTable() {
               </tr>
             ) : (
               filtered.map(seller => {
-                const state = saveStates[seller.merchant] ?? 'idle';
+                const isSaving = savingMerchants.has(seller.merchant);
                 const pending = pendingCat[seller.merchant] ?? seller.dominantCategory ?? '';
                 return (
                   <tr key={seller.merchant} className="border-b border-border-soft hover:bg-surface-2">
@@ -212,7 +211,7 @@ export function SellerTable() {
                         <select
                           value={pending}
                           onChange={e => setPendingCat(p => ({ ...p, [seller.merchant]: e.target.value }))}
-                          disabled={state === 'saving'}
+                          disabled={isSaving}
                           className="px-2 py-1 border border-border-soft rounded bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                         >
                           <option value="">— keep mixed —</option>
@@ -221,14 +220,12 @@ export function SellerTable() {
                         {pending && pending !== '' && (
                           <button
                             onClick={() => handleApply(seller.merchant, pending)}
-                            disabled={state === 'saving'}
+                            disabled={isSaving}
                             className="px-3 py-1 bg-blue-600 text-white text-[12px] font-medium rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
                           >
-                            {state === 'saving' ? '…' : `Apply to all ${seller.count}`}
+                            {isSaving ? '…' : `Apply to all ${seller.count}`}
                           </button>
                         )}
-                        {state === 'saved' && <span className="text-pos text-[12px]">✓ saved</span>}
-                        {state === 'error' && <span className="text-red-600 dark:text-red-400 text-[12px]">✗ failed</span>}
                       </div>
                     </td>
                   </tr>

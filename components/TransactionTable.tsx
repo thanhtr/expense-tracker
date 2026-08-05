@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { TransactionRow } from './TransactionRow';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
 import { buildTransactionFilterParams } from '@/lib/utils';
@@ -19,7 +20,6 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState('');
-  const [bulkStatus, setBulkStatus] = useState('');
   const limit = 50;
 
   const handleSort = (field: 'date' | 'amount') => {
@@ -46,7 +46,6 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
 
   const handleBulkCategorize = async () => {
     if (!bulkCategory || selectedIds.size === 0) return;
-    setBulkStatus('Saving…');
     try {
       const res = await fetch('/api/transactions/bulk-categorize', {
         method: 'POST',
@@ -60,15 +59,12 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         );
         setSelectedIds(new Set());
         setBulkCategory('');
-        setBulkStatus(`Updated ${updated} transaction${updated === 1 ? '' : 's'}`);
-        setTimeout(() => setBulkStatus(''), 3000);
+        toast.success(`Updated ${updated} transaction${updated === 1 ? '' : 's'}`);
       } else {
-        setBulkStatus('Failed to update');
-        setTimeout(() => setBulkStatus(''), 3000);
+        toast.error('Failed to update');
       }
     } catch {
-      setBulkStatus('Failed to update');
-      setTimeout(() => setBulkStatus(''), 3000);
+      toast.error('Failed to update');
     }
   };
 
@@ -195,11 +191,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           >
             Deselect all
           </button>
-          {bulkStatus && <span className="text-green-700 dark:text-green-400 font-medium">{bulkStatus}</span>}
         </div>
-      )}
-      {!selectedIds.size && bulkStatus && (
-        <div className="text-sm text-green-700 dark:text-green-400 font-medium px-1">{bulkStatus}</div>
       )}
 
       <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">

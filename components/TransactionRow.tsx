@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import type { Transaction } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 
@@ -15,19 +16,19 @@ interface TransactionRowProps {
 
 export function TransactionRow({ transaction, categories, onUpdate, onDelete, selected, onSelect }: TransactionRowProps) {
   const [category, setCategory] = useState(transaction.category);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saving, setSaving] = useState(false);
 
   const handleCategoryChange = async (newCategory: string) => {
     if (newCategory === category) return;
     setCategory(newCategory);
-    setStatus('saving');
+    setSaving(true);
     try {
       await onUpdate(transaction.id, newCategory);
-      setStatus('saved');
-      setTimeout(() => setStatus('idle'), 1500);
     } catch {
-      setStatus('error');
-      setTimeout(() => setStatus('idle'), 2000);
+      toast.error('Failed to update category');
+      setCategory(category);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -50,9 +51,7 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
   const selectCls = [
     'cursor-pointer rounded text-sm border border-transparent px-2 py-1',
     'bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-2 focus:ring-blue-500',
-    status === 'saving' ? 'opacity-50' : '',
-    status === 'saved' ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700 text-green-800 dark:text-green-300' : '',
-    status === 'error' ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-800 dark:text-red-300' : '',
+    saving ? 'opacity-50' : '',
     !category ? 'text-amber-600 dark:text-amber-400' : '',
   ].join(' ');
 
@@ -78,7 +77,7 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
         <select
           value={category}
           onChange={(e) => handleCategoryChange(e.target.value)}
-          disabled={status === 'saving'}
+          disabled={saving}
           className={selectCls}
         >
           {!category && <option value="">⚠ Uncategorized</option>}
@@ -86,8 +85,6 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        {status === 'saved' && <span className="ml-1 text-green-600 dark:text-green-400 text-xs">✓</span>}
-        {status === 'error' && <span className="ml-1 text-red-600 dark:text-red-400 text-xs">✗</span>}
       </td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">
         {transaction.paidBy === 'tung' ? 'Tung'
