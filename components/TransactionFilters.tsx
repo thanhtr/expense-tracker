@@ -2,18 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ACCOUNT_NAMES } from '@/lib/constants';
+import type { TransactionFilterValues } from '@/lib/types';
 
-export interface TransactionFilterValues {
-  dateFrom?: string;
-  dateTo?: string;
-  account?: string;
-  type?: string;
-  category?: string;
-  paidBy?: string;
-  merchant?: string;
-  amountMin?: string;
-  amountMax?: string;
-}
+export type { TransactionFilterValues };
 
 interface TransactionFiltersProps {
   onFilter: (filters: TransactionFilterValues) => void;

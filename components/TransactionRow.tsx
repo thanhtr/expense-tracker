@@ -1,18 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-
-interface Transaction {
-  id: number;
-  date: string | Date;
-  account: string;
-  merchant: string;
-  amount: number;
-  type: string;
-  category: string;
-  note: string;
-  paidBy: 'tung' | 'thuy' | 'other';
-}
+import type { Transaction } from '@/lib/types';
+import { formatDate } from '@/lib/utils';
 
 interface TransactionRowProps {
   transaction: Transaction;
@@ -45,11 +35,6 @@ export function TransactionRow({ transaction, categories, onUpdate, onDelete, se
     if (confirm('Are you sure you want to delete this transaction?')) {
       await onDelete(transaction.id);
     }
-  };
-
-  const formatDate = (date: string | Date) => {
-    if (typeof date === 'string') return date.split('T')[0];
-    return date.toISOString().split('T')[0];
   };
 
   const formatCurrency = (n: number) =>
