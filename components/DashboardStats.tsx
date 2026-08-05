@@ -364,7 +364,18 @@ function RecentActivity() {
     return () => { cancelled = true; };
   }, []);
 
-  if (rows === null) return <div className="text-[12px] text-[var(--fg-3)] py-4">Loading…</div>;
+  if (rows === null) return (
+    <div className="animate-pulse space-y-3 py-2">
+      {[80, 60, 75, 50, 70, 55, 65, 45].map((w, i) => (
+        <div key={i} className="flex items-center gap-3 py-2 border-t border-[var(--border)] first:border-t-0">
+          <div className="h-4 w-12 bg-[var(--border)] rounded flex-none" />
+          <div className="h-4 bg-[var(--border)] rounded flex-1" style={{ width: `${w}%` }} />
+          <div className="h-5 w-24 bg-[var(--border)] rounded-full flex-none" />
+          <div className="h-4 w-16 bg-[var(--border)] rounded flex-none" />
+        </div>
+      ))}
+    </div>
+  );
   if (rows.length === 0) return <div className="text-[12px] text-[var(--fg-3)] py-4">No recent transactions.</div>;
 
   return (
@@ -416,6 +427,64 @@ function hash(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
   return h;
+}
+
+// ----- skeleton -----
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-[20px] animate-pulse">
+      <div>
+        <div className="h-7 w-32 bg-[var(--border)] rounded" />
+        <div className="h-4 w-48 bg-[var(--border)] rounded mt-2" />
+      </div>
+      <div className="dash-card flex items-center gap-3 p-[10px_12px]">
+        <div className="h-7 w-64 bg-[var(--border)] rounded" />
+        <div className="h-7 w-32 bg-[var(--border)] rounded ml-4" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[20px]">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="dash-card p-[16px_18px_14px]">
+            <div className="h-3 w-24 bg-[var(--border)] rounded mb-3" />
+            <div className="h-7 w-32 bg-[var(--border)] rounded mb-3" />
+            <div className="h-5 w-full bg-[var(--border)] rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-[20px]">
+        <div className="dash-card p-[20px]">
+          <div className="h-4 w-40 bg-[var(--border)] rounded mb-6" />
+          <div className="space-y-4">
+            {[70, 55, 45, 30, 20].map(w => (
+              <div key={w}>
+                <div className="flex justify-between mb-1">
+                  <div className="h-4 bg-[var(--border)] rounded" style={{ width: `${w}%` }} />
+                  <div className="h-4 w-16 bg-[var(--border)] rounded" />
+                </div>
+                <div className="h-2 w-full bg-[var(--border)] rounded-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="dash-card p-[20px]">
+          <div className="h-4 w-20 bg-[var(--border)] rounded mb-6" />
+          <div className="grid grid-cols-2 gap-4">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i}>
+                <div className="h-3 w-20 bg-[var(--border)] rounded mb-2" />
+                <div className="h-5 w-24 bg-[var(--border)] rounded" />
+                <div className="h-3 w-16 bg-[var(--border)] rounded mt-1" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="dash-card p-[20px]">
+        <div className="h-4 w-32 bg-[var(--border)] rounded mb-6" />
+        <div className="h-[280px] bg-[var(--border)] rounded" />
+      </div>
+    </div>
+  );
 }
 
 // ----- main component -----
@@ -517,7 +586,7 @@ export function DashboardStats() {
       .concat([...seen].filter(c => !current.includes(c)));
   }, [data]);
 
-  if (loading && !data) return <div className="text-center py-8 text-[var(--fg-3)]">Loading…</div>;
+  if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
   // Build donut chart data (top 5 + Other)

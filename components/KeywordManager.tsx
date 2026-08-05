@@ -131,7 +131,32 @@ export function KeywordManager() {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="rounded-lg border border-border-soft p-6">
+          <div className="h-5 w-40 bg-[var(--border)] rounded mb-3" />
+          <div className="h-4 w-3/4 bg-[var(--border)] rounded mb-2" />
+          <div className="h-4 w-1/2 bg-[var(--border)] rounded mb-4" />
+          <div className="h-9 w-36 bg-[var(--border)] rounded" />
+        </div>
+        <div className="bg-surface rounded-lg border border-border-soft overflow-hidden">
+          <div className="px-6 py-4 bg-surface-2 border-b border-border-soft">
+            <div className="h-5 w-36 bg-[var(--border)] rounded mb-3" />
+            <div className="h-8 w-64 bg-[var(--border)] rounded" />
+          </div>
+          <div className="divide-y divide-border-soft">
+            {[70, 50, 80, 45, 65, 55, 75, 40].map((w, i) => (
+              <div key={i} className="px-6 py-3 flex items-center gap-4">
+                <div className="h-4 bg-[var(--border)] rounded" style={{ width: `${w}%`, maxWidth: 180 }} />
+                <div className="h-5 w-28 bg-[var(--border)] rounded-full" />
+                <div className="h-4 w-8 bg-[var(--border)] rounded ml-auto" />
+                <div className="h-7 w-7 bg-[var(--border)] rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
