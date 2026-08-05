@@ -1,3 +1,27 @@
+export interface Transaction {
+  id: number;
+  date: string | Date;
+  account: string;
+  merchant: string;
+  amount: number;
+  type: string;
+  category: string;
+  note: string;
+  paidBy: 'tung' | 'thuy' | 'other';
+}
+
+export interface TransactionFilterValues {
+  dateFrom?: string;
+  dateTo?: string;
+  account?: string;
+  type?: string;
+  category?: string;
+  paidBy?: string;
+  merchant?: string;
+  amountMin?: string;
+  amountMax?: string;
+}
+
 export interface ParsedTransaction {
   date: Date;
   account: string;

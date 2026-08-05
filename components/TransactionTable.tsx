@@ -2,19 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { TransactionRow } from './TransactionRow';
-import type { TransactionFilterValues } from './TransactionFilters';
-
-interface Transaction {
-  id: number;
-  date: string | Date;
-  account: string;
-  merchant: string;
-  amount: number;
-  type: string;
-  category: string;
-  note: string;
-  paidBy: 'tung' | 'thuy' | 'other';
-}
+import type { Transaction, TransactionFilterValues } from '@/lib/types';
+import { buildTransactionFilterParams } from '@/lib/utils';
 
 interface TransactionTableProps {
   filters?: TransactionFilterValues;
@@ -100,21 +89,11 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     const fetchTransactions = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
+        const params = buildTransactionFilterParams(filters);
         params.set('limit', limit.toString());
         params.set('offset', offset.toString());
         params.set('sort_by', sortBy);
         params.set('order', sortOrder);
-
-        if (filters.dateFrom) params.set('date_from', filters.dateFrom);
-        if (filters.dateTo) params.set('date_to', filters.dateTo);
-        if (filters.account) params.set('account', filters.account);
-        if (filters.category) params.set('category', filters.category);
-        if (filters.merchant) params.set('merchant', filters.merchant);
-        if (filters.type) params.set('type', filters.type);
-        if (filters.paidBy) params.set('paid_by', filters.paidBy);
-        if (filters.amountMin) params.set('amount_min', filters.amountMin);
-        if (filters.amountMax) params.set('amount_max', filters.amountMax);
 
         const res = await fetch(`/api/transactions?${params}`);
         if (res.ok) {
@@ -164,15 +143,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   };
 
   const handleExport = async () => {
-    const params = new URLSearchParams();
-    if (filters.dateFrom) params.set('date_from', filters.dateFrom);
-    if (filters.dateTo) params.set('date_to', filters.dateTo);
-    if (filters.account) params.set('account', filters.account);
-    if (filters.category) params.set('category', filters.category);
-    if (filters.merchant) params.set('merchant', filters.merchant);
-    if (filters.type) params.set('type', filters.type);
-    if (filters.paidBy) params.set('paid_by', filters.paidBy);
-
+    const params = buildTransactionFilterParams(filters);
     const url = `/api/export?${params}`;
     window.open(url, '_blank');
   };
