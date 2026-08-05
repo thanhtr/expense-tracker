@@ -6,6 +6,49 @@ import { TransactionRow } from './TransactionRow';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
 import { buildTransactionFilterParams } from '@/lib/utils';
 
+function TransactionTableSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="h-5 w-56 bg-[var(--border)] rounded animate-pulse" />
+        <div className="h-9 w-28 bg-[var(--border)] rounded animate-pulse" />
+      </div>
+      <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
+        <table className="w-full table-fixed">
+          <thead className="bg-surface-2 border-b border-border-soft animate-pulse">
+            <tr>
+              <th className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></th>
+              <th className="w-24 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
+              <th className="hidden md:table-cell w-28 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded" /></th>
+              <th className="px-4 py-3"><div className="h-4 w-20 bg-[var(--border)] rounded" /></th>
+              <th className="w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded ml-auto" /></th>
+              <th className="hidden sm:table-cell w-36 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></th>
+              <th className="hidden md:table-cell w-20 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
+              <th className="hidden md:table-cell px-4 py-3"><div className="h-4 w-10 bg-[var(--border)] rounded" /></th>
+              <th className="w-10 px-2 py-3" />
+            </tr>
+          </thead>
+          <tbody className="animate-pulse">
+            {[80, 55, 70, 40, 65, 50, 75, 45].map((w, i) => (
+              <tr key={i} className="border-b border-border-soft">
+                <td className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></td>
+                <td className="w-24 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></td>
+                <td className="hidden md:table-cell w-28 px-4 py-3"><div className="h-4 w-18 bg-[var(--border)] rounded" /></td>
+                <td className="px-4 py-3"><div className="h-4 bg-[var(--border)] rounded" style={{ width: `${w}%` }} /></td>
+                <td className="w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded ml-auto" /></td>
+                <td className="hidden sm:table-cell w-36 px-4 py-3"><div className="h-5 w-20 bg-[var(--border)] rounded-full" /></td>
+                <td className="hidden md:table-cell w-20 px-4 py-3"><div className="h-4 w-10 bg-[var(--border)] rounded" /></td>
+                <td className="hidden md:table-cell px-4 py-3"><div className="h-4 w-24 bg-[var(--border)] rounded" /></td>
+                <td className="w-10 px-2 py-3" />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface TransactionTableProps {
   filters?: TransactionFilterValues;
 }
@@ -145,7 +188,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   };
 
   if (loading && transactions.length === 0) {
-    return <div className="text-center py-8">Loading...</div>;
+    return <TransactionTableSkeleton />;
   }
 
   const maxPage = Math.ceil(total / limit);
