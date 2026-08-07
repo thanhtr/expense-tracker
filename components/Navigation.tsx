@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV_LINKS = [
   { href: '/', label: 'Dashboard' },
@@ -45,10 +46,12 @@ export function Navigation() {
                 </Link>
               );
             })}
+            <ThemeToggle />
           </div>
 
           {/* Hamburger button (mobile only) */}
-          <div className="flex items-center sm:hidden">
+          <div className="flex items-center gap-1 sm:hidden">
+            <ThemeToggle />
             <button
               onClick={() => setMenuOpen(o => !o)}
               aria-label="Toggle menu"
