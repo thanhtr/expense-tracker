@@ -8,6 +8,7 @@ export interface Transaction {
   category: string;
   note: string;
   paidBy: 'tung' | 'thuy' | 'other';
+  tags: string[];
 }
 
 export interface TransactionFilterValues {
@@ -20,6 +21,7 @@ export interface TransactionFilterValues {
   merchant?: string;
   amountMin?: string;
   amountMax?: string;
+  tag?: string;
 }
 
 export interface ParsedTransaction {
@@ -35,6 +37,7 @@ export interface ParsedTransaction {
 export interface TransactionWithId extends ParsedTransaction {
   id: number;
   paidBy: 'tung' | 'thuy' | 'other';
+  tags: string[];
   createdAt: Date;
   updatedAt: Date;
 }

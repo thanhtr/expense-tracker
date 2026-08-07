@@ -25,3 +25,14 @@ export type Category = typeof CATEGORIES[number];
 export const DEFAULT_CATEGORY = 'Other';
 
 export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa"] as const;
+
+export const TAGS = [
+  'reimbursable',
+  'work',
+  'holiday',
+  'shared',
+  'one-time',
+  'recurring',
+] as const;
+
+export type Tag = typeof TAGS[number];

@@ -8,16 +8,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { category } = await request.json();
+    const body = await request.json() as { category?: string; tags?: string[] };
     const resolvedParams = await params;
     const id = parseInt(resolvedParams.id);
 
-    if (!category) {
-      return NextResponse.json({ error: 'Category is required' }, { status: 400 });
+    const updateData: { category?: string; tags?: string[] } = {};
+
+    if (body.category !== undefined) {
+      if (!(CATEGORIES as readonly string[]).includes(body.category)) {
+        return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+      }
+      updateData.category = body.category;
     }
 
-    if (!(CATEGORIES as readonly string[]).includes(category)) {
-      return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+    if (body.tags !== undefined) {
+      if (!Array.isArray(body.tags) || !body.tags.every(t => typeof t === 'string')) {
+        return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 });
+      }
+      updateData.tags = body.tags;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
     const tx = await prisma.transaction.findUnique({ where: { id } });
@@ -25,10 +37,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
-    await recordCorrection(tx.merchant, category);
-    await prisma.transaction.update({ where: { id }, data: { category } });
+    if (updateData.category) {
+      await recordCorrection(tx.merchant, updateData.category);
+    }
+    const updated = await prisma.transaction.update({ where: { id }, data: updateData });
 
-    return NextResponse.json({ id, category, success: true });
+    return NextResponse.json({ id, category: updated.category, tags: updated.tags, success: true });
   } catch (error) {
     console.error('Update error:', error);
     return NextResponse.json(

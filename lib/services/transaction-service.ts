@@ -79,6 +79,7 @@ export async function getTransactions(filters: {
   paidBy?: 'tung' | 'thuy' | 'other';
   amountMin?: number;
   amountMax?: number;
+  tag?: string;
   sortBy?: string;
   order?: string;
   limit?: number;
@@ -105,6 +106,7 @@ export async function getTransactions(filters: {
   if (filters.type) where.type = filters.type;
   if (filters.paidBy) where.paidBy = filters.paidBy;
   if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
+  if (filters.tag) where.tags = { has: filters.tag };
   if (filters.amountMin !== undefined || filters.amountMax !== undefined) {
     const amountFilter: Prisma.FloatFilter = {};
     // Expenses are stored as negative numbers; amountMin/Max are absolute values
@@ -143,6 +145,7 @@ export async function getTransactions(filters: {
     note: row.note,
     type: row.type as 'Income' | 'Expense',
     category: row.category,
+    tags: row.tags,
     paidBy: row.paidBy as 'tung' | 'thuy' | 'other',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

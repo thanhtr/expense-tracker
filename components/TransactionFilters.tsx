@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ACCOUNT_NAMES } from '@/lib/constants';
+import { ACCOUNT_NAMES, TAGS } from '@/lib/constants';
 import type { TransactionFilterValues } from '@/lib/types';
 
 export type { TransactionFilterValues };
@@ -21,6 +21,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
   const [paidBy, setPaidBy] = useState(initialFilters?.paidBy ?? '');
   const [amountMin, setAmountMin] = useState(initialFilters?.amountMin ?? '');
   const [amountMax, setAmountMax] = useState(initialFilters?.amountMax ?? '');
+  const [tag, setTag] = useState(initialFilters?.tag ?? '');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -74,8 +75,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       paidBy: paidBy || undefined,
       amountMin: debouncedAmountMin || undefined,
       amountMax: debouncedAmountMax || undefined,
+      tag: tag || undefined,
     });
-  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax]);
+  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, tag]);
 
   const handleReset = () => {
     setDateFrom('');
@@ -87,11 +89,12 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     setPaidBy('');
     setAmountMin('');
     setAmountMax('');
+    setTag('');
     setUncategorizedOnly(false);
     onFilter({});
   };
 
-  const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
+  const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, tag, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
 
   return (
     <div className="bg-surface rounded-lg border border-border-soft p-4 mb-6 space-y-4">
@@ -207,6 +210,18 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
             placeholder="e.g. 200"
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div>
+          <label htmlFor="filter-tag" className="block text-xs font-medium text-fg-2 mb-1">Tag</label>
+          <select
+            id="filter-tag"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All</option>
+            {TAGS.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
       </div>
 

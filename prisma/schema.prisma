@@ -16,6 +16,7 @@ model Transaction {
   type      String
   category  String   @default("")
   paidBy    String   @default("tung")
+  tags      String[] @default([])
   dedupKey  String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
