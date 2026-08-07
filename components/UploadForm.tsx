@@ -80,8 +80,9 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-fg-2 mb-2">Account Type</label>
+              <label htmlFor="upload-account-type" className="block text-sm font-medium text-fg-2 mb-2">Account Type</label>
               <select
+                id="upload-account-type"
                 value={accountType}
                 onChange={(e) => setAccountType(e.target.value)}
                 disabled={loading}
@@ -94,8 +95,9 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-fg-2 mb-2">Account Owner</label>
+              <label htmlFor="upload-account-owner" className="block text-sm font-medium text-fg-2 mb-2">Account Owner</label>
               <select
+                id="upload-account-owner"
                 value={accountOwner}
                 onChange={(e) => setAccountOwner(e.target.value)}
                 disabled={loading}
@@ -108,8 +110,9 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-fg-2 mb-2">CSV File</label>
+            <label htmlFor="upload-csv-file" className="block text-sm font-medium text-fg-2 mb-2">CSV File</label>
             <input
+              id="upload-csv-file"
               ref={fileInputRef}
               type="file"
               accept=".csv"

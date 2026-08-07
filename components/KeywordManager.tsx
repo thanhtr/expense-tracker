@@ -183,8 +183,9 @@ export function KeywordManager() {
         <form onSubmit={handleAdd} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-1">
-              <label className="block text-sm font-medium text-fg-2 mb-1">Keyword</label>
+              <label htmlFor="kw-keyword" className="block text-sm font-medium text-fg-2 mb-1">Keyword</label>
               <input
+                id="kw-keyword"
                 type="text"
                 value={newKeyword}
                 onChange={(e) => setNewKeyword(e.target.value)}
@@ -193,8 +194,9 @@ export function KeywordManager() {
               />
             </div>
             <div className="sm:col-span-1">
-              <label className="block text-sm font-medium text-fg-2 mb-1">Category</label>
+              <label htmlFor="kw-category" className="block text-sm font-medium text-fg-2 mb-1">Category</label>
               <select
+                id="kw-category"
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -223,6 +225,7 @@ export function KeywordManager() {
           <div className="mt-3 flex items-center gap-3">
             <input
               type="text"
+              aria-label="Search keywords or categories"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search keywords or categories…"

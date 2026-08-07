@@ -126,10 +126,12 @@ export function CommandPalette() {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
+      <button
+        type="button"
+        aria-label="Close search"
+        className="fixed inset-0 z-40 w-full bg-black/40 backdrop-blur-[2px] cursor-default"
         onClick={close}
-        aria-hidden="true"
+        tabIndex={-1}
       />
 
       {/* Palette */}
@@ -146,6 +148,7 @@ export function CommandPalette() {
           </svg>
           <input
             ref={inputRef}
+            aria-label="Search transactions by merchant"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={onKeyDownInput}
@@ -155,37 +158,41 @@ export function CommandPalette() {
           {loading && (
             <span className="text-[11px] text-fg-3 animate-pulse">Searching…</span>
           )}
-          <kbd
-            className="text-[11px] font-mono text-fg-3 bg-surface-2 border border-border rounded px-1.5 py-0.5 cursor-pointer"
+          <button
+            type="button"
+            aria-label="Close search"
             onClick={close}
+            className="text-[11px] font-mono text-fg-3 bg-surface-2 border border-border rounded px-1.5 py-0.5 hover:bg-[var(--border)] focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
             Esc
-          </kbd>
+          </button>
         </div>
 
         {/* Results */}
         {results.length > 0 && (
           <ul role="listbox" className="max-h-72 overflow-y-auto py-1">
             {results.map((r, i) => (
-              <li
-                key={r.id}
-                role="option"
-                aria-selected={i === cursor}
-                onClick={() => selectResult(r)}
-                onMouseEnter={() => setCursor(i)}
-                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer text-[13px] ${
-                  i === cursor ? 'bg-surface-2' : ''
-                }`}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-foreground truncate">{r.merchant}</div>
-                  <div className="text-[11px] text-fg-3">{r.category} · {r.date.slice(0, 10)}</div>
-                </div>
-                <div className={`font-mono text-[13px] shrink-0 ${
-                  r.type === 'Income' ? 'text-[var(--pos)]' : 'text-[var(--neg)]'
-                }`}>
-                  {fmtAmount(r.amount, r.type)}
-                </div>
+              <li key={r.id} role="presentation">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === cursor}
+                  onClick={() => selectResult(r)}
+                  onMouseEnter={() => setCursor(i)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-left ${
+                    i === cursor ? 'bg-surface-2' : ''
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-foreground truncate">{r.merchant}</div>
+                    <div className="text-[11px] text-fg-3">{r.category} · {r.date.slice(0, 10)}</div>
+                  </div>
+                  <div className={`font-mono text-[13px] shrink-0 ${
+                    r.type === 'Income' ? 'text-[var(--pos)]' : 'text-[var(--neg)]'
+                  }`}>
+                    {fmtAmount(r.amount, r.type)}
+                  </div>
+                </button>
               </li>
             ))}
           </ul>

@@ -97,8 +97,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     <div className="bg-surface rounded-lg border border-border-soft p-4 mb-6 space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Date From</label>
+          <label htmlFor="filter-date-from" className="block text-xs font-medium text-fg-2 mb-1">Date From</label>
           <input
+            id="filter-date-from"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
@@ -106,8 +107,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Date To</label>
+          <label htmlFor="filter-date-to" className="block text-xs font-medium text-fg-2 mb-1">Date To</label>
           <input
+            id="filter-date-to"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -115,8 +117,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Account</label>
+          <label htmlFor="filter-account" className="block text-xs font-medium text-fg-2 mb-1">Account</label>
           <select
+            id="filter-account"
             value={account}
             onChange={(e) => setAccount(e.target.value)}
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -126,8 +129,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Type</label>
+          <label htmlFor="filter-type" className="block text-xs font-medium text-fg-2 mb-1">Type</label>
           <select
+            id="filter-type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -138,8 +142,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Category</label>
+          <label htmlFor="filter-category" className="block text-xs font-medium text-fg-2 mb-1">Category</label>
           <select
+            id="filter-category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
@@ -154,8 +159,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Paid By</label>
+          <label htmlFor="filter-paid-by" className="block text-xs font-medium text-fg-2 mb-1">Paid By</label>
           <select
+            id="filter-paid-by"
             value={paidBy}
             onChange={(e) => setPaidBy(e.target.value)}
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -166,8 +172,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Merchant</label>
+          <label htmlFor="filter-merchant" className="block text-xs font-medium text-fg-2 mb-1">Merchant</label>
           <input
+            id="filter-merchant"
             type="text"
             value={merchant}
             onChange={(e) => setMerchant(e.target.value)}
@@ -176,8 +183,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Min amount €</label>
+          <label htmlFor="filter-amount-min" className="block text-xs font-medium text-fg-2 mb-1">Min amount €</label>
           <input
+            id="filter-amount-min"
             type="number"
             min="0"
             step="0.01"
@@ -188,8 +196,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-fg-2 mb-1">Max amount €</label>
+          <label htmlFor="filter-amount-max" className="block text-xs font-medium text-fg-2 mb-1">Max amount €</label>
           <input
+            id="filter-amount-max"
             type="number"
             min="0"
             step="0.01"

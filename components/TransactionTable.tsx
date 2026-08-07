@@ -14,7 +14,7 @@ function TransactionTableSkeleton() {
         <div className="h-9 w-28 bg-[var(--border)] rounded animate-pulse" />
       </div>
       <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
-        <table className="w-full table-fixed">
+        <table className="w-full table-fixed" aria-hidden="true">
           <thead className="bg-surface-2 border-b border-border-soft animate-pulse">
             <tr>
               <th className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></th>
@@ -244,6 +244,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
               <th className="w-9 px-3 py-3">
                 <input
                   type="checkbox"
+                  aria-label="Select all transactions"
                   checked={transactions.length > 0 && selectedIds.size === transactions.length}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                   className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
