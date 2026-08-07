@@ -1,28 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
+import { dashboardQuerySchema, parseQuery } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
+  const parsed = parseQuery(dashboardQuerySchema, new URL(request.url).searchParams);
+  if ('error' in parsed) return parsed.error;
+  const { date_from, date_to, category, paid_by, account } = parsed.data;
+
   try {
-    const { searchParams } = new URL(request.url);
-
-    const dateFrom = searchParams.get('date_from')
-      ? new Date(searchParams.get('date_from')!)
-      : undefined;
-    const dateTo = searchParams.get('date_to')
-      ? new Date(searchParams.get('date_to')!)
-      : undefined;
-    const category = searchParams.get('category') ?? undefined;
-    const paidBy = searchParams.get('paid_by') ?? undefined;
-    const account = searchParams.get('account') ?? undefined;
-
-    const stats = await getDashboardStats(dateFrom, dateTo, category, paidBy, account);
-
+    const stats = await getDashboardStats(
+      date_from ? new Date(date_from) : undefined,
+      date_to ? new Date(date_to) : undefined,
+      category,
+      paid_by,
+      account,
+    );
     return NextResponse.json(stats);
   } catch (error) {
     console.error('Dashboard error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard stats' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch dashboard stats' }, { status: 500 });
   }
 }
