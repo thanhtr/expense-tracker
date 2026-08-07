@@ -47,6 +47,13 @@ model GuidelineBucket {
   updatedAt  DateTime @updatedAt
 }
 
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model LearnedRule {
   id            Int      @id @default(autoincrement())
   normalizedKey String   @unique

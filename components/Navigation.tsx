@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/transactions/duplicates', label: 'Duplicates' },
   { href: '/upload', label: 'Upload' },
   { href: '/keywords', label: 'Keywords' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 export function Navigation() {
