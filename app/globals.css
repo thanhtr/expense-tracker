@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   color-scheme: light dark;
@@ -29,7 +30,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     color-scheme: dark;
 
     --background: oklch(0.13 0.012 260);
@@ -41,17 +42,55 @@
     --fg-2: oklch(0.72 0.008 260);
     --fg-3: oklch(0.50 0.010 260);
 
-    /* Brighter semantic colors for dark backgrounds */
     --pos: oklch(0.72 0.14 160);
     --neg: oklch(0.72 0.16 25);
     --pos-soft: oklch(0.22 0.06 160);
     --neg-soft: oklch(0.22 0.06 25);
   }
+  :root:not(.light) .dash-chip.pos { color: oklch(0.78 0.12 160); }
+  :root:not(.light) .dash-chip.neg { color: oklch(0.78 0.14 25); }
+  :root:not(.light) .warn-pill { background: oklch(0.20 0.05 80); border-color: oklch(0.30 0.06 80); color: oklch(0.80 0.08 80); }
+}
 
-  /* Fix hardcoded OKLCH colors in CSS classes */
-  .dash-chip.pos { color: oklch(0.78 0.12 160); }
-  .dash-chip.neg { color: oklch(0.78 0.14 25); }
-  .warn-pill { background: oklch(0.20 0.05 80); border-color: oklch(0.30 0.06 80); color: oklch(0.80 0.08 80); }
+/* Manual dark override (user toggled dark in a light-system environment) */
+html.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.13 0.012 260);
+  --surface: oklch(0.17 0.010 260);
+  --surface-2: oklch(0.21 0.008 260);
+  --border: oklch(0.30 0.008 260);
+  --border-strong: oklch(0.38 0.008 260);
+  --foreground: oklch(0.93 0.005 85);
+  --fg-2: oklch(0.72 0.008 260);
+  --fg-3: oklch(0.50 0.010 260);
+
+  --pos: oklch(0.72 0.14 160);
+  --neg: oklch(0.72 0.16 25);
+  --pos-soft: oklch(0.22 0.06 160);
+  --neg-soft: oklch(0.22 0.06 25);
+}
+html.dark .dash-chip.pos { color: oklch(0.78 0.12 160); }
+html.dark .dash-chip.neg { color: oklch(0.78 0.14 25); }
+html.dark .warn-pill { background: oklch(0.20 0.05 80); border-color: oklch(0.30 0.06 80); color: oklch(0.80 0.08 80); }
+
+/* Manual light override (user toggled light in a dark-system environment) */
+html.light {
+  color-scheme: light;
+
+  --background: oklch(0.985 0.003 85);
+  --surface: #ffffff;
+  --surface-2: oklch(0.975 0.004 85);
+  --border: oklch(0.915 0.004 260);
+  --border-strong: oklch(0.86 0.005 260);
+  --foreground: oklch(0.22 0.012 260);
+  --fg-2: oklch(0.44 0.01 260);
+  --fg-3: oklch(0.62 0.008 260);
+
+  --pos: oklch(0.55 0.12 160);
+  --neg: oklch(0.58 0.18 25);
+  --pos-soft: oklch(0.94 0.04 160);
+  --neg-soft: oklch(0.95 0.03 25);
 }
 
 @theme inline {
