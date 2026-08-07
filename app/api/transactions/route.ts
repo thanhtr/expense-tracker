@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const parsed = parseQuery(transactionQuerySchema, new URL(request.url).searchParams);
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, account, category, merchant, type, paid_by,
-    amount_min, amount_max, sort_by, order, limit, offset } = parsed.data;
+    amount_min, amount_max, tag, sort_by, order, limit, offset } = parsed.data;
 
   try {
     const result = await getTransactions({
@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       paidBy: paid_by,
       amountMin: amount_min,
       amountMax: amount_max,
+      tag,
       sortBy: sort_by,
       order,
       limit,

@@ -11,6 +11,7 @@ export function buildTransactionFilterParams(filters: TransactionFilterValues): 
   if (filters.paidBy) params.set('paid_by', filters.paidBy);
   if (filters.amountMin) params.set('amount_min', filters.amountMin);
   if (filters.amountMax) params.set('amount_max', filters.amountMax);
+  if (filters.tag) params.set('tag', filters.tag);
   return params;
 }
 
