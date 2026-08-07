@@ -50,19 +50,14 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
               continue;
             }
 
-            // Skip income transactions (negative amounts in CSV) - expense tracking only
-            if (amount < 0) {
-              console.log(`   ⚠️ Skipping income transaction: ${merchant} (${amount})`);
-              continue;
-            }
-
             rows.push({
               date,
               account: 'Amex',
               merchant,
-              amount: -amount,  // IMPORTANT: Invert amount (CSV shows expenses as positive)
+              // CSV: positive = expense (invert), negative = income (take absolute)
+              amount: amount < 0 ? Math.abs(amount) : -amount,
               note: '',
-              type: 'Expense'
+              type: amount < 0 ? 'Income' : 'Expense',
             });
           } catch (error) {
             console.log(`   ⚠️ Parse error: ${error instanceof Error ? error.message : String(error)}`);

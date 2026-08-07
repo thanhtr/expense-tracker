@@ -50,19 +50,13 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
               continue;
             }
 
-            // Skip income transactions (positive amounts) - expense tracking only
-            if (amount > 0) {
-              console.log(`   ⚠️ Skipping income transaction: ${merchant} (${amount})`);
-              continue;
-            }
-
             rows.push({
               date,
               account: 'Finnair Visa',
               merchant,
               amount,
               note: '',
-              type: 'Expense'
+              type: amount > 0 ? 'Income' : 'Expense',
             });
           } catch (error) {
             console.log(`   ⚠️ Parse error: ${error instanceof Error ? error.message : String(error)}`);

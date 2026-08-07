@@ -13,13 +13,9 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
 
   const paidBy = accountOwner === 'thuy' ? 'thuy' : 'tung';
 
-  // Separate income (always skipped) from expense candidates
-  const expenseRows = rows.filter(r => r.type !== 'Income');
-  const incomeSkipped = rows.length - expenseRows.length;
-
-  // Build dedupKey for every expense row (suffix for intra-batch duplicates)
+  // Build dedupKey for every row (suffix for intra-batch duplicates)
   const seenCount = new Map<string, number>();
-  const candidates = expenseRows.map(row => {
+  const candidates = rows.map(row => {
     const dateStr = row.date.toISOString().slice(0, 10);
     const cost = Math.abs(row.amount).toFixed(2);
     const baseKey = makeDedupKey(dateStr, row.account, row.merchant, cost);
@@ -39,7 +35,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   );
 
   let created = 0;
-  let skipped = incomeSkipped;
+  let skipped = 0;
   let errors = 0;
 
   for (const { row, dedupKey, dateStr, cost } of candidates) {
@@ -48,14 +44,16 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
       continue;
     }
     try {
+      // Expenses stored as negative, income as positive
+      const storedAmount = row.type === 'Income' ? Math.abs(row.amount) : -Math.abs(row.amount);
       await prisma.transaction.create({
         data: {
           date: row.date,
           account: row.account,
           merchant: row.merchant,
-          amount: -Math.abs(row.amount),
+          amount: storedAmount,
           note: row.note || '',
-          type: 'Expense',
+          type: row.type,
           category: row.category || '',
           paidBy,
           dedupKey,
