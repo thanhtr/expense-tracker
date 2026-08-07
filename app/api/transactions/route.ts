@@ -1,33 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 import { prisma } from '@/lib/db';
+import { transactionQuerySchema, parseQuery } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
+  const parsed = parseQuery(transactionQuerySchema, new URL(request.url).searchParams);
+  if ('error' in parsed) return parsed.error;
+  const { date_from, date_to, account, category, merchant, type, paid_by,
+    amount_min, amount_max, sort_by, order, limit, offset } = parsed.data;
+
   try {
-    const { searchParams } = new URL(request.url);
-
-    const paidByParam = searchParams.get('paid_by');
-    const paidBy = paidByParam ? (paidByParam as 'tung' | 'thuy' | 'other') : undefined;
-
-    const amountMinRaw = searchParams.get('amount_min');
-    const amountMaxRaw = searchParams.get('amount_max');
-
     const result = await getTransactions({
-      dateFrom: searchParams.get('date_from') || undefined,
-      dateTo: searchParams.get('date_to') || undefined,
-      account: searchParams.get('account') || undefined,
-      category: searchParams.get('category') || undefined,
-      merchant: searchParams.get('merchant') || undefined,
-      type: searchParams.get('type') || undefined,
-      paidBy,
-      amountMin: amountMinRaw ? parseFloat(amountMinRaw) : undefined,
-      amountMax: amountMaxRaw ? parseFloat(amountMaxRaw) : undefined,
-      sortBy: searchParams.get('sort_by') || 'date',
-      order: searchParams.get('order') || 'desc',
-      limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 100,
-      offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : 0,
+      dateFrom: date_from,
+      dateTo: date_to,
+      account,
+      category,
+      merchant,
+      type,
+      paidBy: paid_by,
+      amountMin: amount_min,
+      amountMax: amount_max,
+      sortBy: sort_by,
+      order,
+      limit,
+      offset,
     });
-
     return NextResponse.json(result);
   } catch (error) {
     console.error('Transactions fetch error:', error);
