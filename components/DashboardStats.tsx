@@ -577,6 +577,7 @@ export function DashboardStats() {
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
+  const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
 
   const compareRange = useMemo(
     () => compareMode === 'yoy' ? yoyRange(dateFrom, dateTo) : previousRange(dateFrom, dateTo),
@@ -591,11 +592,15 @@ export function DashboardStats() {
     setDateTo(r.to);
   }, [preset]);
 
-  // Fetch forecast once on mount — date-range independent, always uses last 6 months
+  // Fetch forecast + recurring total once on mount
   useEffect(() => {
     fetch('/api/forecast')
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setForecast(d); })
+      .catch(() => {});
+    fetch('/api/transactions/recurring')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { totalMonthly: number } | null) => { if (d) setRecurringMonthly(d.totalMonthly); })
       .catch(() => {});
   }, []);
 
@@ -707,12 +712,19 @@ export function DashboardStats() {
             {prevData && ` · ${compareMode === 'yoy' ? 'YoY vs' : 'compared to'} ${labelForRange(compareRange.from, compareRange.to)}`}
           </div>
         </div>
-        {unfiltered && unfiltered.uncategorizedCount > 0 && !selectedCategory && (
-          <span className="warn-pill">
-            <span className="dot" />
-            {unfiltered.uncategorizedCount} transaction{unfiltered.uncategorizedCount === 1 ? '' : 's'} need a category
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {unfiltered && unfiltered.uncategorizedCount > 0 && !selectedCategory && (
+            <span className="warn-pill">
+              <span className="dot" />
+              {unfiltered.uncategorizedCount} transaction{unfiltered.uncategorizedCount === 1 ? '' : 's'} need a category
+            </span>
+          )}
+          {recurringMonthly !== null && recurringMonthly > 0 && (
+            <a href="/transactions/recurring" className="dash-chip neutral text-[11px] hover:bg-[var(--border)]">
+              ~{fmtEUR(recurringMonthly, { cents: false })}/mo recurring
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}
