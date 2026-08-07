@@ -39,6 +39,8 @@ export async function getDashboardStats(
 
   const expenseWhere = { ...where, type: 'Expense' };
 
+  const incomeWhere = { ...where, type: 'Income' };
+
   const [
     byCategoryGroups,
     byAccountGroups,
@@ -47,6 +49,7 @@ export async function getDashboardStats(
     totalAgg,
     uncategorizedCount,
     incomeAggregate,
+    incomeSourceGroups,
     topTx,
   ] = await Promise.all([
     prisma.transaction.groupBy({
@@ -80,8 +83,15 @@ export async function getDashboardStats(
       where: { ...expenseWhere, category: '' },
     }),
     prisma.transaction.aggregate({
-      where: { ...where, type: 'Income' },
+      where: incomeWhere,
       _sum: { amount: true },
+    }),
+    prisma.transaction.groupBy({
+      by: ['merchant'],
+      where: incomeWhere,
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: 'desc' } },
+      take: 5,
     }),
     prisma.transaction.findFirst({
       where: expenseWhere,
@@ -93,6 +103,11 @@ export async function getDashboardStats(
   const totalExpenses = Math.abs(totalAgg._sum.amount ?? 0);
   const totalIncome = incomeAggregate._sum.amount ?? 0;
   const transactionCount = totalAgg._count.id;
+
+  const byIncomeSource = incomeSourceGroups.map(g => ({
+    merchant: g.merchant,
+    amount: g._sum.amount ?? 0,
+  }));
 
   const byCategoryArray = byCategoryGroups
     .map(g => ({ category: g.category || '⚠ Uncategorized', amount: Math.abs(g._sum.amount ?? 0) }))
@@ -165,6 +180,7 @@ export async function getDashboardStats(
     allCategories,
     topTransaction,
     transactionCount,
+    byIncomeSource,
   };
 
   _cache.set(key, { data: result, expiry: Date.now() + CACHE_TTL_MS });

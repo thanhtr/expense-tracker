@@ -53,4 +53,5 @@ export interface DashboardAggregation {
   allCategories: string[];
   topTransaction: { merchant: string; amount: number; category: string; date: string } | null;
   transactionCount: number;
+  byIncomeSource: { merchant: string; amount: number }[];
 }

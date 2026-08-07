@@ -905,6 +905,19 @@ export function DashboardStats() {
                 ))}
               </div>
             )}
+            {data.byIncomeSource.length > 0 && (
+              <div className="col-span-2 border-t border-[var(--border)] mt-[4px] pt-[12px]">
+                <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] mb-[8px]">Income sources</div>
+                <div className="flex flex-col gap-[6px]">
+                  {data.byIncomeSource.map(({ merchant, amount }) => (
+                    <div key={merchant} className="flex items-center justify-between gap-2">
+                      <span className="text-[12px] text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{merchant}</span>
+                      <span className="mono text-[12px] font-medium text-[var(--pos)] flex-shrink-0">+{fmtEUR(amount, { cents: false })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
