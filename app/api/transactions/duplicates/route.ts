@@ -55,7 +55,7 @@ export async function GET(): Promise<NextResponse> {
   const rowMap = new Map(rows.map(r => [r.id, r]));
 
   const result: DuplicateGroup[] = groups.map(g => ({
-    date: g.date.toISOString().split('T')[0],
+    date: g.date.toISOString().slice(0, 10),
     merchant: g.merchant,
     amount: Number(g.amt),
     rows: g.ids.map(id => {

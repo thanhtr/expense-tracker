@@ -15,6 +15,6 @@ export function buildTransactionFilterParams(filters: TransactionFilterValues): 
 }
 
 export function formatDate(date: string | Date): string {
-  if (typeof date === 'string') return date.split('T')[0];
-  return date.toISOString().split('T')[0];
+  if (typeof date === 'string') return date.slice(0, 10);
+  return date.toISOString().slice(0, 10);
 }

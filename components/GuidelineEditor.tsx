@@ -54,7 +54,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
   const total = pcts.needs + pcts.wants + pcts.savings;
 
   const applyPreset = (values: number[]) => {
-    setPcts({ needs: values[0], wants: values[1], savings: values[2] });
+    setPcts({ needs: values[0] ?? 50, wants: values[1] ?? 30, savings: values[2] ?? 20 });
   };
 
   const toggleCat = (cat: string, bucket: BucketKey) => {

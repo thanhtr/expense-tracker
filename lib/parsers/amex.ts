@@ -28,7 +28,7 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
 
         const firstRow = results.data[0];
         console.log(`🔍 Amex parser: Found ${results.data.length} rows`);
-        console.log(`   Columns: ${Object.keys(firstRow).join(', ')}`);
+        console.log(`   Columns: ${firstRow ? Object.keys(firstRow).join(', ') : '(none)'}`);
 
         for (const r of results.data) {
           try {
