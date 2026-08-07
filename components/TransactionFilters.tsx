@@ -8,26 +8,27 @@ export type { TransactionFilterValues };
 
 interface TransactionFiltersProps {
   onFilter: (filters: TransactionFilterValues) => void;
+  initialFilters?: TransactionFilterValues;
 }
 
-export function TransactionFilters({ onFilter }: TransactionFiltersProps) {
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [account, setAccount] = useState('');
-  const [category, setCategory] = useState('');
-  const [merchant, setMerchant] = useState('');
-  const [type, setType] = useState('');
-  const [paidBy, setPaidBy] = useState('');
-  const [amountMin, setAmountMin] = useState('');
-  const [amountMax, setAmountMax] = useState('');
+export function TransactionFilters({ onFilter, initialFilters }: TransactionFiltersProps) {
+  const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '');
+  const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '');
+  const [account, setAccount] = useState(initialFilters?.account ?? '');
+  const [category, setCategory] = useState(initialFilters?.category ?? '');
+  const [merchant, setMerchant] = useState(initialFilters?.merchant ?? '');
+  const [type, setType] = useState(initialFilters?.type ?? '');
+  const [paidBy, setPaidBy] = useState(initialFilters?.paidBy ?? '');
+  const [amountMin, setAmountMin] = useState(initialFilters?.amountMin ?? '');
+  const [amountMax, setAmountMax] = useState(initialFilters?.amountMax ?? '');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   // Debounced versions of text/number inputs
-  const [debouncedMerchant, setDebouncedMerchant] = useState('');
-  const [debouncedAmountMin, setDebouncedAmountMin] = useState('');
-  const [debouncedAmountMax, setDebouncedAmountMax] = useState('');
+  const [debouncedMerchant, setDebouncedMerchant] = useState(initialFilters?.merchant ?? '');
+  const [debouncedAmountMin, setDebouncedAmountMin] = useState(initialFilters?.amountMin ?? '');
+  const [debouncedAmountMax, setDebouncedAmountMax] = useState(initialFilters?.amountMax ?? '');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedMerchant(merchant), 300);
