@@ -9,6 +9,9 @@ vi.mock('../../lib/db', () => ({
       count: vi.fn(),
       findFirst: vi.fn(),
     },
+    transactionSplit: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 

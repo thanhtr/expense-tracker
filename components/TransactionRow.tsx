@@ -4,7 +4,13 @@ import { memo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Transaction } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
-import { TAGS } from '@/lib/constants';
+import { TAGS, CATEGORIES } from '@/lib/constants';
+
+interface Split {
+  id?: number;
+  category: string;
+  amount: string;
+}
 
 interface TransactionRowProps {
   transaction: Transaction;
@@ -36,6 +42,79 @@ export const TransactionRow = memo(function TransactionRow({
   const [saving, setSaving] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Split state
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splits, setSplits] = useState<Split[]>([]);
+  const [splitLoading, setSplitLoading] = useState(false);
+  const [hasSplits, setHasSplits] = useState(false);
+
+  const openSplitEditor = async () => {
+    setSplitLoading(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/splits`);
+      const existing = res.ok ? await res.json() as { category: string; amount: number }[] : [];
+      if (existing.length > 0) {
+        setSplits(existing.map(s => ({ category: s.category, amount: String(s.amount) })));
+      } else {
+        setSplits([
+          { category: transaction.category || '', amount: '' },
+          { category: '', amount: '' },
+        ]);
+      }
+      setSplitOpen(true);
+    } finally {
+      setSplitLoading(false);
+    }
+  };
+
+  const saveSplits = async () => {
+    const totalAmt = Math.abs(transaction.amount);
+    const valid = splits.filter(s => s.category && s.amount && parseFloat(s.amount) > 0);
+    if (valid.length < 2) {
+      toast.error('Enter at least 2 split lines');
+      return;
+    }
+    const sum = valid.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+    if (Math.abs(sum - totalAmt) > 0.01) {
+      toast.error(`Split total €${sum.toFixed(2)} doesn't match transaction €${totalAmt.toFixed(2)}`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/splits`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ splits: valid.map(s => ({ category: s.category, amount: parseFloat(s.amount) })) }),
+      });
+      if (!res.ok) throw new Error('Failed to save splits');
+      setHasSplits(true);
+      setSplitOpen(false);
+      toast.success('Splits saved');
+    } catch {
+      toast.error('Failed to save splits');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearSplits = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/transactions/${transaction.id}/splits`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ splits: [] }),
+      });
+      setHasSplits(false);
+      setSplitOpen(false);
+      toast.success('Splits removed');
+    } catch {
+      toast.error('Failed to remove splits');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleCategoryChange = async (newCategory: string) => {
     if (newCategory === category) return;
@@ -88,8 +167,13 @@ export const TransactionRow = memo(function TransactionRow({
     !category ? 'text-amber-600 dark:text-amber-400' : '',
   ].join(' ');
 
+  const totalAmt = Math.abs(transaction.amount);
+  const splitTotal = splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0);
+  const splitRemaining = Math.max(0, totalAmt - splitTotal);
+
   return (
-    <tr className={`border-b border-border-soft hover:bg-surface-2 ${selected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}>
+    <>
+    <tr className={`border-b ${splitOpen ? '' : 'border-border-soft'} hover:bg-surface-2 ${selected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}>
       {onSelect && (
         <td className="px-3 py-3">
           <input
@@ -143,6 +227,21 @@ export const TransactionRow = memo(function TransactionRow({
       </td>
       <td className="px-4 py-3 text-sm">
         <div className="flex items-center gap-1">
+          {/* Split button */}
+          {transaction.type === 'Expense' && (
+            <button
+              type="button"
+              onClick={splitOpen ? () => setSplitOpen(false) : openSplitEditor}
+              disabled={splitLoading}
+              aria-label="Split transaction"
+              title={hasSplits ? 'Edit splits' : 'Split transaction'}
+              className={`p-1.5 rounded transition-colors ${splitOpen ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : hasSplits ? 'text-blue-500 hover:bg-surface-2' : 'text-fg-3 hover:text-foreground hover:bg-surface-2'}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 12m0 0 4.5-9M3 12h13.5m0 0L12 3m4.5 9-4.5 9" />
+              </svg>
+            </button>
+          )}
           {/* Tag picker */}
           <div className="relative">
             <button
@@ -190,5 +289,84 @@ export const TransactionRow = memo(function TransactionRow({
         </div>
       </td>
     </tr>
+
+    {/* Split editor inline row */}
+    {splitOpen && (
+      <tr className="border-b border-border-soft bg-blue-50/50 dark:bg-blue-950/10">
+        <td colSpan={9} className="px-4 py-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-medium text-[var(--fg-2)]">
+                Split {formatCurrency(totalAmt)} across categories
+              </span>
+              <span className={`text-[12px] mono ${Math.abs(splitRemaining) < 0.01 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                Remaining: {formatCurrency(splitRemaining)}
+              </span>
+            </div>
+            {splits.map((s, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <select
+                  value={s.category}
+                  onChange={e => setSplits(prev => prev.map((x, j) => j === i ? { ...x, category: e.target.value } : x))}
+                  aria-label={`Split ${i + 1} category`}
+                  className="flex-1 px-2 py-1 text-[12px] border border-border-soft rounded bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Select category…</option>
+                  {(CATEGORIES as readonly string[]).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={s.amount}
+                  onChange={e => setSplits(prev => prev.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))}
+                  placeholder="0.00"
+                  aria-label={`Split ${i + 1} amount`}
+                  className="w-24 px-2 py-1 text-[12px] text-right border border-border-soft rounded bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                {splits.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setSplits(prev => prev.filter((_, j) => j !== i))}
+                    aria-label="Remove split row"
+                    className="text-fg-3 hover:text-red-500 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
+            ))}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setSplits(prev => [...prev, { category: '', amount: '' }])}
+                className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+              >+ Add row</button>
+              <div className="flex-1" />
+              {hasSplits && (
+                <button
+                  type="button"
+                  onClick={clearSplits}
+                  disabled={saving}
+                  className="px-2 py-1 text-[11px] text-red-500 hover:text-red-700 disabled:opacity-50"
+                >Remove splits</button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSplitOpen(false)}
+                className="px-3 py-1 text-[11px] bg-surface-2 text-[var(--fg-2)] rounded hover:bg-[var(--border)]"
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={saveSplits}
+                disabled={saving}
+                className="px-3 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >Save splits</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    )}
+    </>
   );
 });
