@@ -54,7 +54,7 @@ export async function GET(): Promise<NextResponse> {
       groups.get(key)!.transactions.push({
         id: row.id,
         currentCategory: currentCat,
-        date: row.date.toISOString().split('T')[0],
+        date: row.date.toISOString().slice(0, 10),
         amount: Math.abs(row.amount),
       });
     }

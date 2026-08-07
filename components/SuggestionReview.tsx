@@ -39,6 +39,7 @@ export function SuggestionReview() {
 
   const applyGroup = async (idx: number, category: string) => {
     const g = groups[idx];
+    if (!g) return;
     setGroups(prev => prev.map((x, i) => i === idx ? { ...x, action: 'saving' } : x));
     try {
       const ids = g.group.transactions.map(t => t.id);
@@ -64,8 +65,9 @@ export function SuggestionReview() {
   const handleAcceptAll = async () => {
     setAcceptingAll(true);
     for (let i = 0; i < groups.length; i++) {
-      if (groups[i].action === 'idle') {
-        await applyGroup(i, groups[i].selectedCategory);
+      const g = groups[i];
+      if (g && g.action === 'idle') {
+        await applyGroup(i, g.selectedCategory);
       }
     }
     setAcceptingAll(false);

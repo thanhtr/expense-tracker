@@ -22,9 +22,9 @@ const CACHE_TTL_MS = 24 * 3600 * 1000;
 
 function ema(values: number[], alpha: number = EMA_ALPHA): number {
   if (values.length === 0) return 0;
-  let smoothed = values[0];
+  let smoothed = values[0] ?? 0;
   for (let i = 1; i < values.length; i++) {
-    smoothed = alpha * values[i] + (1 - alpha) * smoothed;
+    smoothed = alpha * (values[i] ?? 0) + (1 - alpha) * smoothed;
   }
   return smoothed;
 }
@@ -84,7 +84,7 @@ export async function forecastNextMonth(): Promise<ForecastResult> {
   const categoryForecasts: CategoryForecast[] = [];
   for (const category of allCategories) {
     const series = months.map(m => byMonthCategory[m]?.[category] ?? 0);
-    const lastActual = series[series.length - 1];
+    const lastActual = series[series.length - 1] ?? 0;
     const forecastVal = Math.max(0, ema(series));
 
     categoryForecasts.push({

@@ -20,7 +20,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   // Build dedupKey for every expense row (suffix for intra-batch duplicates)
   const seenCount = new Map<string, number>();
   const candidates = expenseRows.map(row => {
-    const dateStr = row.date.toISOString().split('T')[0];
+    const dateStr = row.date.toISOString().slice(0, 10);
     const cost = Math.abs(row.amount).toFixed(2);
     const baseKey = makeDedupKey(dateStr, row.account, row.merchant, cost);
     const seen = seenCount.get(baseKey) ?? 0;

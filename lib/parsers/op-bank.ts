@@ -13,7 +13,7 @@ function findColumn(row: Record<string, string>, names: string[]): string | unde
     }
     // Partial match (useful for variations like "Määrä EUROA" matching "Määrä EUR")
     for (const name of lowerNames) {
-      if (lowerKey.includes(name) || name.includes(lowerKey.split(/\s+/)[0])) {
+      if (lowerKey.includes(name) || name.includes(lowerKey.split(/\s+/)[0] ?? '')) {
         return value;
       }
     }
@@ -50,7 +50,7 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
 
           const firstRow = results.data[0];
           console.log(`🔍 OP Bank parser: Found ${results.data.length} rows`);
-          console.log(`   Columns: ${Object.keys(firstRow).join(', ')}`);
+          console.log(`   Columns: ${firstRow ? Object.keys(firstRow).join(', ') : '(none)'}`);
           console.log(`   First row data: ${JSON.stringify(firstRow)}`);
 
           for (const r of results.data) {
