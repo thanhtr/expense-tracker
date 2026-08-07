@@ -61,6 +61,7 @@ export const TransactionRow = memo(function TransactionRow({ transaction, catego
         <td className="px-3 py-3">
           <input
             type="checkbox"
+            aria-label={`Select ${transaction.merchant}`}
             checked={selected ?? false}
             onChange={(e) => onSelect(transaction.id, e.target.checked)}
             className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
@@ -75,6 +76,7 @@ export const TransactionRow = memo(function TransactionRow({ transaction, catego
       </td>
       <td className="hidden sm:table-cell px-4 py-3 text-sm">
         <select
+          aria-label="Category"
           value={category}
           onChange={(e) => handleCategoryChange(e.target.value)}
           disabled={saving}

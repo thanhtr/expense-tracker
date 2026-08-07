@@ -50,6 +50,7 @@
     "@vitest/coverage-v8": "^1.6.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "pako": "^2.1.0",

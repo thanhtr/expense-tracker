@@ -116,7 +116,13 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-4 sm:pt-16 px-2 sm:px-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        aria-label="Close guideline editor"
+        className="absolute inset-0 w-full bg-black/40 backdrop-blur-sm cursor-default"
+        onClick={onClose}
+        tabIndex={-1}
+      />
 
       <div className="relative bg-surface border border-border-soft rounded-xl shadow-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[80vh] overflow-y-auto">
         <div className="sticky top-0 bg-surface border-b border-border-soft px-4 sm:px-6 py-4 flex items-center justify-between">
