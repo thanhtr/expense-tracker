@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { CommandPalette } from '@/components/CommandPalette';
 
 const NAV_LINKS = [
   { href: '/', label: 'Dashboard' },
@@ -30,7 +31,7 @@ export function Navigation() {
           </div>
 
           {/* Desktop nav */}
-          <div className="hidden sm:flex items-center space-x-6">
+          <div className="hidden sm:flex items-center space-x-4">
             {NAV_LINKS.map(({ href, label }) => {
               const isActive = pathname === href;
               return (
@@ -48,11 +49,13 @@ export function Navigation() {
                 </Link>
               );
             })}
+            <CommandPalette />
             <ThemeToggle />
           </div>
 
           {/* Hamburger button (mobile only) */}
           <div className="flex items-center gap-1 sm:hidden">
+            <CommandPalette />
             <ThemeToggle />
             <button
               onClick={() => setMenuOpen(o => !o)}

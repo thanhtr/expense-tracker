@@ -1,13 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { TransactionFilters } from '@/components/TransactionFilters';
 import { TransactionTable } from '@/components/TransactionTable';
+import type { TransactionFilterValues } from '@/lib/types';
+
+function TransactionsContent() {
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<TransactionFilterValues>(() => {
+    const merchant = searchParams.get('merchant');
+    return merchant ? { merchant } : {};
+  });
+
+  return (
+    <>
+      <TransactionFilters onFilter={setFilters} initialFilters={filters} />
+      <TransactionTable filters={filters} />
+    </>
+  );
+}
 
 export default function TransactionsPage() {
-  const [filters, setFilters] = useState({});
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-wrap items-center gap-3 mb-8">
@@ -18,8 +33,9 @@ export default function TransactionsPage() {
           <Link href="/transactions/duplicates" className="btn-ghost text-[12px]">Duplicates →</Link>
         </div>
       </div>
-      <TransactionFilters onFilter={setFilters} />
-      <TransactionTable filters={filters} />
+      <Suspense fallback={<div className="text-fg-3 text-sm">Loading filters…</div>}>
+        <TransactionsContent />
+      </Suspense>
     </div>
   );
 }
