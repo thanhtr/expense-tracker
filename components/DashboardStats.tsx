@@ -58,6 +58,14 @@ function previousRange(from: string, to: string): { from: string; to: string } {
   return { from: ymd(prevFrom), to: ymd(prevTo) };
 }
 
+function yoyRange(from: string, to: string): { from: string; to: string } {
+  const f = new Date(from);
+  const t = new Date(to);
+  f.setFullYear(f.getFullYear() - 1);
+  t.setFullYear(t.getFullYear() - 1);
+  return { from: ymd(f), to: ymd(t) };
+}
+
 function fmtEUR(n: number, opts: { cents?: boolean } = {}) {
   return new Intl.NumberFormat('fi-FI', {
     style: 'currency',
@@ -78,7 +86,7 @@ function labelForRange(from: string, to: string): string {
 
 // ----- small components -----
 
-function Delta({ curr, prev, goodWhenDown = true }: { curr: number; prev: number; goodWhenDown?: boolean }) {
+function Delta({ curr, prev, goodWhenDown = true, vsLabel = 'prev' }: { curr: number; prev: number; goodWhenDown?: boolean; vsLabel?: string }) {
   if (!prev) {
     return <span className="text-[12px] text-[var(--fg-3)]">—</span>;
   }
@@ -95,7 +103,7 @@ function Delta({ curr, prev, goodWhenDown = true }: { curr: number; prev: number
     <span className={`inline-flex items-center gap-1 text-[12px] ${cls} whitespace-nowrap`}>
       <span className="text-[9px]">{arrow}</span>
       <span className="mono">{pct(d)}</span>
-      <span className="text-[var(--fg-3)]">vs prev</span>
+      <span className="text-[var(--fg-3)]">vs {vsLabel}</span>
     </span>
   );
 }
@@ -117,10 +125,10 @@ function Sparkline({ data, color = 'var(--accent)' }: { data: number[]; color?: 
 }
 
 function KPI({
-  label, value, curr, prev, goodWhenDown, sparkData, sparkColor, valueColor,
+  label, value, curr, prev, goodWhenDown, sparkData, sparkColor, valueColor, vsLabel,
 }: {
   label: string; value: string; curr: number; prev: number; goodWhenDown: boolean;
-  sparkData: number[]; sparkColor?: string; valueColor?: string;
+  sparkData: number[]; sparkColor?: string; valueColor?: string; vsLabel?: string;
 }) {
   return (
     <div className="dash-card p-[16px_18px_14px]">
@@ -129,7 +137,7 @@ function KPI({
         {value}
       </div>
       <div className="flex items-center justify-between gap-[10px] mt-[6px]">
-        <Delta curr={curr} prev={prev} goodWhenDown={goodWhenDown} />
+        <Delta curr={curr} prev={prev} goodWhenDown={goodWhenDown} vsLabel={vsLabel} />
         <Sparkline data={sparkData} color={sparkColor} />
       </div>
     </div>
@@ -562,11 +570,18 @@ export function DashboardStats() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>('bars');
 
+  const [compareMode, setCompareMode] = useState<'prev' | 'yoy'>('prev');
+
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
+
+  const compareRange = useMemo(
+    () => compareMode === 'yoy' ? yoyRange(dateFrom, dateTo) : previousRange(dateFrom, dateTo),
+    [compareMode, dateFrom, dateTo],
+  );
 
   // Apply preset → update dates
   useEffect(() => {
@@ -595,7 +610,7 @@ export function DashboardStats() {
     })();
   }, [dateFrom, dateTo]);
 
-  // Fetch filtered + previous-period for deltas
+  // Fetch filtered + comparison-period for deltas
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -603,8 +618,7 @@ export function DashboardStats() {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         if (selectedCategory) params.set('category', selectedCategory);
 
-        const prev = previousRange(dateFrom, dateTo);
-        const prevParams = new URLSearchParams({ date_from: prev.from, date_to: prev.to });
+        const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
         if (selectedCategory) prevParams.set('category', selectedCategory);
 
         const [resCur, resPrev] = await Promise.all([
@@ -619,7 +633,7 @@ export function DashboardStats() {
         setLoading(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory]);
+  }, [dateFrom, dateTo, selectedCategory, compareRange]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -690,7 +704,7 @@ export function DashboardStats() {
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] m-0">Dashboard</h1>
           <div className="text-[13px] text-[var(--fg-3)] mt-[2px]">
             {labelForRange(dateFrom, dateTo)}
-            {prevData && ` · compared to ${labelForRange(previousRange(dateFrom, dateTo).from, previousRange(dateFrom, dateTo).to)}`}
+            {prevData && ` · ${compareMode === 'yoy' ? 'YoY vs' : 'compared to'} ${labelForRange(compareRange.from, compareRange.to)}`}
           </div>
         </div>
         {unfiltered && unfiltered.uncategorizedCount > 0 && !selectedCategory && (
@@ -734,6 +748,12 @@ export function DashboardStats() {
           <option value="">All categories</option>
           {unfiltered?.allCategories?.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
+        <span className="tool-label mr-[4px]">Compare</span>
+        <div className="seg">
+          <button className={compareMode === 'prev' ? 'active' : ''} onClick={() => setCompareMode('prev')}>Prev period</button>
+          <button className={compareMode === 'yoy' ? 'active' : ''} onClick={() => setCompareMode('yoy')}>Year ago</button>
+        </div>
         <div className="ml-auto flex gap-[6px]">
           <a href="/api/export" className="btn-ghost">Export CSV</a>
         </div>
@@ -749,6 +769,7 @@ export function DashboardStats() {
           goodWhenDown
           sparkData={sparkExpenses}
           sparkColor="var(--neg)"
+          vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
         <KPI
           label="Total income"
@@ -759,6 +780,7 @@ export function DashboardStats() {
           sparkData={sparkIncome}
           sparkColor="var(--pos)"
           valueColor="oklch(0.38 0.10 160)"
+          vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
         <KPI
           label="Net"
@@ -769,6 +791,7 @@ export function DashboardStats() {
           sparkData={sparkNet}
           sparkColor={data.net >= 0 ? 'var(--pos)' : 'var(--neg)'}
           valueColor={data.net >= 0 ? 'oklch(0.38 0.10 160)' : 'oklch(0.42 0.14 25)'}
+          vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
         <KPI
           label="Transactions"
@@ -778,6 +801,7 @@ export function DashboardStats() {
           goodWhenDown={false}
           sparkData={sparkTx}
           sparkColor="var(--accent)"
+          vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
       </div>
 
