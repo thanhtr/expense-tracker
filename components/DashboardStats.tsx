@@ -767,7 +767,14 @@ export function DashboardStats() {
           <button className={compareMode === 'yoy' ? 'active' : ''} onClick={() => setCompareMode('yoy')}>Year ago</button>
         </div>
         <div className="ml-auto flex gap-[6px]">
-          <a href="/api/export" className="btn-ghost">Export CSV</a>
+          <a href="/api/export" className="btn-ghost print:hidden">Export CSV</a>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="btn-ghost print:hidden"
+          >
+            Print report
+          </button>
         </div>
       </div>
 

@@ -161,3 +161,39 @@ body {
   color: oklch(0.38 0.08 60); font-size: 12px; font-weight: 500;
 }
 .warn-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: oklch(0.65 0.15 70); }
+
+@media print {
+  /* Force light mode for print */
+  :root {
+    --background: #fff;
+    --surface: #fff;
+    --surface-2: #f5f5f5;
+    --border: #d0d0d0;
+    --border-strong: #b0b0b0;
+    --foreground: #111;
+    --fg-2: #444;
+    --fg-3: #777;
+    --accent: oklch(0.58 0.16 28);
+    --pos: oklch(0.40 0.12 160);
+    --neg: oklch(0.45 0.18 25);
+    --pos-soft: #e8f5e9;
+    --neg-soft: #fce8e8;
+  }
+
+  /* Hide non-essential UI elements */
+  nav,
+  .print\:hidden { display: none !important; }
+
+  /* Remove card shadows, flatten borders */
+  .dash-card { box-shadow: none !important; border: 1px solid #d0d0d0 !important; }
+
+  /* Ensure backgrounds print */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Page setup */
+  @page { margin: 16mm 14mm; size: A4; }
+  body { font-size: 11pt; }
+
+  /* Break charts to new page if needed */
+  .recharts-responsive-container { break-inside: avoid; }
+}
