@@ -69,13 +69,14 @@ model Category {
 }
 
 model SavingsGoal {
-  id            Int      @id @default(autoincrement())
-  name          String
-  targetAmount  Float
-  currentAmount Float    @default(0)
-  targetDate    DateTime @db.Date
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  name           String
+  targetAmount   Float
+  currentAmount  Float    @default(0)
+  targetDate     DateTime @db.Date
+  linkedCategory String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Asset {
