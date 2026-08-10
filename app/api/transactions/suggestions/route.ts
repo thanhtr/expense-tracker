@@ -26,6 +26,7 @@ export async function GET(): Promise<NextResponse> {
       where: { type: 'Expense' },
       select: { id: true, merchant: true, category: true, date: true, amount: true },
       orderBy: { date: 'desc' },
+      take: 5000,
     });
 
     const rulesStore = await getLearnedRulesStore();

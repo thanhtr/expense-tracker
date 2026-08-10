@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 import { prisma } from '@/lib/db';
-import { transactionQuerySchema, parseQuery } from '@/lib/validation';
+import { transactionQuerySchema, bulkDeleteQuerySchema, parseQuery } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   const parsed = parseQuery(transactionQuerySchema, new URL(request.url).searchParams);
@@ -37,22 +37,15 @@ export async function GET(request: NextRequest) {
 // Requires both date_from and date_to to prevent accidental full wipes.
 export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const dateFrom = searchParams.get('date_from');
-    const dateTo = searchParams.get('date_to');
-
-    if (!dateFrom || !dateTo) {
-      return NextResponse.json(
-        { error: 'Both date_from and date_to are required' },
-        { status: 400 }
-      );
-    }
+    const parsed = parseQuery(bulkDeleteQuerySchema, new URL(request.url).searchParams);
+    if ('error' in parsed) return parsed.error;
+    const { date_from, date_to } = parsed.data;
 
     const result = await prisma.transaction.deleteMany({
       where: {
         date: {
-          gte: new Date(dateFrom),
-          lte: new Date(dateTo),
+          gte: new Date(date_from),
+          lte: new Date(date_to),
         },
       },
     });

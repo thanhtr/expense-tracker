@@ -29,6 +29,7 @@ export async function GET(): Promise<NextResponse> {
     where: { type: 'Expense', date: { gte: since } },
     select: { merchant: true, amount: true, date: true, category: true, account: true },
     orderBy: { date: 'asc' },
+    take: 10000,
   });
 
   // Group by merchant
