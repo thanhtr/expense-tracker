@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fmtEUR, today } from '@/lib/utils';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Asset {
   id: number;
@@ -36,6 +37,8 @@ export function NetWorthCard() {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<{ month: string; netWorth: number }[]>([]);
 
   // Form state
   const [newName, setNewName] = useState('');
@@ -52,6 +55,14 @@ export function NetWorthCard() {
       .then(setAssets)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!showHistory) return;
+    fetch('/api/assets?history=1')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { month: string; netWorth: number }[]) => setHistory(data))
+      .catch(() => {});
+  }, [showHistory]);
 
   const totalAssets = assets.filter(a => a.type !== 'liability').reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = assets.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.balance), 0);
@@ -118,9 +129,18 @@ export function NetWorthCard() {
         onClick={() => setExpanded(e => !e)}
         aria-expanded={expanded}
       >
-        <div>
-          <h3 className="text-[13px] font-semibold m-0">Net Worth</h3>
-          <div className="text-[12px] text-[var(--fg-3)]">Assets &amp; liabilities snapshot</div>
+        <div className="flex items-center gap-2">
+          <div>
+            <h3 className="text-[13px] font-semibold m-0">Net Worth</h3>
+            <div className="text-[12px] text-[var(--fg-3)]">Assets &amp; liabilities snapshot</div>
+          </div>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); setShowHistory(h => !h); if (!expanded) setExpanded(true); }}
+            className={`text-[11px] px-[7px] py-[2px] rounded-full border transition-colors ${showHistory ? 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700' : 'border-border-soft text-[var(--fg-3)] hover:text-[var(--fg-2)] hover:border-[var(--fg-3)]'}`}
+          >
+            History
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -205,6 +225,49 @@ export function NetWorthCard() {
               </div>
             );
           })}
+
+          {showHistory && (
+            <div className="pt-[8px] border-t border-border-soft">
+              <div className="text-[12px] font-medium text-[var(--fg-2)] mb-[8px]">Net worth over time</div>
+              {history.length < 2 ? (
+                <div className="text-[12px] text-[var(--fg-3)] py-2">
+                  Not enough history yet — update asset balances to build a trend
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={140}>
+                  <LineChart data={history} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v) => {
+                        const parts = String(v).split('-');
+                        const year = parts[0] ?? '';
+                        const mon = parts[1] ?? '';
+                        return `${mon}/${year.slice(2)}`;
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`}
+                      width={45}
+                    />
+                    <Tooltip
+                      formatter={(value) => fmtEUR(Number(value ?? 0))}
+                      labelFormatter={(label) => String(label)}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="netWorth"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#10b981' }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
 
           {adding ? (
             <div className="space-y-[8px] pt-[4px]">

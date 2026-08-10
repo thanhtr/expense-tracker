@@ -22,6 +22,15 @@ export async function PATCH(
     if (recordedAt !== undefined) data.recordedAt = new Date(recordedAt);
 
     const asset = await prisma.asset.update({ where: { id: idResult.id }, data });
+
+    try {
+      await prisma.assetSnapshot.create({
+        data: { assetId: asset.id, name: asset.name, type: asset.type, balance: asset.balance, recordedAt: asset.recordedAt },
+      });
+    } catch {
+      // assetSnapshot table may not exist yet — proceed without snapshot
+    }
+
     return NextResponse.json(asset);
   } catch (error) {
     console.error('Failed to update asset:', error);
