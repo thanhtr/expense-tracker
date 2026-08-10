@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-
-const VALID_TYPES = ['bank', 'investment', 'property', 'crypto', 'liability'] as const;
+import { createAssetSchema, parseBody } from '@/lib/validation';
 
 export async function GET() {
   try {
@@ -15,25 +14,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { name?: string; type?: string; balance?: number; recordedAt?: string };
-    const { name, type, balance, recordedAt } = body;
-
-    if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 });
-    if (!type || !(VALID_TYPES as readonly string[]).includes(type)) {
-      return NextResponse.json({ error: `type must be one of: ${VALID_TYPES.join(', ')}` }, { status: 400 });
-    }
-    if (balance == null || typeof balance !== 'number') {
-      return NextResponse.json({ error: 'balance is required' }, { status: 400 });
-    }
-    if (!recordedAt) return NextResponse.json({ error: 'recordedAt is required' }, { status: 400 });
+    const parsed = parseBody(createAssetSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { name, type, balance, recordedAt } = parsed.data;
 
     const asset = await prisma.asset.create({
-      data: {
-        name: name.trim(),
-        type,
-        balance,
-        recordedAt: new Date(recordedAt),
-      },
+      data: { name, type, balance, recordedAt: new Date(recordedAt) },
     });
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {

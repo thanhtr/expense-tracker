@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { updateGuidelinesSchema, parseBody } from '@/lib/validation';
 
 export interface BucketConfig {
   bucket: 'needs' | 'wants' | 'savings';
@@ -40,7 +41,6 @@ export async function GET(): Promise<NextResponse> {
       targetPct: r.targetPct,
       categories: JSON.parse(r.categories) as string[],
     }));
-    // Ensure all 3 buckets are present (fill gaps with defaults)
     const filled = (['needs', 'wants', 'savings'] as const).map(b =>
       buckets.find(x => x.bucket === b) ?? DEFAULTS.find(x => x.bucket === b)!
     );
@@ -53,12 +53,10 @@ export async function GET(): Promise<NextResponse> {
 
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
-    const body = await request.json() as { buckets: BucketConfig[] };
-    const { buckets } = body;
+    const parsed = parseBody(updateGuidelinesSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { buckets } = parsed.data;
 
-    if (!Array.isArray(buckets) || buckets.length !== 3) {
-      return NextResponse.json({ error: 'Expected 3 buckets' }, { status: 400 });
-    }
     const totalPct = buckets.reduce((s, b) => s + b.targetPct, 0);
     if (Math.abs(totalPct - 100) > 0.01) {
       return NextResponse.json({ error: 'Percentages must sum to 100' }, { status: 400 });

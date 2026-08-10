@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-
-const VALID_TYPES = ['bank', 'investment', 'property', 'crypto', 'liability'] as const;
+import { updateAssetSchema, parseBody, parseId } from '@/lib/validation';
 
 export async function PATCH(
   request: NextRequest,
@@ -9,21 +8,20 @@ export async function PATCH(
 ) {
   try {
     const { id: idStr } = await params;
-    const id = parseInt(idStr);
-    const body = await request.json() as { name?: string; type?: string; balance?: number; recordedAt?: string };
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
 
-    const data: { name?: string; type?: string; balance?: number; recordedAt?: Date } = {};
-    if (body.name !== undefined) data.name = body.name.trim();
-    if (body.type !== undefined) {
-      if (!(VALID_TYPES as readonly string[]).includes(body.type)) {
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
-      }
-      data.type = body.type;
-    }
-    if (body.balance !== undefined) data.balance = body.balance;
-    if (body.recordedAt !== undefined) data.recordedAt = new Date(body.recordedAt);
+    const parsed = parseBody(updateAssetSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { name, type, balance, recordedAt } = parsed.data;
 
-    const asset = await prisma.asset.update({ where: { id }, data });
+    const data: Parameters<typeof prisma.asset.update>[0]['data'] = {};
+    if (name !== undefined) data.name = name;
+    if (type !== undefined) data.type = type;
+    if (balance !== undefined) data.balance = balance;
+    if (recordedAt !== undefined) data.recordedAt = new Date(recordedAt);
+
+    const asset = await prisma.asset.update({ where: { id: idResult.id }, data });
     return NextResponse.json(asset);
   } catch (error) {
     console.error('Failed to update asset:', error);
@@ -37,8 +35,10 @@ export async function DELETE(
 ) {
   try {
     const { id: idStr } = await params;
-    const id = parseInt(idStr);
-    await prisma.asset.delete({ where: { id } });
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
+
+    await prisma.asset.delete({ where: { id: idResult.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete asset:', error);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 import { CATEGORIES } from '@/lib/constants';
+import { createKeywordSchema, parseBody } from '@/lib/validation';
 
 interface Keyword {
   id: number;
@@ -28,11 +29,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { keyword, category } = await request.json();
-
-    if (!keyword || !category) {
-      return NextResponse.json({ error: 'Keyword and category are required' }, { status: 400 });
-    }
+    const parsed = parseBody(createKeywordSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { keyword, category } = parsed.data;
 
     if (!(CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
@@ -46,12 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const row = await prisma.learnedRule.create({
-      data: {
-        normalizedKey: normalizedKeyword,
-        category,
-        learnedFrom: keyword,
-        count: 1,
-      },
+      data: { normalizedKey: normalizedKeyword, category, learnedFrom: keyword, count: 1 },
     });
 
     invalidateRulesCache();

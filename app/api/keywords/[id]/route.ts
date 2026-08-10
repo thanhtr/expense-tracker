@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 import { CATEGORIES } from '@/lib/constants';
+import { updateKeywordSchema, parseBody, parseId } from '@/lib/validation';
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id);
-    const { keyword, category } = await request.json();
+    const { id: idStr } = await (params);
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
 
-    if (keyword === undefined || category === undefined) {
-      return NextResponse.json({ error: 'Keyword and category are required' }, { status: 400 });
-    }
+    const parsed = parseBody(updateKeywordSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { keyword, category } = parsed.data;
 
     if (!(CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
@@ -22,12 +23,11 @@ export async function PUT(
 
     const normalizedKeyword = keyword.toLowerCase().trim();
 
-    const existing = await prisma.learnedRule.findUnique({ where: { id } });
+    const existing = await prisma.learnedRule.findUnique({ where: { id: idResult.id } });
     if (!existing) {
       return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
     }
 
-    // If the normalized key changed, check for conflicts
     if (existing.normalizedKey !== normalizedKeyword) {
       const conflict = await prisma.learnedRule.findUnique({ where: { normalizedKey: normalizedKeyword } });
       if (conflict) {
@@ -36,12 +36,8 @@ export async function PUT(
     }
 
     const updated = await prisma.learnedRule.update({
-      where: { id },
-      data: {
-        normalizedKey: normalizedKeyword,
-        category,
-        learnedFrom: keyword,
-      },
+      where: { id: idResult.id },
+      data: { normalizedKey: normalizedKeyword, category, learnedFrom: keyword },
     });
 
     invalidateRulesCache();
@@ -59,19 +55,20 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id);
+    const { id: idStr } = await params;
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
 
-    const existing = await prisma.learnedRule.findUnique({ where: { id } });
+    const existing = await prisma.learnedRule.findUnique({ where: { id: idResult.id } });
     if (!existing) {
       return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
     }
 
-    await prisma.learnedRule.delete({ where: { id } });
+    await prisma.learnedRule.delete({ where: { id: idResult.id } });
     invalidateRulesCache();
 
     return NextResponse.json({ success: true });

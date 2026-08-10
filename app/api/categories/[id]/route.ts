@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { updateCategorySchema, parseBody, parseId } from '@/lib/validation';
 
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const numId = parseInt(id, 10);
-  if (isNaN(numId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  const { id: idStr } = await params;
+  const idResult = parseId(idStr);
+  if ('error' in idResult) return idResult.error;
 
   try {
-    await prisma.category.delete({ where: { id: numId } });
+    await prisma.category.delete({ where: { id: idResult.id } });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -21,16 +22,15 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  const numId = parseInt(id, 10);
-  if (isNaN(numId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  const { id: idStr } = await params;
+  const idResult = parseId(idStr);
+  if ('error' in idResult) return idResult.error;
 
-  const body = await request.json() as { name?: unknown };
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  const parsed = parseBody(updateCategorySchema, await request.json());
+  if ('error' in parsed) return parsed.error;
 
   try {
-    const cat = await prisma.category.update({ where: { id: numId }, data: { name } });
+    const cat = await prisma.category.update({ where: { id: idResult.id }, data: { name: parsed.data.name } });
     return NextResponse.json(cat);
   } catch {
     return NextResponse.json({ error: 'Not found or duplicate name' }, { status: 404 });
