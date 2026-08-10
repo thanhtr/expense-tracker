@@ -7,16 +7,25 @@ export async function GET(request: NextRequest) {
   if (history) {
     try {
       const snapshots = await prisma.assetSnapshot.findMany({ orderBy: { recordedAt: 'asc' } });
-      const monthMap: Record<string, { assets: number; liabilities: number }> = {};
+      // For each (month, assetId), keep only the latest snapshot to avoid double-counting
+      // assets updated multiple times in the same month.
+      const monthAssetMap: Record<string, Record<number, typeof snapshots[0]>> = {};
       for (const s of snapshots) {
         const month = s.recordedAt instanceof Date
           ? s.recordedAt.toISOString().slice(0, 7)
           : String(s.recordedAt).slice(0, 7);
-        if (!monthMap[month]) monthMap[month] = { assets: 0, liabilities: 0 };
-        if (s.balance >= 0) {
-          monthMap[month].assets += s.balance;
-        } else {
-          monthMap[month].liabilities += Math.abs(s.balance);
+        if (!monthAssetMap[month]) monthAssetMap[month] = {};
+        monthAssetMap[month][s.assetId] = s; // later snapshot overwrites earlier one
+      }
+      const monthMap: Record<string, { assets: number; liabilities: number }> = {};
+      for (const [month, assetSnapshots] of Object.entries(monthAssetMap)) {
+        monthMap[month] = { assets: 0, liabilities: 0 };
+        for (const s of Object.values(assetSnapshots)) {
+          if (s.balance >= 0) {
+            monthMap[month].assets += s.balance;
+          } else {
+            monthMap[month].liabilities += Math.abs(s.balance);
+          }
         }
       }
       const historyData = Object.entries(monthMap)
