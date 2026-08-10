@@ -102,3 +102,16 @@ model LearnedRule {
   updatedAt     DateTime @updatedAt
 
 }
+
+model AssetSnapshot {
+  id         Int      @id @default(autoincrement())
+  assetId    Int
+  name       String
+  type       String
+  balance    Float
+  recordedAt DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  @@index([recordedAt])
+  @@index([assetId])
+}

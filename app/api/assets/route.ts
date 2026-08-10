@@ -2,7 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createAssetSchema, parseBody } from '@/lib/validation';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const history = new URL(request.url).searchParams.get('history') === '1';
+  if (history) {
+    try {
+      const snapshots = await prisma.assetSnapshot.findMany({ orderBy: { recordedAt: 'asc' } });
+      // For each (month, assetId), keep only the latest snapshot to avoid double-counting
+      // assets updated multiple times in the same month.
+      const monthAssetMap: Record<string, Record<number, typeof snapshots[0]>> = {};
+      for (const s of snapshots) {
+        const month = s.recordedAt instanceof Date
+          ? s.recordedAt.toISOString().slice(0, 7)
+          : String(s.recordedAt).slice(0, 7);
+        if (!monthAssetMap[month]) monthAssetMap[month] = {};
+        monthAssetMap[month][s.assetId] = s; // later snapshot overwrites earlier one
+      }
+      const monthMap: Record<string, { assets: number; liabilities: number }> = {};
+      for (const [month, assetSnapshots] of Object.entries(monthAssetMap)) {
+        monthMap[month] = { assets: 0, liabilities: 0 };
+        for (const s of Object.values(assetSnapshots)) {
+          if (s.balance >= 0) {
+            monthMap[month].assets += s.balance;
+          } else {
+            monthMap[month].liabilities += Math.abs(s.balance);
+          }
+        }
+      }
+      const historyData = Object.entries(monthMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, { assets, liabilities }]) => ({ month, assets, liabilities, netWorth: assets - liabilities }));
+      return NextResponse.json(historyData);
+    } catch (error) {
+      console.error('Failed to fetch asset history:', error);
+      return NextResponse.json({ error: 'Failed to fetch asset history' }, { status: 500 });
+    }
+  }
+
   try {
     const assets = await prisma.asset.findMany({ orderBy: [{ type: 'asc' }, { name: 'asc' }] });
     return NextResponse.json(assets);
@@ -21,6 +56,15 @@ export async function POST(request: NextRequest) {
     const asset = await prisma.asset.create({
       data: { name, type, balance, recordedAt: new Date(recordedAt) },
     });
+
+    try {
+      await prisma.assetSnapshot.create({
+        data: { assetId: asset.id, name: asset.name, type: asset.type, balance: asset.balance, recordedAt: asset.recordedAt },
+      });
+    } catch {
+      // assetSnapshot table may not exist yet — proceed without snapshot
+    }
+
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
     console.error('Failed to create asset:', error);
