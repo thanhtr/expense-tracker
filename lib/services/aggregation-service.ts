@@ -124,15 +124,27 @@ export async function getDashboardStats(
     .sort((a, b) => b.amount - a.amount);
 
   // Fetch splits for expense transactions in this period to adjust category attribution
-  const splitRecords = await prisma.transactionSplit.findMany({
-    where: { transaction: expenseWhere },
-    select: {
-      transactionId: true,
-      category: true,
-      amount: true,
-      transaction: { select: { date: true, amount: true, category: true } },
-    },
-  });
+  // Wrapped in try-catch: table may not exist during migration window
+  let splitRecords: Array<{
+    transactionId: number;
+    category: string;
+    amount: number;
+    transaction: { date: Date; amount: number; category: string | null };
+  }> = [];
+  try {
+    const raw = await prisma.transactionSplit.findMany({
+      where: { transaction: expenseWhere },
+      select: {
+        transactionId: true,
+        category: true,
+        amount: true,
+        transaction: { select: { date: true, amount: true, category: true } },
+      },
+    });
+    splitRecords = raw.filter(s => s.transaction !== null) as typeof splitRecords;
+  } catch {
+    // table doesn't exist yet — proceed without split adjustments
+  }
 
   // Build a map of transactionId → splits
   const splitsByTx = new Map<number, typeof splitRecords>();
