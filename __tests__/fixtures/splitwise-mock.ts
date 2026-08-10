@@ -28,6 +28,7 @@ export interface DashboardAggregation {
   byDay: Array<{ day: string; [key: string]: number | string }>;
   byAccount: Record<string, number>;
   byMonth: Array<{ month: string; amount: number }>;
+  byMonthIncome: Array<{ month: string; amount: number }>;
   topTransaction: { merchant: string; amount: number; category: string; date: string } | null;
   allCategories: string[];
   transactionCount: number;
@@ -164,6 +165,15 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     .map(([merchant, amount]) => ({ merchant, amount }))
     .sort((a, b) => b.amount - a.amount);
 
+  const byMonthIncomeMap = new Map<string, number>();
+  income.forEach((t) => {
+    const month = t.date.substring(0, 7);
+    byMonthIncomeMap.set(month, (byMonthIncomeMap.get(month) || 0) + t.amount);
+  });
+  const byMonthIncome = Array.from(byMonthIncomeMap.entries())
+    .map(([month, amount]) => ({ month, amount }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
   return {
     totalExpenses,
     totalIncome,
@@ -172,6 +182,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     byDay,
     byAccount,
     byMonth,
+    byMonthIncome,
     topTransaction,
     allCategories,
     transactionCount: expenses.length,

@@ -50,6 +50,7 @@ export interface DashboardAggregation {
   byAccount: Record<string, number>;
   byPerson: { person: string; amount: number }[];
   byMonth: { month: string; amount: number }[];
+  byMonthIncome: { month: string; amount: number }[];
   byCategoryMonth: { month: string; [key: string]: number | string }[];
   byDay: { day: string; [key: string]: number | string }[];
   uncategorizedCount: number;

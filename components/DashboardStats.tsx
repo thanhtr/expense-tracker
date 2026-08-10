@@ -5,6 +5,7 @@ import { DashboardAggregation } from '@/lib/types';
 import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
+  ComposedChart, Line, CartesianGrid, Legend,
 } from 'recharts';
 import { BudgetCard } from './BudgetCard';
 import { GoalsCard } from './GoalsCard';
@@ -289,6 +290,86 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           />
         ))}
       </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function IncomeTrendChart({ trendData }: { trendData: { month: string; expenses: number; income: number; net: number }[] }) {
+  const fmtMonth = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  };
+  const fmtLongMonth = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+  const fmtY = (v: number) => {
+    if (Math.abs(v) >= 1000) return `€${Math.round(v / 1000)}k`;
+    return `€${Math.round(v)}`;
+  };
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <ComposedChart data={trendData} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={{ stroke: 'var(--border)' }}
+          tickFormatter={fmtMonth}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={fmtY}
+          width={44}
+        />
+        <Tooltip
+          contentStyle={{
+            background: 'oklch(0.22 0.012 260)',
+            border: 'none',
+            borderRadius: 6,
+            color: '#fff',
+            fontSize: 11,
+            padding: '8px 10px',
+          }}
+          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+          itemStyle={{ color: '#fff', fontSize: 11 }}
+          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
+          labelFormatter={(label) => fmtLongMonth(label as string)}
+        />
+        <Legend
+          wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+          formatter={(value) => value.charAt(0).toUpperCase() + value.slice(1)}
+        />
+        <Line
+          type="monotone"
+          dataKey="expenses"
+          stroke="oklch(0.52 0.16 25)"
+          strokeWidth={2}
+          dot={{ r: 3, fill: 'oklch(0.52 0.16 25)' }}
+          activeDot={{ r: 5 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="income"
+          stroke="oklch(0.48 0.12 155)"
+          strokeWidth={2}
+          dot={{ r: 3, fill: 'oklch(0.48 0.12 155)' }}
+          activeDot={{ r: 5 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="net"
+          stroke="oklch(0.52 0.10 250)"
+          strokeWidth={2}
+          strokeDasharray="5 4"
+          dot={{ r: 3, fill: 'oklch(0.52 0.10 250)' }}
+          activeDot={{ r: 5 }}
+        />
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
@@ -674,6 +755,25 @@ export function DashboardStats() {
       .concat([...seen].filter(c => !current.includes(c)));
   }, [data]);
 
+  // Income vs expenses trend data: merged per month
+  const incomeTrendData = useMemo(() => {
+    if (!data) return [];
+    const expensesByMonth: Record<string, number> = {};
+    for (const { month, amount } of data.byMonth) expensesByMonth[month] = amount;
+    const incomeByMonth: Record<string, number> = {};
+    for (const { month, amount } of (data.byMonthIncome ?? [])) incomeByMonth[month] = amount;
+    const allMonths = Array.from(new Set([
+      ...Object.keys(expensesByMonth),
+      ...Object.keys(incomeByMonth),
+    ])).sort();
+    return allMonths.map(month => ({
+      month,
+      expenses: expensesByMonth[month] ?? 0,
+      income: incomeByMonth[month] ?? 0,
+      net: (incomeByMonth[month] ?? 0) - (expensesByMonth[month] ?? 0),
+    }));
+  }, [data]);
+
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
@@ -1008,6 +1108,21 @@ export function DashboardStats() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Income vs Expenses trend */}
+      {data.byMonth.length > 1 && (
+        <div className="dash-card">
+          <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
+            <div>
+              <h3 className="text-[13px] font-semibold m-0">Income vs Expenses</h3>
+              <div className="text-[12px] text-[var(--fg-3)]">Monthly income, expenses, and net savings</div>
+            </div>
+          </div>
+          <div className="p-[0_12px_12px]">
+            <IncomeTrendChart trendData={incomeTrendData} />
           </div>
         </div>
       )}

@@ -51,6 +51,7 @@ export async function getDashboardStats(
     incomeAggregate,
     incomeSourceGroups,
     topTx,
+    incomeRows,
   ] = await Promise.all([
     prisma.transaction.groupBy({
       by: ['category'],
@@ -97,6 +98,11 @@ export async function getDashboardStats(
       where: expenseWhere,
       select: { merchant: true, amount: true, category: true, date: true },
       orderBy: { amount: 'asc' }, // most negative = largest expense
+    }),
+    prisma.transaction.findMany({
+      where: incomeWhere,
+      select: { date: true, amount: true },
+      orderBy: { date: 'asc' },
     }),
   ]);
 
@@ -221,6 +227,15 @@ export async function getDashboardStats(
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
+  const byMonthIncomeMap: Record<string, number> = {};
+  for (const row of incomeRows) {
+    const month = row.date.toISOString().slice(0, 7);
+    byMonthIncomeMap[month] = (byMonthIncomeMap[month] ?? 0) + (row.amount ?? 0);
+  }
+  const byMonthIncomeArray = Object.entries(byMonthIncomeMap)
+    .map(([month, amount]) => ({ month, amount }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
   const byDayArray = Object.entries(dayMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, cats]) => ({ day, ...cats }));
@@ -244,6 +259,7 @@ export async function getDashboardStats(
     byAccount,
     byPerson: byPersonArray,
     byMonth: byMonthArray,
+    byMonthIncome: byMonthIncomeArray,
     byCategoryMonth: byCategoryMonthArray,
     byDay: byDayArray,
     uncategorizedCount,
