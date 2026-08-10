@@ -187,6 +187,11 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     });
   });
 
+  // Mock /api/transactions/recurring (must be before the broader /api/transactions* route)
+  await page.route('**/api/transactions/recurring*', async (route) => {
+    await route.fulfill({ json: { items: [], totalMonthly: 0 } });
+  });
+
   // Mock /api/transactions
   await page.route('**/api/transactions*', async (route) => {
     const url = new URL(route.request().url());
@@ -222,5 +227,19 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
       body: csv,
       contentType: 'text/csv',
     });
+  });
+
+  // Mock supporting dashboard endpoints (budgets, goals, assets, forecast, recurring)
+  await page.route('**/api/budgets*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/goals*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/assets*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/forecast*', async (route) => {
+    await route.fulfill({ json: null });
   });
 }
