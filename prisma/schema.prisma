@@ -78,6 +78,19 @@ model SavingsGoal {
   updatedAt     DateTime @updatedAt
 }
 
+model Asset {
+  id         Int      @id @default(autoincrement())
+  name       String
+  type       String   // "bank" | "investment" | "property" | "crypto" | "liability"
+  balance    Float
+  recordedAt DateTime @db.Date
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([recordedAt])
+  @@index([type])
+}
+
 model LearnedRule {
   id            Int      @id @default(autoincrement())
   normalizedKey String   @unique

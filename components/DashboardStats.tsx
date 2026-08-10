@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { BudgetCard } from './BudgetCard';
 import { GoalsCard } from './GoalsCard';
+import { NetWorthCard } from './NetWorthCard';
 import { GuidelinePanel } from './GuidelinePanel';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
@@ -1029,6 +1030,9 @@ export function DashboardStats() {
 
       {/* Savings Goals */}
       <GoalsCard />
+
+      {/* Net Worth */}
+      <NetWorthCard />
 
       {/* Spending Guidelines */}
       <GuidelinePanel
