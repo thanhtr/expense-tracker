@@ -43,6 +43,11 @@ export const TransactionRow = memo(function TransactionRow({
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Note editing state
+  const [note, setNote] = useState(transaction.note ?? '');
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState(transaction.note ?? '');
+
   // Split state
   const [splitOpen, setSplitOpen] = useState(false);
   const [splits, setSplits] = useState<Split[]>([]);
@@ -152,6 +157,31 @@ export const TransactionRow = memo(function TransactionRow({
     }
   };
 
+  const saveNote = async () => {
+    const trimmed = noteInput.trim();
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+      setNote(trimmed);
+      setEditingNote(false);
+      toast.success('Note saved');
+    } catch {
+      toast.error('Failed to save note');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelNoteEdit = () => {
+    setNoteInput(note);
+    setEditingNote(false);
+  };
+
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('fi-FI', {
       style: 'currency', currency: 'EUR', minimumFractionDigits: 2,
@@ -221,9 +251,64 @@ export const TransactionRow = memo(function TransactionRow({
           : transaction.paidBy === 'thuy' ? 'Thuy'
           : '—'}
       </td>
-      <td className="hidden md:table-cell px-4 py-3 text-sm text-fg-3" title={transaction.note || undefined}>
-        {transaction.note?.substring(0, 30)}
-        {transaction.note && transaction.note.length > 30 ? '…' : ''}
+      <td className="hidden md:table-cell px-4 py-3 text-sm">
+        {editingNote ? (
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={noteInput}
+              onChange={e => setNoteInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveNote();
+                if (e.key === 'Escape') cancelNoteEdit();
+              }}
+              autoFocus
+              maxLength={500}
+              aria-label="Edit note"
+              className="w-full px-2 py-0.5 text-sm border border-border-soft rounded bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={saveNote}
+              disabled={saving}
+              aria-label="Save note"
+              title="Save note"
+              className="px-2 py-0.5 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+            >Save</button>
+            <button
+              type="button"
+              onClick={cancelNoteEdit}
+              aria-label="Cancel note edit"
+              title="Cancel"
+              className="px-2 py-0.5 text-[11px] bg-surface-2 text-fg-2 rounded hover:bg-[var(--border)] whitespace-nowrap"
+            >Cancel</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 group">
+            <button
+              type="button"
+              onClick={() => { setNoteInput(note); setEditingNote(true); }}
+              title={note || 'Add note'}
+              className="text-left text-fg-3 hover:text-foreground"
+            >
+              {note.substring(0, 30)}
+              {note.length > 30 ? '…' : ''}
+              {!note && <span className="italic opacity-50 text-xs">add note</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setNoteInput(note); setEditingNote(true); }}
+              aria-label="Edit note"
+              title="Edit note"
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-fg-3 hover:text-foreground transition-opacity"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 7.125L18 8.625" />
+              </svg>
+            </button>
+          </div>
+        )}
       </td>
       <td className="px-4 py-3 text-sm">
         <div className="flex items-center gap-1">

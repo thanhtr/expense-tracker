@@ -118,6 +118,7 @@ export const updateKeywordSchema = z.object({
 export const updateTransactionSchema = z.object({
   category: z.string().max(100).optional(),
   tags: z.array(z.string().max(50)).optional(),
+  note: z.string().max(500).optional(),
 });
 
 export const updateSplitsSchema = z.object({

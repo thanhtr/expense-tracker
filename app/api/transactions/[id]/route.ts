@@ -15,9 +15,9 @@ export async function PATCH(
 
     const parsed = parseBody(updateTransactionSchema, await request.json());
     if ('error' in parsed) return parsed.error;
-    const { category, tags } = parsed.data;
+    const { category, tags, note } = parsed.data;
 
-    const updateData: { category?: string; tags?: string[] } = {};
+    const updateData: { category?: string; tags?: string[]; note?: string } = {};
 
     if (category !== undefined) {
       if (!(CATEGORIES as readonly string[]).includes(category)) {
@@ -28,6 +28,10 @@ export async function PATCH(
 
     if (tags !== undefined) {
       updateData.tags = tags;
+    }
+
+    if (note !== undefined) {
+      updateData.note = note;
     }
 
     if (Object.keys(updateData).length === 0) {
