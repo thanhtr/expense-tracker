@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { updateGoalSchema, parseBody, parseId } from '@/lib/validation';
 
 export async function PATCH(
   request: NextRequest,
@@ -7,16 +8,20 @@ export async function PATCH(
 ) {
   try {
     const { id: idStr } = await params;
-    const id = parseInt(idStr);
-    const body = await request.json() as { name?: string; targetAmount?: number; currentAmount?: number; targetDate?: string };
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
 
-    const data: { name?: string; targetAmount?: number; currentAmount?: number; targetDate?: Date } = {};
-    if (body.name !== undefined) data.name = body.name.trim();
-    if (body.targetAmount !== undefined) data.targetAmount = body.targetAmount;
-    if (body.currentAmount !== undefined) data.currentAmount = body.currentAmount;
-    if (body.targetDate !== undefined) data.targetDate = new Date(body.targetDate);
+    const parsed = parseBody(updateGoalSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { name, targetAmount, currentAmount, targetDate } = parsed.data;
 
-    const goal = await prisma.savingsGoal.update({ where: { id }, data });
+    const data: Parameters<typeof prisma.savingsGoal.update>[0]['data'] = {};
+    if (name !== undefined) data.name = name;
+    if (targetAmount !== undefined) data.targetAmount = targetAmount;
+    if (currentAmount !== undefined) data.currentAmount = currentAmount;
+    if (targetDate !== undefined) data.targetDate = new Date(targetDate);
+
+    const goal = await prisma.savingsGoal.update({ where: { id: idResult.id }, data });
     return NextResponse.json(goal);
   } catch (error) {
     console.error('Failed to update goal:', error);
@@ -30,8 +35,10 @@ export async function DELETE(
 ) {
   try {
     const { id: idStr } = await params;
-    const id = parseInt(idStr);
-    await prisma.savingsGoal.delete({ where: { id } });
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
+
+    await prisma.savingsGoal.delete({ where: { id: idResult.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete goal:', error);

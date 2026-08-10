@@ -2,37 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { recordCorrection } from '@/lib/services/learned-rules-service';
 import { CATEGORIES } from '@/lib/constants';
+import { updateTransactionSchema, parseBody, parseId } from '@/lib/validation';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const body = await request.json() as { category?: string; tags?: string[] };
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id);
+    const { id: idStr } = await params;
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
+
+    const parsed = parseBody(updateTransactionSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { category, tags } = parsed.data;
 
     const updateData: { category?: string; tags?: string[] } = {};
 
-    if (body.category !== undefined) {
-      if (!(CATEGORIES as readonly string[]).includes(body.category)) {
+    if (category !== undefined) {
+      if (!(CATEGORIES as readonly string[]).includes(category)) {
         return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
       }
-      updateData.category = body.category;
+      updateData.category = category;
     }
 
-    if (body.tags !== undefined) {
-      if (!Array.isArray(body.tags) || !body.tags.every(t => typeof t === 'string')) {
-        return NextResponse.json({ error: 'tags must be an array of strings' }, { status: 400 });
-      }
-      updateData.tags = body.tags;
+    if (tags !== undefined) {
+      updateData.tags = tags;
     }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
-    const tx = await prisma.transaction.findUnique({ where: { id } });
+    const tx = await prisma.transaction.findUnique({ where: { id: idResult.id } });
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
@@ -40,9 +42,9 @@ export async function PATCH(
     if (updateData.category) {
       await recordCorrection(tx.merchant, updateData.category);
     }
-    const updated = await prisma.transaction.update({ where: { id }, data: updateData });
+    const updated = await prisma.transaction.update({ where: { id: idResult.id }, data: updateData });
 
-    return NextResponse.json({ id, category: updated.category, tags: updated.tags, success: true });
+    return NextResponse.json({ id: idResult.id, category: updated.category, tags: updated.tags, success: true });
   } catch (error) {
     console.error('Update error:', error);
     return NextResponse.json(
@@ -53,14 +55,15 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resolvedParams = await params;
-    const id = parseInt(resolvedParams.id);
+    const { id: idStr } = await params;
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
 
-    await prisma.transaction.delete({ where: { id } });
+    await prisma.transaction.delete({ where: { id: idResult.id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

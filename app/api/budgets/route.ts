@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
+import { createBudgetSchema, parseBody } from '@/lib/validation';
 
 function prevMonthRange(): { start: Date; end: Date } {
   const now = new Date();
@@ -13,7 +14,6 @@ export async function GET() {
   try {
     const budgets = await prisma.budget.findMany({ orderBy: { category: 'asc' } });
 
-    // For budgets with rollover=true, compute prior-month underspend
     const rolloverBudgets = budgets.filter(b => b.rollover);
     const prevSpentMap: Record<string, number> = {};
 
@@ -59,26 +59,18 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as { category?: string; monthlyLimit?: number; rollover?: boolean };
-    const { category, monthlyLimit, rollover } = body;
-
-    if (!category || monthlyLimit == null) {
-      return NextResponse.json({ error: 'category and monthlyLimit are required' }, { status: 400 });
-    }
+    const parsed = parseBody(createBudgetSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { category, monthlyLimit, rollover } = parsed.data;
 
     if (!(CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
-    const limit = parseFloat(String(monthlyLimit));
-    if (isNaN(limit) || limit < 0) {
-      return NextResponse.json({ error: 'monthlyLimit must be a non-negative number' }, { status: 400 });
-    }
-
     const budget = await prisma.budget.upsert({
       where: { category },
-      update: { monthlyLimit: limit, ...(rollover !== undefined ? { rollover } : {}) },
-      create: { category, monthlyLimit: limit, rollover: rollover ?? false },
+      update: { monthlyLimit, ...(rollover !== undefined ? { rollover } : {}) },
+      create: { category, monthlyLimit, rollover: rollover ?? false },
     });
 
     return NextResponse.json({ ...budget, rolloverAmount: 0, effectiveLimit: budget.monthlyLimit });

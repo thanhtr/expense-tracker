@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
+import { bulkCategorizeSchema, parseBody } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { ids, merchant, category } = body as { ids?: number[]; merchant?: string; category: string };
+    const parsed = parseBody(bulkCategorizeSchema, await request.json());
+    if ('error' in parsed) return parsed.error;
+    const { category, ids, merchant } = parsed.data;
 
     if (!(CATEGORIES as readonly string[]).includes(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });

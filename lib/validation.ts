@@ -64,6 +64,93 @@ export const exportQuerySchema = z.object({
   paid_by: z.enum(['tung', 'thuy', 'other']).optional(),
 });
 
+// ── Body schemas ──────────────────────────────────────────────────────────────
+
+const dateField = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+  .refine(s => !isNaN(new Date(s).getTime()), 'must be a valid date');
+
+export const createGoalSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()),
+  targetAmount: z.number().positive().finite(),
+  currentAmount: z.number().min(0).finite().optional().default(0),
+  targetDate: dateField,
+});
+
+export const updateGoalSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()).optional(),
+  targetAmount: z.number().positive().finite().optional(),
+  currentAmount: z.number().min(0).finite().optional(),
+  targetDate: dateField.optional(),
+});
+
+export const createAssetSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()),
+  type: z.enum(['bank', 'investment', 'property', 'crypto', 'liability']),
+  balance: z.number().finite(),
+  recordedAt: dateField,
+});
+
+export const updateAssetSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()).optional(),
+  type: z.enum(['bank', 'investment', 'property', 'crypto', 'liability']).optional(),
+  balance: z.number().finite().optional(),
+  recordedAt: dateField.optional(),
+});
+
+export const createBudgetSchema = z.object({
+  category: z.string().min(1).max(100),
+  monthlyLimit: z.number().nonnegative().finite(),
+  rollover: z.boolean().optional(),
+});
+
+export const createKeywordSchema = z.object({
+  keyword: z.string().min(1).max(200),
+  category: z.string().min(1).max(100),
+});
+
+export const updateKeywordSchema = z.object({
+  keyword: z.string().min(1).max(200),
+  category: z.string().min(1).max(100),
+});
+
+export const updateTransactionSchema = z.object({
+  category: z.string().max(100).optional(),
+  tags: z.array(z.string().max(50)).optional(),
+});
+
+export const updateSplitsSchema = z.object({
+  splits: z.array(z.object({
+    category: z.string().min(1).max(100),
+    amount: z.number().positive().finite(),
+  })).min(1),
+});
+
+export const bulkCategorizeSchema = z.object({
+  category: z.string().min(1).max(100),
+  ids: z.array(z.number().int().positive()).optional(),
+  merchant: z.string().max(200).optional(),
+});
+
+export const updateGuidelinesSchema = z.object({
+  buckets: z.array(z.object({
+    bucket: z.enum(['needs', 'wants', 'savings']),
+    targetPct: z.number().positive().max(100),
+    categories: z.array(z.string().max(100)),
+  })).length(3),
+});
+
+export const createCategorySchema = z.object({
+  name: z.string().min(1).max(100).transform(s => s.trim()),
+});
+
+export const updateCategorySchema = z.object({
+  name: z.string().min(1).max(100).transform(s => s.trim()),
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 export function parseQuery<T>(
   schema: z.ZodType<T>,
   params: URLSearchParams,
@@ -82,4 +169,29 @@ export function parseQuery<T>(
     };
   }
   return { data: result.data };
+}
+
+export function parseBody<T>(
+  schema: z.ZodType<T>,
+  body: unknown,
+): { data: T } | { error: NextResponse } {
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    const messages = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+    return {
+      error: NextResponse.json(
+        { error: 'Invalid request body', details: messages },
+        { status: 400 },
+      ),
+    };
+  }
+  return { data: result.data };
+}
+
+export function parseId(idStr: string): { id: number } | { error: NextResponse } {
+  const id = parseInt(idStr, 10);
+  if (isNaN(id) || id <= 0) {
+    return { error: NextResponse.json({ error: 'Invalid id' }, { status: 400 }) };
+  }
+  return { id };
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
+import { createCategorySchema, parseBody } from '@/lib/validation';
 
 async function ensureSeeded() {
   const count = await prisma.category.count();
@@ -21,9 +22,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json() as { name?: unknown };
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  const parsed = parseBody(createCategorySchema, await request.json());
+  if ('error' in parsed) return parsed.error;
+  const { name } = parsed.data;
 
   await ensureSeeded();
   const maxOrder = await prisma.category.aggregate({ _max: { sortOrder: true } });
