@@ -76,6 +76,7 @@ export const createGoalSchema = z.object({
   targetAmount: z.number().positive().finite(),
   currentAmount: z.number().min(0).finite().optional().default(0),
   targetDate: dateField,
+  linkedCategory: z.string().max(100).optional().nullable(),
 });
 
 export const updateGoalSchema = z.object({
@@ -83,6 +84,7 @@ export const updateGoalSchema = z.object({
   targetAmount: z.number().positive().finite().optional(),
   currentAmount: z.number().min(0).finite().optional(),
   targetDate: dateField.optional(),
+  linkedCategory: z.string().max(100).optional().nullable(),
 });
 
 export const createAssetSchema = z.object({

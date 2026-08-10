@@ -13,13 +13,14 @@ export async function PATCH(
 
     const parsed = parseBody(updateGoalSchema, await request.json());
     if ('error' in parsed) return parsed.error;
-    const { name, targetAmount, currentAmount, targetDate } = parsed.data;
+    const { name, targetAmount, currentAmount, targetDate, linkedCategory } = parsed.data;
 
     const data: Parameters<typeof prisma.savingsGoal.update>[0]['data'] = {};
     if (name !== undefined) data.name = name;
     if (targetAmount !== undefined) data.targetAmount = targetAmount;
     if (currentAmount !== undefined) data.currentAmount = currentAmount;
     if (targetDate !== undefined) data.targetDate = new Date(targetDate);
+    if (linkedCategory !== undefined) data.linkedCategory = linkedCategory;
 
     const goal = await prisma.savingsGoal.update({ where: { id: idResult.id }, data });
     return NextResponse.json(goal);

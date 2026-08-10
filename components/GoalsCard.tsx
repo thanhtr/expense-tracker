@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fmtEUR, today } from '@/lib/utils';
+import { CATEGORIES } from '@/lib/constants';
 
 interface SavingsGoal {
   id: number;
@@ -9,6 +10,7 @@ interface SavingsGoal {
   targetAmount: number;
   currentAmount: number;
   targetDate: string;
+  linkedCategory?: string | null;
 }
 
 function daysRemaining(targetDate: string): number {
@@ -64,6 +66,7 @@ export function GoalsCard() {
   const [newTarget, setNewTarget] = useState('');
   const [newCurrent, setNewCurrent] = useState('');
   const [newDate, setNewDate] = useState('');
+  const [newLinkedCategory, setNewLinkedCategory] = useState('');
 
   // edit state
   const [editCurrent, setEditCurrent] = useState('');
@@ -87,13 +90,14 @@ export function GoalsCard() {
           targetAmount: parseFloat(newTarget),
           currentAmount: newCurrent ? parseFloat(newCurrent) : 0,
           targetDate: newDate,
+          ...(newLinkedCategory ? { linkedCategory: newLinkedCategory } : {}),
         }),
       });
       if (res.ok) {
         const g = await res.json() as SavingsGoal;
         setGoals(prev => [...prev, g].sort((a, b) => a.targetDate.localeCompare(b.targetDate)));
         setAdding(false);
-        setNewName(''); setNewTarget(''); setNewCurrent(''); setNewDate('');
+        setNewName(''); setNewTarget(''); setNewCurrent(''); setNewDate(''); setNewLinkedCategory('');
       }
     } finally {
       setSaving(false);
@@ -156,9 +160,14 @@ export function GoalsCard() {
             <div key={g.id} className="space-y-[6px]">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-[6px]">
+                  <div className="flex items-center gap-[6px] flex-wrap">
                     <span className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{g.name}</span>
                     <OnTrackBadge goal={g} />
+                    {g.linkedCategory && (
+                      <span className="text-[10px] px-[6px] py-[1px] rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium" title="Auto-tracked from income">
+                        Auto: {g.linkedCategory}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-[var(--fg-3)] mt-[1px]">
                     {days > 0
@@ -193,14 +202,22 @@ export function GoalsCard() {
                     <>
                       <div className="text-right">
                         <span className="mono text-[12px] text-[var(--fg-2)]">
-                          <button
-                            onClick={() => { setEditingId(g.id); setEditCurrent(String(g.currentAmount)); }}
-                            className="hover:underline cursor-pointer"
-                            title="Click to update saved amount"
-                          >{fmtEUR(g.currentAmount)}</button>
+                          {g.linkedCategory ? (
+                            <span title="Auto-tracked from income">{fmtEUR(g.currentAmount)}</span>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingId(g.id); setEditCurrent(String(g.currentAmount)); }}
+                              className="hover:underline cursor-pointer"
+                              title="Click to update saved amount"
+                            >{fmtEUR(g.currentAmount)}</button>
+                          )}
                           {' '}/ {fmtEUR(g.targetAmount)}
                         </span>
-                        <div className="text-[11px] text-[var(--fg-3)]">{pctDone.toFixed(0)}%</div>
+                        <div className="text-[11px] text-[var(--fg-3)]">
+                          {g.linkedCategory
+                            ? <span title="Auto-tracked from income">{pctDone.toFixed(0)}% · Auto-tracked</span>
+                            : pctDone.toFixed(0) + '%'}
+                        </div>
                       </div>
                       <button onClick={() => handleDelete(g.id)}
                         className="text-[var(--fg-3)] hover:text-red-500 transition-colors"
@@ -265,6 +282,20 @@ export function GoalsCard() {
                 className="px-[8px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <div className="flex items-center gap-[4px]">
+              <span className="text-[12px] text-[var(--fg-3)]">Link to income category</span>
+              <select
+                aria-label="Link to income category"
+                value={newLinkedCategory}
+                onChange={e => setNewLinkedCategory(e.target.value)}
+                className="px-[6px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">— none (manual)</option>
+                {CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
             <div className="flex gap-[8px]">
               <button
                 onClick={handleAdd}
@@ -272,7 +303,7 @@ export function GoalsCard() {
                 className="px-[10px] py-[4px] bg-blue-600 text-white text-[12px] font-medium rounded hover:bg-blue-700 disabled:opacity-50"
               >Add</button>
               <button
-                onClick={() => { setAdding(false); setNewName(''); setNewTarget(''); setNewCurrent(''); setNewDate(''); }}
+                onClick={() => { setAdding(false); setNewName(''); setNewTarget(''); setNewCurrent(''); setNewDate(''); setNewLinkedCategory(''); }}
                 className="px-[10px] py-[4px] bg-surface-2 text-[var(--fg-2)] text-[12px] font-medium rounded hover:bg-[var(--border)]"
               >Cancel</button>
             </div>
