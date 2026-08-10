@@ -8,6 +8,7 @@ vi.mock('../../lib/db', () => ({
       aggregate: vi.fn(),
       count: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
     },
     transactionSplit: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -77,6 +78,7 @@ function setupMocks(opts: {
 
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
   vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(topTx as never);
+  vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([] as never); // income rows for byMonthIncome
 }
 
 describe('getDashboardStats', () => {

@@ -9,6 +9,10 @@ vi.mock('../../../lib/db', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    assetSnapshot: {
+      create: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -41,7 +45,7 @@ describe('GET /api/assets', () => {
 
   it('returns assets list', async () => {
     vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset()]);
-    const res = await GET();
+    const res = await GET(makeReq('GET'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveLength(1);
