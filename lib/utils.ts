@@ -1,5 +1,22 @@
 import type { TransactionFilterValues } from './types';
 
+/** Format a number as euros (Finnish locale). Default: whole euros. Pass { cents: true } for 2 decimal places. */
+export function fmtEUR(n: number, opts: { cents?: boolean } = {}): string {
+  const digits = opts.cents ? 2 : 0;
+  return new Intl.NumberFormat('fi-FI', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(n).replace(/ /g, ' ');
+}
+
+/** Returns today as YYYY-MM-DD string */
+export function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function buildTransactionFilterParams(filters: TransactionFilterValues): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.dateFrom) params.set('date_from', filters.dateFrom);

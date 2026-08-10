@@ -10,6 +10,7 @@ import { BudgetCard } from './BudgetCard';
 import { GoalsCard } from './GoalsCard';
 import { NetWorthCard } from './NetWorthCard';
 import { GuidelinePanel } from './GuidelinePanel';
+import { fmtEUR } from '@/lib/utils';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
 const CAT_COLORS = [
@@ -68,14 +69,6 @@ function yoyRange(from: string, to: string): { from: string; to: string } {
   return { from: ymd(f), to: ymd(t) };
 }
 
-function fmtEUR(n: number, opts: { cents?: boolean } = {}) {
-  return new Intl.NumberFormat('fi-FI', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: opts.cents === false ? 0 : 2,
-    maximumFractionDigits: opts.cents === false ? 0 : 2,
-  }).format(n).replace(/\u00A0/g, ' ');
-}
 function pct(v: number) { return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`; }
 
 function labelForRange(from: string, to: string): string {
@@ -178,7 +171,7 @@ function CategoryBarList({
                   {up ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}%
                 </span>
               )}
-              <span className="mono text-[13px] whitespace-nowrap">{fmtEUR(c.amount)}</span>
+              <span className="mono text-[13px] whitespace-nowrap">{fmtEUR(c.amount, { cents: true })}</span>
             </div>
             <div className="col-span-2 cat-bar-track">
               <div className="cat-bar-fill" style={{ width: `${(c.amount / max) * 100}%`, background: color }} />
@@ -226,7 +219,7 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
           }}
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value) => fmtEUR(Number(value ?? 0))}
+          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
           labelFormatter={(label) => {
             const d = label as string;
             return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -279,7 +272,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           }}
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value) => fmtEUR(Number(value ?? 0))}
+          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
           labelFormatter={(label) => {
             const m = label as string;
             const [y, mo] = m.split('-');
@@ -333,7 +326,7 @@ function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
           }}
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value) => fmtEUR(Number(value ?? 0))}
+          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
           labelFormatter={(label) => {
             const m = label as string;
             const [y, mo] = m.split('-');
@@ -408,7 +401,7 @@ function RecentActivity() {
                 {t.category || 'Uncategorized'}
               </span>
               <div className={`mono text-[13px] text-right whitespace-nowrap ${isExpense ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]'}`}>
-                {isExpense ? '−' : '+'}{fmtEUR(signed)}
+                {isExpense ? '−' : '+'}{fmtEUR(signed, { cents: true })}
               </div>
             </div>
             {/* Mobile layout */}
@@ -424,7 +417,7 @@ function RecentActivity() {
                 </div>
               </div>
               <div className={`mono text-[13px] whitespace-nowrap flex-shrink-0 ${isExpense ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]'}`}>
-                {isExpense ? '−' : '+'}{fmtEUR(signed)}
+                {isExpense ? '−' : '+'}{fmtEUR(signed, { cents: true })}
               </div>
             </div>
           </div>
@@ -460,7 +453,7 @@ function ForecastCard({ forecast }: { forecast: ForecastResult }) {
         </div>
         <div className="text-right flex-shrink-0">
           <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)]">Est. total</div>
-          <div className="mono text-[20px] font-semibold mt-[2px]">{fmtEUR(forecast.nextMonthTotal, { cents: false })}</div>
+          <div className="mono text-[20px] font-semibold mt-[2px]">{fmtEUR(forecast.nextMonthTotal)}</div>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -478,10 +471,10 @@ function ForecastCard({ forecast }: { forecast: ForecastResult }) {
               <tr key={row.category} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
                 <td className="px-[20px] py-[9px] text-[13px] text-[var(--foreground)]">{row.category}</td>
                 <td className="px-[20px] py-[9px] text-right mono text-[13px] text-[var(--fg-3)]">
-                  {row.lastMonthActual > 0 ? fmtEUR(row.lastMonthActual, { cents: false }) : '—'}
+                  {row.lastMonthActual > 0 ? fmtEUR(row.lastMonthActual) : '—'}
                 </td>
                 <td className="px-[20px] py-[9px] text-right mono text-[13px] font-medium text-[var(--foreground)]">
-                  {fmtEUR(row.forecast, { cents: false })}
+                  {fmtEUR(row.forecast)}
                 </td>
                 <td className="px-[20px] py-[9px] text-right text-[12px]">
                   {row.trend === 'up' && <span style={{ color: 'var(--neg)' }}>▲</span>}
@@ -723,7 +716,7 @@ export function DashboardStats() {
           )}
           {recurringMonthly !== null && recurringMonthly > 0 && (
             <a href="/transactions/recurring" className="dash-chip neutral text-[11px] hover:bg-[var(--border)]">
-              ~{fmtEUR(recurringMonthly, { cents: false })}/mo recurring
+              ~{fmtEUR(recurringMonthly)}/mo recurring
             </a>
           )}
         </div>
@@ -784,7 +777,7 @@ export function DashboardStats() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[20px]">
         <KPI
           label="Total expenses"
-          value={fmtEUR(data.totalExpenses)}
+          value={fmtEUR(data.totalExpenses, { cents: true })}
           curr={data.totalExpenses}
           prev={prevTotalExpenses}
           goodWhenDown
@@ -794,7 +787,7 @@ export function DashboardStats() {
         />
         <KPI
           label="Total income"
-          value={fmtEUR(data.totalIncome)}
+          value={fmtEUR(data.totalIncome, { cents: true })}
           curr={data.totalIncome}
           prev={prevTotalIncome}
           goodWhenDown={false}
@@ -805,7 +798,7 @@ export function DashboardStats() {
         />
         <KPI
           label="Net"
-          value={fmtEUR(data.net)}
+          value={fmtEUR(data.net, { cents: true })}
           curr={data.net}
           prev={prevNet}
           goodWhenDown={false}
@@ -860,7 +853,7 @@ export function DashboardStats() {
                           <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value) => fmtEUR(Number(value ?? 0))} />
+                      <Tooltip formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -881,16 +874,16 @@ export function DashboardStats() {
             <InsightTile
               label="Top category"
               value={data.byCategory[0]?.category || '—'}
-              sub={data.byCategory[0] ? fmtEUR(data.byCategory[0].amount) : '—'}
+              sub={data.byCategory[0] ? fmtEUR(data.byCategory[0].amount, { cents: true }) : '—'}
             />
             <InsightTile
               label="Largest transaction"
               value={data.topTransaction?.merchant || '—'}
-              sub={data.topTransaction ? `${fmtEUR(data.topTransaction.amount)} · ${data.topTransaction.category}` : '—'}
+              sub={data.topTransaction ? `${fmtEUR(data.topTransaction.amount, { cents: true })} · ${data.topTransaction.category}` : '—'}
             />
             <InsightTile
               label="Daily average"
-              value={fmtEUR(dailyAverage)}
+              value={fmtEUR(dailyAverage, { cents: true })}
               sub={`Over ${data.byDay.length} ${data.byDay.length === 1 ? 'day' : 'days'}`}
             />
             <InsightTile
@@ -909,7 +902,7 @@ export function DashboardStats() {
                 {Object.entries(data.byAccount).map(([a, v]) => (
                   <div key={a} className="min-w-0">
                     <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">{a}</div>
-                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(v)}</div>
+                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(v, { cents: true })}</div>
                   </div>
                 ))}
               </div>
@@ -921,7 +914,7 @@ export function DashboardStats() {
                     <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">
                       {person === 'tung' ? 'Tung' : person === 'thuy' ? 'Thuy' : 'Other'}
                     </div>
-                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(amount)}</div>
+                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(amount, { cents: true })}</div>
                   </div>
                 ))}
               </div>
@@ -933,7 +926,7 @@ export function DashboardStats() {
                   {data.byIncomeSource.map(({ merchant, amount }) => (
                     <div key={merchant} className="flex items-center justify-between gap-2">
                       <span className="text-[12px] text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{merchant}</span>
-                      <span className="mono text-[12px] font-medium text-[var(--pos)] flex-shrink-0">+{fmtEUR(amount, { cents: false })}</span>
+                      <span className="mono text-[12px] font-medium text-[var(--pos)] flex-shrink-0">+{fmtEUR(amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -951,7 +944,7 @@ export function DashboardStats() {
             <div className="text-[12px] text-[var(--fg-3)]">Stacked by category · {labelForRange(dateFrom, dateTo)}</div>
           </div>
           <div className="text-[11px] text-[var(--fg-3)]">
-            Daily avg <span className="mono text-[var(--foreground)]">{fmtEUR(dailyAverage, { cents: false })}</span>
+            Daily avg <span className="mono text-[var(--foreground)]">{fmtEUR(dailyAverage)}</span>
           </div>
         </div>
         <div className="p-[0_12px_12px]">
