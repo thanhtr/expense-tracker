@@ -49,6 +49,11 @@ export const transactionQuerySchema = z.object({
     .default(0),
 });
 
+export const bulkDeleteQuerySchema = z.object({
+  date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine(s => !isNaN(new Date(s).getTime()), 'must be a valid date'),
+  date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine(s => !isNaN(new Date(s).getTime()), 'must be a valid date'),
+});
+
 export const exportQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,

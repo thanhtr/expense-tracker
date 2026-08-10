@@ -25,48 +25,25 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     return { row, dedupKey, dateStr, cost };
   });
 
-  // Single query to find all already-existing dedupKeys
-  const existingRows = await prisma.transaction.findMany({
-    where: { dedupKey: { in: candidates.map(c => c.dedupKey) } },
-    select: { dedupKey: true },
-  });
-  const existingKeys = new Set(
-    existingRows.map(r => r.dedupKey).filter((k): k is string => k !== null)
-  );
+  const data = candidates.map(({ row, dedupKey }) => ({
+    date: row.date,
+    account: row.account,
+    merchant: row.merchant,
+    // Expenses stored as negative, income as positive
+    amount: row.type === 'Income' ? Math.abs(row.amount) : -Math.abs(row.amount),
+    note: row.note || '',
+    type: row.type,
+    category: row.category || '',
+    paidBy,
+    dedupKey,
+  }));
 
-  let created = 0;
-  let skipped = 0;
-  let errors = 0;
+  // createMany with skipDuplicates is a single atomic statement; the DB unique
+  // constraint on dedupKey guarantees no partial-import races.
+  const { count: created } = await prisma.transaction.createMany({ data, skipDuplicates: true });
+  const skipped = rows.length - created;
 
-  for (const { row, dedupKey, dateStr, cost } of candidates) {
-    if (existingKeys.has(dedupKey)) {
-      skipped++;
-      continue;
-    }
-    try {
-      // Expenses stored as negative, income as positive
-      const storedAmount = row.type === 'Income' ? Math.abs(row.amount) : -Math.abs(row.amount);
-      await prisma.transaction.create({
-        data: {
-          date: row.date,
-          account: row.account,
-          merchant: row.merchant,
-          amount: storedAmount,
-          note: row.note || '',
-          type: row.type,
-          category: row.category || '',
-          paidBy,
-          dedupKey,
-        },
-      });
-      created++;
-    } catch (err) {
-      errors++;
-      console.error(`Failed to create transaction "${row.merchant}" ${dateStr} €${cost}:`, err);
-    }
-  }
-
-  return { imported: created, duplicates: skipped, errors, total: rows.length, created, skipped };
+  return { imported: created, duplicates: skipped, errors: 0, total: rows.length, created, skipped };
 }
 
 export async function getTransactions(filters: {
