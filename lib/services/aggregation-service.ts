@@ -109,10 +109,6 @@ export async function getDashboardStats(
     amount: g._sum.amount ?? 0,
   }));
 
-  const byCategoryArray = byCategoryGroups
-    .map(g => ({ category: g.category || '⚠ Uncategorized', amount: Math.abs(g._sum.amount ?? 0) }))
-    .sort((a, b) => b.amount - a.amount);
-
   const allCategories = byCategoryGroups
     .map(g => g.category)
     .filter(Boolean)
@@ -127,10 +123,45 @@ export async function getDashboardStats(
     .map(g => ({ person: g.paidBy, amount: Math.abs(g._sum.amount ?? 0) }))
     .sort((a, b) => b.amount - a.amount);
 
+  // Fetch splits for expense transactions in this period to adjust category attribution
+  // Wrapped in try-catch: table may not exist during migration window
+  let splitRecords: Array<{
+    transactionId: number;
+    category: string;
+    amount: number;
+    transaction: { date: Date; amount: number; category: string | null };
+  }> = [];
+  try {
+    const raw = await prisma.transactionSplit.findMany({
+      where: { transaction: expenseWhere },
+      select: {
+        transactionId: true,
+        category: true,
+        amount: true,
+        transaction: { select: { date: true, amount: true, category: true } },
+      },
+    });
+    splitRecords = raw.filter(s => s.transaction !== null) as typeof splitRecords;
+  } catch {
+    // table doesn't exist yet — proceed without split adjustments
+  }
+
+  // Build a map of transactionId → splits
+  const splitsByTx = new Map<number, typeof splitRecords>();
+  for (const s of splitRecords) {
+    const arr = splitsByTx.get(s.transactionId) ?? [];
+    arr.push(s);
+    splitsByTx.set(s.transactionId, arr);
+  }
+
   // Derive byMonth, byDay, byCategoryMonth from the single grouped time-series query
   const byMonthMap: Record<string, number> = {};
   const dayMap: Record<string, Record<string, number>> = {};
   const monthMap: Record<string, Record<string, number>> = {};
+
+  // Track which (day, category) amounts need adjustment because of splits
+  // We process byDayCatGroups first, then apply split adjustments
+  const adjustedByCat: Record<string, number> = {};
 
   for (const g of byDayCatGroups) {
     const day = g.date.toISOString().slice(0, 10);
@@ -145,7 +176,46 @@ export async function getDashboardStats(
 
     if (!monthMap[month]) monthMap[month] = {};
     monthMap[month][cat] = (monthMap[month][cat] ?? 0) + amt;
+
+    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) + amt;
   }
+
+  // Apply split adjustments: for transactions with splits, redistribute their category amount
+  if (splitRecords.length > 0) {
+    const processedTxIds = new Set<number>();
+    for (const s of splitRecords) {
+      if (processedTxIds.has(s.transactionId)) continue;
+      processedTxIds.add(s.transactionId);
+
+      const txSplits = splitsByTx.get(s.transactionId) ?? [];
+      const originalCat = s.transaction.category || '⚠ Uncategorized';
+      const originalAmt = Math.abs(s.transaction.amount);
+      const day = s.transaction.date.toISOString().slice(0, 10);
+      const month = day.slice(0, 7);
+
+      // Remove original transaction's contribution
+      adjustedByCat[originalCat] = (adjustedByCat[originalCat] ?? 0) - originalAmt;
+      byMonthMap[month] = (byMonthMap[month] ?? 0) - originalAmt;
+      if (dayMap[day]) dayMap[day][originalCat] = (dayMap[day][originalCat] ?? 0) - originalAmt;
+      if (monthMap[month]) monthMap[month][originalCat] = (monthMap[month][originalCat] ?? 0) - originalAmt;
+
+      // Add each split's contribution
+      for (const split of txSplits) {
+        const splitCat = split.category;
+        adjustedByCat[splitCat] = (adjustedByCat[splitCat] ?? 0) + split.amount;
+        byMonthMap[month] = (byMonthMap[month] ?? 0) + split.amount;
+        if (!dayMap[day]) dayMap[day] = {};
+        dayMap[day][splitCat] = (dayMap[day][splitCat] ?? 0) + split.amount;
+        if (!monthMap[month]) monthMap[month] = {};
+        monthMap[month][splitCat] = (monthMap[month][splitCat] ?? 0) + split.amount;
+      }
+    }
+  }
+
+  const finalByCategoryArray = Object.entries(adjustedByCat)
+    .filter(([, amt]) => amt > 0)
+    .map(([cat, amt]) => ({ category: cat, amount: amt }))
+    .sort((a, b) => b.amount - a.amount);
 
   const byMonthArray = Object.entries(byMonthMap)
     .map(([month, amount]) => ({ month, amount }))
@@ -170,7 +240,7 @@ export async function getDashboardStats(
     totalExpenses,
     totalIncome,
     net: totalIncome - totalExpenses,
-    byCategory: byCategoryArray,
+    byCategory: finalByCategoryArray,
     byAccount,
     byPerson: byPersonArray,
     byMonth: byMonthArray,

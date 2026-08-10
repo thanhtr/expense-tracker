@@ -7,19 +7,20 @@ datasource db {
 }
 
 model Transaction {
-  id        Int      @id @default(autoincrement())
-  date      DateTime @db.Date
-  account   String   @default("Unknown")
+  id        Int                @id @default(autoincrement())
+  date      DateTime           @db.Date
+  account   String             @default("Unknown")
   merchant  String
   amount    Float
-  note      String   @default("")
+  note      String             @default("")
   type      String
-  category  String   @default("")
-  paidBy    String   @default("tung")
-  tags      String[] @default([])
-  dedupKey  String?  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  category  String             @default("")
+  paidBy    String             @default("tung")
+  tags      String[]           @default([])
+  dedupKey  String?            @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  splits    TransactionSplit[]
 
   @@index([date])
   @@index([category])
@@ -30,6 +31,17 @@ model Transaction {
   @@index([amount])
   @@index([type, date])
   @@index([category, date])
+}
+
+model TransactionSplit {
+  id            Int         @id @default(autoincrement())
+  transactionId Int
+  category      String
+  amount        Float
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([transactionId])
 }
 
 model Budget {
