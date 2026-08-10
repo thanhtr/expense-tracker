@@ -103,6 +103,7 @@ export async function getDashboardStats(
       where: incomeWhere,
       select: { date: true, amount: true },
       orderBy: { date: 'asc' },
+      take: 10000,
     }),
   ]);
 
