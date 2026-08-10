@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { fmtEUR, today } from '@/lib/utils';
 
 interface Asset {
   id: number;
@@ -28,21 +29,6 @@ const TYPE_COLORS: Record<AssetType, string> = {
   crypto: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
   liability: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
 };
-
-function fmtEUR(n: number) {
-  return new Intl.NumberFormat('fi-FI', {
-    style: 'currency', currency: 'EUR',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(n).replace(/ /g, ' ');
-}
-
-function today() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 export function NetWorthCard() {
   const [assets, setAssets] = useState<Asset[]>([]);

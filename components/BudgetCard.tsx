@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { fmtEUR } from '@/lib/utils';
 
 interface Budget {
   id: number;
@@ -14,13 +15,6 @@ interface Budget {
 interface BudgetCardProps {
   spentByCategory: Record<string, number>;
   categories: string[];
-}
-
-function fmtEUR(n: number) {
-  return new Intl.NumberFormat('fi-FI', {
-    style: 'currency', currency: 'EUR',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(n).replace(/ /g, ' ');
 }
 
 function ProgressBar({ spent, limit }: { spent: number; limit: number }) {

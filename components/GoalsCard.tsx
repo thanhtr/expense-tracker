@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { fmtEUR, today } from '@/lib/utils';
 
 interface SavingsGoal {
   id: number;
@@ -8,13 +9,6 @@ interface SavingsGoal {
   targetAmount: number;
   currentAmount: number;
   targetDate: string;
-}
-
-function fmtEUR(n: number) {
-  return new Intl.NumberFormat('fi-FI', {
-    style: 'currency', currency: 'EUR',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(n).replace(/ /g, ' ');
 }
 
 function daysRemaining(targetDate: string): number {
