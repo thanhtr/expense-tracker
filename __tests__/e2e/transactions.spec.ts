@@ -8,8 +8,8 @@ test.describe('Transactions Page', () => {
 
     await page.goto('/');
 
-    // Click on Transactions link in navigation
-    await page.locator('a:has-text("Transactions")').click();
+    // Click on Transactions link in navigation (exact match to avoid matching "All transactions →")
+    await page.getByRole('link', { name: 'Transactions', exact: true }).first().click();
 
     // Should be on transactions page
     await expect(page).toHaveURL(/\/transactions/);
