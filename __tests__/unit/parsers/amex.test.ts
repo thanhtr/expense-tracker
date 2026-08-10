@@ -16,15 +16,18 @@ describe('parseAmex', () => {
     expect(result[0].account).toBe('Amex');
   });
 
-  it('should skip income rows (negative amounts in CSV)', async () => {
+  it('should parse refund rows (negative amounts in CSV) with type Income', async () => {
     const csv = `Date,Description,Amount
 2026-04-10,Amazon Purchase,45.67
 2026-04-11,Refund,-100.00`;
 
     const result = await parseAmex(csv);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].merchant).toBe('Amazon Purchase');
+    expect(result).toHaveLength(2);
+    const expense = result.find(r => r.merchant === 'Amazon Purchase');
+    const income = result.find(r => r.merchant === 'Refund');
+    expect(expense?.type).toBe('Expense');
+    expect(income?.type).toBe('Income');
   });
 
   it('should handle different date formats', async () => {
@@ -45,13 +48,15 @@ describe('parseAmex', () => {
     expect(result[0].type).toBe('Expense');
   });
 
-  it('should return empty array for CSV with no expense rows', async () => {
+  it('should parse refund-only CSV and set type to Income', async () => {
     const csv = `Date,Description,Amount
 2026-04-10,Refund,-100.00`;
 
     const result = await parseAmex(csv);
 
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('Income');
+    expect(result[0].merchant).toBe('Refund');
   });
 
   it('should handle decimal amounts correctly', async () => {

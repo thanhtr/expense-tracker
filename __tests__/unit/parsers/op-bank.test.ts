@@ -16,15 +16,18 @@ describe('parseOPBank', () => {
     expect(result[0].account).toBe('OP Bank');
   });
 
-  it('should skip income transactions (positive amounts)', async () => {
+  it('should parse income transactions (positive amounts) with type Income', async () => {
     const csv = `Kirjauspäivä;Määrä EUROA;Saaja;Viesti
 2026-04-10;-45,67;Amazon;Purchase
 2026-04-11;+1000,00;Employer;Salary`;
 
     const result = await parseOPBank(csv);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].merchant).toBe('Amazon');
+    expect(result).toHaveLength(2);
+    const expense = result.find(r => r.merchant === 'Amazon');
+    const income = result.find(r => r.merchant === 'Employer');
+    expect(expense?.type).toBe('Expense');
+    expect(income?.type).toBe('Income');
   });
 
   it('should handle Finnish amount format with comma decimal', async () => {
@@ -55,13 +58,15 @@ describe('parseOPBank', () => {
     expect(result[0].type).toBe('Expense');
   });
 
-  it('should return empty array for CSV with no expense rows', async () => {
+  it('should parse income-only rows and set type to Income', async () => {
     const csv = `Kirjauspäivä;Määrä EUROA;Saaja;Viesti
 2026-04-11;+1000,00;Employer;Salary`;
 
     const result = await parseOPBank(csv);
 
-    expect(result).toEqual([]);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('Income');
+    expect(result[0].merchant).toBe('Employer');
   });
 
   it('should handle non-breaking spaces in amounts', async () => {

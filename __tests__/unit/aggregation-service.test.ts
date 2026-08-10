@@ -59,12 +59,13 @@ function setupMocks(opts: {
     topTx = DEFAULT_TOP_TX,
   } = opts;
 
-  // groupBy called 4 times in Promise.all order: category, account, paidBy, date×category
+  // groupBy called 5 times: category, account, paidBy, date×category, income sources
   vi.mocked(prisma.transaction.groupBy)
     .mockResolvedValueOnce(byCategoryGroups as never)
     .mockResolvedValueOnce(byAccountGroups as never)
     .mockResolvedValueOnce(byPersonGroups as never)
-    .mockResolvedValueOnce(byDayCatGroups as never);
+    .mockResolvedValueOnce(byDayCatGroups as never)
+    .mockResolvedValueOnce([] as never); // income sources (empty by default)
 
   // aggregate called twice: expense totals, then income
   vi.mocked(prisma.transaction.aggregate)

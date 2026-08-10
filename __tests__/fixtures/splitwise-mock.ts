@@ -28,12 +28,13 @@ export interface DashboardAggregation {
   byDay: Array<{ day: string; [key: string]: number | string }>;
   byAccount: Record<string, number>;
   byMonth: Array<{ month: string; amount: number }>;
-  topTransaction: { merchant: string; amount: number; category: string; date: string };
+  topTransaction: { merchant: string; amount: number; category: string; date: string } | null;
   allCategories: string[];
   transactionCount: number;
   uncategorizedCount: number;
   byPerson: Array<{ person: string; amount: number }>;
   byCategoryMonth: Array<{ month: string; [key: string]: number | string }>;
+  byIncomeSource: Array<{ merchant: string; amount: number }>;
 }
 
 export function mockExpense(overrides?: Partial<ParsedTransaction>): ParsedTransaction {
@@ -155,6 +156,14 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, cats]) => ({ month, ...cats }));
 
+  const byIncomeSourceMap = income.reduce((acc, t) => {
+    acc[t.merchant] = (acc[t.merchant] || 0) + t.amount;
+    return acc;
+  }, {} as Record<string, number>);
+  const byIncomeSource = Object.entries(byIncomeSourceMap)
+    .map(([merchant, amount]) => ({ merchant, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
   return {
     totalExpenses,
     totalIncome,
@@ -169,6 +178,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     uncategorizedCount: expenses.filter((t) => !t.category || t.category === '').length,
     byPerson,
     byCategoryMonth,
+    byIncomeSource,
   };
 }
 
@@ -185,6 +195,11 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     await route.fulfill({
       json: dashboard,
     });
+  });
+
+  // Mock /api/transactions/recurring (must be before the broader /api/transactions* route)
+  await page.route('**/api/transactions/recurring*', async (route) => {
+    await route.fulfill({ json: { items: [], totalMonthly: 0 } });
   });
 
   // Mock /api/transactions
@@ -222,5 +237,19 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
       body: csv,
       contentType: 'text/csv',
     });
+  });
+
+  // Mock supporting dashboard endpoints (budgets, goals, assets, forecast, recurring)
+  await page.route('**/api/budgets*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/goals*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/assets*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/forecast*', async (route) => {
+    await route.fulfill({ json: null });
   });
 }
