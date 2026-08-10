@@ -44,9 +44,6 @@ export async function POST(request: NextRequest) {
     // Categorize transactions (using learned rules + CSV keywords)
     rows = await categorizeWithLearning(rows);
 
-    // Filter to expenses only
-    rows = rows.filter(r => r.type === 'Expense');
-
     const result = await upsertTransactions(rows, accountOwner);
     invalidateDashboardCache();
 
