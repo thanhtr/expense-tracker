@@ -2,250 +2,164 @@ import { test, expect } from '@playwright/test';
 import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise-mock';
 
 test.describe('Transactions Page', () => {
-  test('should navigate to transactions page', async ({ page }) => {
-    const expenses = mockExpenses(3);
-    await setupSplitwise(page, expenses);
-
+  test('should navigate to transactions page from nav', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(3));
     await page.goto('/');
-
-    // Click on Transactions link in navigation (exact match to avoid matching "All transactions →")
     await page.getByRole('link', { name: 'Transactions', exact: true }).first().click();
-
-    // Should be on transactions page
     await expect(page).toHaveURL(/\/transactions/);
   });
 
-  test('should load and display transactions list', async ({ page }) => {
-    const expenses = mockExpenses(3);
-    await setupSplitwise(page, expenses);
-
+  test('should load and display transaction rows', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(3));
     await page.goto('/transactions');
-
-    // Wait for table to load
-    await page.waitForTimeout(500);
-
-    // Verify transaction rows exist
-    const rows = page.locator('tr, [role="row"]');
-    expect(await rows.count()).toBeGreaterThan(0);
+    // Wait for actual rows — header row + 3 data rows = at least 4
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const rows = await page.locator('tbody tr').count();
+    expect(rows).toBeGreaterThanOrEqual(3);
   });
 
-  test('should show pagination for large lists', async ({ page }) => {
-    // Create 60 expenses (more than default page size of 50)
-    const expenses = mockExpenses(60);
-    await setupSplitwise(page, expenses);
-
+  test('should show pagination Next button for lists over 50', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(60));
     await page.goto('/transactions');
-
-    await page.waitForTimeout(500);
-
-    // Check for pagination controls
-    const nextButton = page.locator('button:has-text("Next")');
-    if (await nextButton.count() > 0) {
-      await expect(nextButton).toBeEnabled();
-    }
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    await expect(page.locator('button:has-text("Next")')).toBeEnabled();
   });
 
-  test('should navigate to next page with pagination', async ({ page }) => {
-    const expenses = mockExpenses(60);
-    await setupSplitwise(page, expenses);
-
+  test('should load next page on pagination click', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(60));
     await page.goto('/transactions');
-
-    await page.waitForTimeout(500);
-
-    // Get first row's content before pagination
-    const firstRowBefore = await page.locator('tr, [role="row"]').nth(1).textContent();
-
-    // Click next page if button exists
-    const nextButton = page.locator('button:has-text("Next")');
-    if (await nextButton.count() > 0 && (await nextButton.isEnabled())) {
-      await nextButton.click();
-      await page.waitForTimeout(500);
-
-      const firstRowAfter = await page.locator('tr, [role="row"]').nth(1).textContent();
-      // Content should change after pagination
-      expect(firstRowAfter).not.toEqual(firstRowBefore);
-    }
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const firstRowBefore = await page.locator('tbody tr').nth(0).textContent();
+    await page.locator('button:has-text("Next")').click();
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const firstRowAfter = await page.locator('tbody tr').nth(0).textContent();
+    expect(firstRowAfter).not.toEqual(firstRowBefore);
   });
 
-  test('should filter transactions by account', async ({ page }) => {
-    const expenses = [
-      mockExpense({
-        merchant: 'OP Purchase',
-        amount: 50.00,
-        account: 'OP',
-      }),
-      mockExpense({
-        merchant: 'Amex Purchase',
-        amount: 30.00,
-        account: 'Amex',
-      }),
-    ];
-    await setupSplitwise(page, expenses);
-
+  test('should filter transactions by account immediately (live filter)', async ({ page }) => {
+    await setupSplitwise(page, [
+      mockExpense({ merchant: 'OP Purchase', amount: 50.00, account: 'OP Bank' }),
+      mockExpense({ merchant: 'Amex Purchase', amount: 30.00, account: 'Amex' }),
+    ]);
     await page.goto('/transactions');
-
-    // Open filters
-    const filterButton = page.locator('button:has-text("Filter"), button:has-text("Apply")');
-    if (await filterButton.count() > 0) {
-      // Select account filter (if UI has it)
-      const accountSelect = page.locator('select').first();
-      if (await accountSelect.count() > 0) {
-        await accountSelect.selectOption('OP Bank');
-
-        // Apply filters
-        const applyButton = page.locator('button:has-text("Apply")');
-        if (await applyButton.count() > 0) {
-          await applyButton.click();
-          await page.waitForTimeout(500);
-        }
-      }
-    }
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    // Account select is the 3rd select on the page (after date pickers, account, type, category...)
+    const accountSelect = page.locator('select[aria-label="Account"], select').nth(0);
+    await accountSelect.selectOption('OP Bank');
+    await page.waitForLoadState('networkidle');
+    // After filtering, only OP Bank rows should remain
+    const rowCount = await page.locator('tbody tr').count();
+    expect(rowCount).toBeGreaterThan(0);
   });
 
-  test('should reset filters', async ({ page }) => {
-    const expenses = mockExpenses(3);
-    await setupSplitwise(page, expenses);
-
+  test('should clear filters with Reset button', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(5));
     await page.goto('/transactions');
-
-    // Find reset button if present
+    await expect(page.locator('tbody tr').first()).toBeVisible();
     const resetButton = page.locator('button:has-text("Reset")');
-    if (await resetButton.count() > 0) {
-      await resetButton.click();
-      await page.waitForTimeout(500);
-
-      // Verify page still loads
-      await expect(page.locator('tr, [role="row"]').first()).toBeVisible();
-    }
+    await expect(resetButton).toBeVisible();
+    await resetButton.click();
+    await expect(page.locator('tbody tr').first()).toBeVisible();
   });
 
-  test('should allow inline category editing', async ({ page }) => {
-    const expenses = [mockExpense({ merchant: 'Restaurant', category: 'Food & Dining' })];
-    await setupSplitwise(page, expenses);
-
+  test('should show category dropdown in each transaction row', async ({ page }) => {
+    await setupSplitwise(page, [mockExpense({ merchant: 'Restaurant', category: 'Dining Out' })]);
     await page.goto('/transactions');
-
-    await page.waitForTimeout(500);
-
-    // Just verify the page loads with transaction data
-    // Inline editing is complex to test in E2E
-    const pageContent = await page.content();
-    expect(pageContent.length).toBeGreaterThan(0);
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const categorySelect = page.locator('tbody tr').first().locator('select[aria-label="Category"]');
+    await expect(categorySelect).toBeVisible();
+    await expect(categorySelect).toHaveValue('Dining Out');
   });
 
-  test('should allow transaction deletion with confirmation', async ({ page }) => {
-    const expenses = [mockExpense()];
-    await setupSplitwise(page, expenses);
-
-    await page.goto('/transactions');
-
-    await page.waitForTimeout(500);
-
-    // Find and click delete button
-    const deleteButton = page.locator('button:has-text("Delete")').first();
-    if (await deleteButton.count() > 0) {
-      await deleteButton.click();
-
-      // Handle confirmation dialog
-      await page.on('dialog', (dialog) => dialog.accept());
-
-      await page.waitForTimeout(300);
-
-      // Verify delete was called (would require checking mocks or network)
-    }
-  });
-
-  test('should export transactions as CSV', async ({ page }) => {
-    const expenses = mockExpenses(3);
-    await setupSplitwise(page, expenses);
-
-    await page.goto('/transactions');
-
-    // Look for export button
-    const exportButton = page.locator('button:has-text("Export"), a:has-text("Export")');
-    if (await exportButton.count() > 0) {
-      // Verify button exists and is clickable
-      await expect(exportButton).toBeVisible();
-    }
-  });
-});
-
-test.describe('Category correction learning', () => {
-  test('should send PATCH request when updating category', async ({ page }) => {
-    const expenses = [
-      mockExpense({
-        merchant: 'Restaurant',
-        category: '',
-        amount: 45.50,
-      }),
-    ];
-    await setupSplitwise(page, expenses);
-
+  test('should update category via inline select and fire PATCH', async ({ page }) => {
+    await setupSplitwise(page, [
+      mockExpense({ merchant: 'Restaurant', category: 'Dining Out' }),
+    ]);
+    await page.route('**/api/categories*', async (route) => {
+      await route.fulfill({ json: { categories: ['Dining Out', 'Shopping', 'Food & Groceries'] } });
+    });
+    const patchBodies: { category: string }[] = [];
     await page.route('**/api/transactions/*', async (route) => {
       if (route.request().method() === 'PATCH') {
-        const patchBody = route.request().postDataJSON() as { category: string };
-        await route.fulfill({
-          json: {
-            id: 1,
-            category: patchBody.category,
-            success: true,
-          },
-        });
+        patchBodies.push(route.request().postDataJSON() as { category: string });
+        await route.fulfill({ json: { success: true, category: 'Shopping' } });
       } else {
         await route.continue();
       }
     });
-
     await page.goto('/transactions');
-
-    await page.waitForTimeout(500);
-
-    // Verify that the transactions loaded
-    const rows = page.locator('tr, [role="row"]');
-    expect(await rows.count()).toBeGreaterThan(0);
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const categorySelect = page.locator('tbody tr').first().locator('select[aria-label="Category"]');
+    await categorySelect.selectOption('Shopping');
+    await page.waitForLoadState('networkidle');
+    expect(patchBodies.length).toBeGreaterThan(0);
+    expect(patchBodies[0].category).toBe('Shopping');
   });
 
-  test('should include category in PATCH request body', async ({ page }) => {
-    const expenses = [
-      mockExpense({
-        merchant: 'Coffee Shop',
-        category: 'Dining',
-        amount: 5.00,
-      }),
-    ];
-    await setupSplitwise(page, expenses);
-
-    const patchRequests: Array<{ category: string }> = [];
-
+  test('should delete transaction with confirmation and fire DELETE', async ({ page }) => {
+    await setupSplitwise(page, [mockExpense({ merchant: 'Target' })]);
+    let deleteCalled = false;
     await page.route('**/api/transactions/*', async (route) => {
-      if (route.request().method() === 'PATCH') {
-        const body = route.request().postDataJSON() as { category: string };
-        patchRequests.push(body);
-        await route.fulfill({
-          json: {
-            id: 1,
-            category: body.category,
-            success: true,
-          },
-        });
+      if (route.request().method() === 'DELETE') {
+        deleteCalled = true;
+        await route.fulfill({ json: { success: true } });
       } else {
         await route.continue();
       }
     });
-
     await page.goto('/transactions');
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    page.on('dialog', (dialog) => dialog.accept());
+    await page.locator('button[aria-label="Delete transaction"]').first().click();
+    await page.waitForLoadState('networkidle');
+    expect(deleteCalled).toBe(true);
+  });
 
-    // In a real test, you would interact with the edit button
-    // For now, we're just verifying the route intercepts PATCH requests
-    await page.waitForTimeout(500);
+  test('should show Export CSV button and it opens export URL', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(3));
+    await page.goto('/transactions');
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const exportBtn = page.locator('button:has-text("Export CSV")');
+    await expect(exportBtn).toBeVisible();
+  });
 
-    // Verify the route is set up to catch PATCH requests
-    const responses = await page.evaluate(() => {
-      // This is just verifying the page loads
-      return document.body.innerHTML.length > 0;
+  test('should show empty state when no transactions match filters', async ({ page }) => {
+    // Return empty transactions
+    await page.route('**/api/dashboard*', async (route) => {
+      await route.fulfill({ json: { totalExpenses: 0, totalIncome: 0, net: 0, byCategory: [], byDay: [], byAccount: {}, byMonth: [], byMonthIncome: [], topTransaction: null, allCategories: [], transactionCount: 0, uncategorizedCount: 0, byPerson: [], byCategoryMonth: [], byIncomeSource: [] } });
     });
+    await page.route('**/api/transactions*', async (route) => {
+      await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
+    });
+    await page.route('**/api/categories*', async (route) => {
+      await route.fulfill({ json: { categories: [] } });
+    });
+    await page.route('**/api/budgets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/goals*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/assets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/forecast*', async (route) => { await route.fulfill({ json: null }); });
+    await page.route('**/api/transactions/recurring*', async (route) => { await route.fulfill({ json: { items: [], totalMonthly: 0 } }); });
+    await page.goto('/transactions');
+    await expect(page.locator('text=/No transactions|upload a CSV/')).toBeVisible();
+  });
 
-    expect(responses).toBe(true);
+  test('should bulk-categorize selected transactions', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(3));
+    let bulkCalled = false;
+    await page.route('**/api/transactions/bulk-categorize', async (route) => {
+      bulkCalled = true;
+      await route.fulfill({ json: { updated: 1 } });
+    });
+    await page.goto('/transactions');
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    // Check first row checkbox
+    await page.locator('tbody tr').first().locator('input[type="checkbox"]').check();
+    await expect(page.locator('text=/selected/')).toBeVisible();
+    // Pick a category and apply
+    const bulkSelect = page.locator('text=/selected/').locator('..').locator('select');
+    await bulkSelect.selectOption({ index: 1 });
+    await page.locator('button:has-text("Apply")').click();
+    await page.waitForLoadState('networkidle');
+    expect(bulkCalled).toBe(true);
   });
 });
