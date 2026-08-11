@@ -122,6 +122,11 @@ jobs:
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+    - name: Resolve failed migration (20260811000000 failed with unique constraint)
+      run: npx prisma migrate resolve --applied 20260811000000_backfill_dedup_key_with_account || true
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     - name: Run database migrations
       run: npx prisma migrate deploy
       env:
@@ -173,8 +178,20 @@ jobs:
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+    - name: Cache Playwright browsers
+      uses: actions/cache@v5
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
     - name: Install Playwright browsers
       run: npx playwright install --with-deps chromium
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+    - name: Install Playwright system deps (cached)
+      run: npx playwright install-deps chromium
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
 
     - name: Run E2E tests
       run: npm run test:e2e
