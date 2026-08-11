@@ -24,12 +24,13 @@ const TYPE_LABELS: Record<AssetType, string> = {
 
 const TYPE_ORDER: AssetType[] = ['investment', 'bank', 'property', 'crypto', 'liability'];
 
-const EMPTY_FORM = { name: '', type: 'investment' as AssetType, balance: '', recordedAt: new Date().toISOString().slice(0, 10) };
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function emptyForm() { return { name: '', type: 'investment' as AssetType, balance: '', recordedAt: todayISO() }; }
 
-export function AssetManager({ onMutate }: { onMutate?: () => void } = {}) {
+export function AssetManager({ onMutate }: { onMutate?: () => void }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBalance, setEditBalance] = useState('');
@@ -55,7 +56,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void } = {}) {
       if (res.ok) {
         const asset = await res.json() as Asset;
         setAssets(prev => [...prev, asset]);
-        setForm(EMPTY_FORM);
+        setForm(emptyForm());
         onMutate?.();
         toast.success(`"${asset.name}" added`);
       } else {
@@ -87,6 +88,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void } = {}) {
   }
 
   async function handleDelete(asset: Asset) {
+    if (!window.confirm(`Remove "${asset.name}"?`)) return;
     const res = await fetch(`/api/assets/${asset.id}`, { method: 'DELETE' });
     if (res.ok) {
       setAssets(prev => prev.filter(a => a.id !== asset.id));

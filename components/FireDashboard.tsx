@@ -94,8 +94,8 @@ function ModelExplainer() {
             <p>
               The FIRE number is the portfolio value needed at retirement so that — growing at the drawdown
               real return and paying out the phased net spending — it reaches exactly €0 at age 95. It is found
-              by binary search: the model tries a starting portfolio, simulates all 45 years of monthly
-              withdrawals, and adjusts up or down until the end balance converges to zero (60 iterations,
+              by binary search: the model tries a starting portfolio, simulates all monthly
+              withdrawals from retirement to age 95, and adjusts up or down until the end balance converges to zero (60 iterations,
               accurate to within a few euros).
             </p>
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded">
@@ -302,6 +302,19 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
   );
 }
 
+// ── Info tooltip ──────────────────────────────────────────────────────────────
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="relative group inline-flex items-center ml-[5px] align-middle">
+      <span className="cursor-help text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none">?</span>
+      <span className="absolute bottom-full right-0 mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 // ── Barista comparison table ──────────────────────────────────────────────────
 
 function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
@@ -340,19 +353,6 @@ function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-// ── Info tooltip ──────────────────────────────────────────────────────────────
-
-function InfoTip({ text }: { text: string }) {
-  return (
-    <span className="relative group inline-flex items-center ml-[5px] align-middle">
-      <span className="cursor-help text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none">?</span>
-      <span className="absolute bottom-full left-0 mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed">
-        {text}
-      </span>
-    </span>
   );
 }
 
