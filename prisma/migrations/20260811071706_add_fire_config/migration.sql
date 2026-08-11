@@ -1,0 +1,20 @@
+-- CreateTable
+CREATE TABLE "FireConfig" (
+    "id" SERIAL NOT NULL,
+    "currentAge" INTEGER NOT NULL DEFAULT 36,
+    "retirementAge" INTEGER NOT NULL DEFAULT 50,
+    "mortgageEndAge" INTEGER NOT NULL DEFAULT 60,
+    "pensionAge" INTEGER NOT NULL DEFAULT 65,
+    "lifeExpectancy" INTEGER NOT NULL DEFAULT 95,
+    "monthlyContribution" DOUBLE PRECISION NOT NULL DEFAULT 3000,
+    "accumulationReturn" DOUBLE PRECISION NOT NULL DEFAULT 0.06,
+    "drawdownReturn" DOUBLE PRECISION NOT NULL DEFAULT 0.04,
+    "capitalGainsTaxRate" DOUBLE PRECISION NOT NULL DEFAULT 0.20,
+    "phase1aNetMonthly" DOUBLE PRECISION NOT NULL DEFAULT 4500,
+    "phase1bNetMonthly" DOUBLE PRECISION NOT NULL DEFAULT 3000,
+    "phase2NetMonthly" DOUBLE PRECISION NOT NULL DEFAULT 3000,
+    "pensionNetMonthly" DOUBLE PRECISION NOT NULL DEFAULT 1580,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "FireConfig_pkey" PRIMARY KEY ("id")
+);
