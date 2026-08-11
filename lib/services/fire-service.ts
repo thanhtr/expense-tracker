@@ -14,6 +14,22 @@ export interface FireConfig {
   pensionNetMonthly: number;
 }
 
+export const FIRE_DEFAULTS: FireConfig = {
+  currentAge: 36,
+  retirementAge: 50,
+  mortgageEndAge: 60,
+  pensionAge: 65,
+  lifeExpectancy: 95,
+  monthlyContribution: 3000,
+  accumulationReturn: 0.06,
+  drawdownReturn: 0.04,
+  capitalGainsTaxRate: 0.20,
+  phase1aNetMonthly: 4500,
+  phase1bNetMonthly: 3000,
+  phase2NetMonthly: 3000,
+  pensionNetMonthly: 1580,
+};
+
 export interface ProjectionPoint {
   age: number;
   year: number;
@@ -228,14 +244,12 @@ export function computeYearsToFire(
   config: FireConfig,
   currentPortfolio: number,
   fireTarget: number,
-  activeIncomeMonthly = 0,
 ): number | null {
   const { currentAge, retirementAge, accumulationReturn, monthlyContribution } = config;
   const accRate = monthlyRate(accumulationReturn);
   let portfolio = currentPortfolio;
   const maxMonths = (retirementAge - currentAge) * 12;
 
-  // Already there
   if (portfolio >= fireTarget) return 0;
 
   for (let m = 1; m <= maxMonths; m++) {
@@ -245,10 +259,6 @@ export function computeYearsToFire(
     }
   }
 
-  // Not reached by retirementAge — continue to check if ever possible (up to lifeExpectancy)
-  // but without new contributions (retired)
-  // In this case, return null — the user needs to adjust params
-  void activeIncomeMonthly;
   return null;
 }
 
@@ -265,7 +275,7 @@ export function baristaVariants(config: FireConfig, currentPortfolio: number): {
 
   const [pure, barista33, barista50] = variants.map(({ label, activeIncomeMonthly }) => {
     const fireTarget = computeFireTarget(config, activeIncomeMonthly);
-    const yearsToFire = computeYearsToFire(config, currentPortfolio, fireTarget, activeIncomeMonthly);
+    const yearsToFire = computeYearsToFire(config, currentPortfolio, fireTarget);
     const projectedRetirementAge = yearsToFire !== null
       ? config.currentAge + yearsToFire
       : null;

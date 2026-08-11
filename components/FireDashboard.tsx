@@ -6,24 +6,14 @@ import {
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 import { fmtEUR } from '@/lib/utils';
-import type { FireConfig, FireCalculationResult, BaristaVariant, PhaseInfo } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
 
 type FireApiResponse = FireCalculationResult & { config: FireConfig };
-
-const DEFAULTS: FireConfig = {
-  currentAge: 36, retirementAge: 50, mortgageEndAge: 60,
-  pensionAge: 65, lifeExpectancy: 95,
-  monthlyContribution: 3000,
-  accumulationReturn: 0.06, drawdownReturn: 0.04,
-  capitalGainsTaxRate: 0.20,
-  phase1aNetMonthly: 4500, phase1bNetMonthly: 3000,
-  phase2NetMonthly: 3000, pensionNetMonthly: 1580,
-};
 
 function fmt(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `€${(n / 1_000_000).toFixed(2)}M`;
   if (Math.abs(n) >= 1_000) return `€${Math.round(n / 1_000)}k`;
-  return fmtEUR(n);
+  return `€${Math.round(Math.abs(n))}`;
 }
 
 function pctFmt(n: number): string {
@@ -301,7 +291,7 @@ function ConfigPanel({ config, onSave, saving }: {
 
   function handleReset() {
     setDraft({});
-    onSave(DEFAULTS);
+    onSave(FIRE_DEFAULTS);
   }
 
   const hasDraft = Object.keys(draft).length > 0;
@@ -334,7 +324,7 @@ function ConfigPanel({ config, onSave, saving }: {
                       value={getVal(f.key, f.pct)}
                       onChange={e => {
                         const v = parseFloat(e.target.value);
-                        if (!isNaN(v)) set(f.key, f.pct ? v : v);
+                        if (!isNaN(v)) set(f.key, v);
                       }}
                     />
                   </label>
@@ -429,7 +419,11 @@ export function FireDashboard() {
       {/* Status row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KPI label="FIRE Number" value={fmt(fireTarget)} sub="at retirement age" />
-        <KPI label="Current Portfolio" value={fmt(currentPortfolio)} sub="investment assets" />
+        <KPI
+          label="Current Portfolio"
+          value={fmt(currentPortfolio)}
+          sub={currentPortfolio === 0 ? 'add investment assets in Settings' : 'investment assets'}
+        />
         <ProgressBar pct={data.progressPct} />
         <KPI
           label="Years to FIRE"

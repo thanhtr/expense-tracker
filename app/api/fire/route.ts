@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { runFireCalculation, type FireConfig } from '@/lib/services/fire-service';
+import { runFireCalculation, FIRE_DEFAULTS, type FireConfig } from '@/lib/services/fire-service';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
-
-const DEFAULTS: Omit<FireConfig, never> = {
-  currentAge: 36,
-  retirementAge: 50,
-  mortgageEndAge: 60,
-  pensionAge: 65,
-  lifeExpectancy: 95,
-  monthlyContribution: 3000,
-  accumulationReturn: 0.06,
-  drawdownReturn: 0.04,
-  capitalGainsTaxRate: 0.20,
-  phase1aNetMonthly: 4500,
-  phase1bNetMonthly: 3000,
-  phase2NetMonthly: 3000,
-  pensionNetMonthly: 1580,
-};
 
 async function getOrCreateConfig(): Promise<FireConfig & { id: number; updatedAt: Date }> {
   return prisma.fireConfig.upsert({
     where: { id: 1 },
     update: {},
-    create: { id: 1, ...DEFAULTS },
+    create: { id: 1, ...FIRE_DEFAULTS },
   });
 }
 
@@ -58,7 +42,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     const updated = await prisma.fireConfig.upsert({
       where: { id: 1 },
       update: parsed.data,
-      create: { id: 1, ...DEFAULTS, ...parsed.data },
+      create: { id: 1, ...FIRE_DEFAULTS, ...parsed.data },
     });
 
     const currentPortfolio = await getCurrentPortfolio();
