@@ -215,7 +215,7 @@ export const TransactionRow = memo(function TransactionRow({
           />
         </td>
       )}
-      <td className="px-4 py-3 text-sm">{formatDate(transaction.date)}</td>
+      <td className="px-4 py-3 text-sm whitespace-nowrap">{formatDate(transaction.date)}</td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">{transaction.account}</td>
       <td className="px-4 py-3 text-sm truncate max-w-0" title={transaction.merchant}>
         <div className="truncate">{transaction.merchant}</div>
@@ -310,7 +310,7 @@ export const TransactionRow = memo(function TransactionRow({
           </div>
         )}
       </td>
-      <td className="px-4 py-3 text-sm">
+      <td className="px-2 py-3 text-sm">
         <div className="flex items-center gap-1">
           {/* Split button */}
           {transaction.type === 'Expense' && (

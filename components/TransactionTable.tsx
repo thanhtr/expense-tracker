@@ -18,28 +18,28 @@ function TransactionTableSkeleton() {
           <thead className="bg-surface-2 border-b border-border-soft animate-pulse">
             <tr>
               <th className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></th>
-              <th className="w-24 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
+              <th className="w-28 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
               <th className="hidden md:table-cell w-28 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded" /></th>
               <th className="px-4 py-3"><div className="h-4 w-20 bg-[var(--border)] rounded" /></th>
               <th className="w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded ml-auto" /></th>
               <th className="hidden sm:table-cell w-36 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></th>
               <th className="hidden md:table-cell w-20 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
               <th className="hidden md:table-cell px-4 py-3"><div className="h-4 w-10 bg-[var(--border)] rounded" /></th>
-              <th className="w-10 px-2 py-3" />
+              <th className="w-28 px-2 py-3" />
             </tr>
           </thead>
           <tbody className="animate-pulse">
             {[80, 55, 70, 40, 65, 50, 75, 45].map((w, i) => (
               <tr key={i} className="border-b border-border-soft">
                 <td className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></td>
-                <td className="w-24 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></td>
+                <td className="w-28 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></td>
                 <td className="hidden md:table-cell w-28 px-4 py-3"><div className="h-4 w-18 bg-[var(--border)] rounded" /></td>
                 <td className="px-4 py-3"><div className="h-4 bg-[var(--border)] rounded" style={{ width: `${w}%` }} /></td>
                 <td className="w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded ml-auto" /></td>
                 <td className="hidden sm:table-cell w-36 px-4 py-3"><div className="h-5 w-20 bg-[var(--border)] rounded-full" /></td>
                 <td className="hidden md:table-cell w-20 px-4 py-3"><div className="h-4 w-10 bg-[var(--border)] rounded" /></td>
                 <td className="hidden md:table-cell px-4 py-3"><div className="h-4 w-24 bg-[var(--border)] rounded" /></td>
-                <td className="w-10 px-2 py-3" />
+                <td className="w-28 px-2 py-3" />
               </tr>
             ))}
           </tbody>
@@ -250,7 +250,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                   className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
                 />
               </th>
-              <th className="w-24 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
+              <th className="w-28 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
                 Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
               </th>
               <th className="hidden md:table-cell w-28 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
@@ -261,7 +261,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
               <th className="hidden sm:table-cell w-36 px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
               <th className="hidden md:table-cell w-20 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
               <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
-              <th className="w-10 px-2 py-3 text-left text-xs font-medium text-fg-2">
+              <th className="w-28 px-2 py-3 text-left text-xs font-medium text-fg-2">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
