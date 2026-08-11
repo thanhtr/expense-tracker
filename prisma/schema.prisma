@@ -115,3 +115,21 @@ model AssetSnapshot {
   @@index([recordedAt])
   @@index([assetId])
 }
+
+model FireConfig {
+  id                  Int      @id @default(autoincrement())
+  currentAge          Int      @default(36)
+  retirementAge       Int      @default(50)
+  mortgageEndAge      Int      @default(60)
+  pensionAge          Int      @default(65)
+  lifeExpectancy      Int      @default(95)
+  monthlyContribution Float    @default(3000)
+  accumulationReturn  Float    @default(0.06)
+  drawdownReturn      Float    @default(0.04)
+  capitalGainsTaxRate Float    @default(0.20)
+  phase1aNetMonthly   Float    @default(4500)
+  phase1bNetMonthly   Float    @default(3000)
+  phase2NetMonthly    Float    @default(3000)
+  pensionNetMonthly   Float    @default(1580)
+  updatedAt           DateTime @updatedAt
+}

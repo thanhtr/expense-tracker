@@ -152,6 +152,22 @@ export const updateCategorySchema = z.object({
   name: z.string().min(1).max(100).transform(s => s.trim()),
 });
 
+export const fireConfigSchema = z.object({
+  currentAge:          z.number().int().min(18).max(80).optional(),
+  retirementAge:       z.number().int().min(30).max(90).optional(),
+  mortgageEndAge:      z.number().int().min(30).max(90).optional(),
+  pensionAge:          z.number().int().min(55).max(75).optional(),
+  lifeExpectancy:      z.number().int().min(70).max(110).optional(),
+  monthlyContribution: z.number().min(0).finite().optional(),
+  accumulationReturn:  z.number().min(0).max(0.20).optional(),
+  drawdownReturn:      z.number().min(0).max(0.15).optional(),
+  capitalGainsTaxRate: z.number().min(0).max(0.50).optional(),
+  phase1aNetMonthly:   z.number().min(0).finite().optional(),
+  phase1bNetMonthly:   z.number().min(0).finite().optional(),
+  phase2NetMonthly:    z.number().min(0).finite().optional(),
+  pensionNetMonthly:   z.number().min(0).finite().optional(),
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function parseQuery<T>(
