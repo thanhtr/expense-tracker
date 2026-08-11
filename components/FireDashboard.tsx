@@ -304,11 +304,12 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
 
 // ── Info tooltip ──────────────────────────────────────────────────────────────
 
-function InfoTip({ text }: { text: string }) {
+function InfoTip({ text, align = 'left' }: { text: string; align?: 'left' | 'right' }) {
+  const pos = align === 'right' ? 'right-0' : 'left-0';
   return (
     <span className="relative group inline-flex items-center ml-[5px] align-middle">
       <span className="cursor-help text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none">?</span>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed">
+      <span className={`absolute bottom-full ${pos} mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed`}>
         {text}
       </span>
     </span>
@@ -330,7 +331,7 @@ function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
             <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">Retire age</th>
             <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">
               Plan-end balance
-              <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." />
+              <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." align="right" />
             </th>
           </tr>
         </thead>
@@ -450,9 +451,9 @@ function ConfigPanel({ config, onSave, saving }: {
             <div key={group.group}>
               <div className="tool-label text-[var(--fg-3)] mb-3">{group.group}</div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {group.fields.map(f => (
+                {group.fields.map((f, fi) => (
                   <label key={f.key} className="flex flex-col gap-[4px]">
-                    <span className="text-[11px] text-[var(--fg-2)]">{f.label}{f.tip && <InfoTip text={f.tip} />}</span>
+                    <span className="text-[11px] text-[var(--fg-2)]">{f.label}{f.tip && <InfoTip text={f.tip} align={fi % 2 === 1 ? 'right' : 'left'} />}</span>
                     <input
                       type="number"
                       className="date-input text-right"
