@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 4 : undefined,
   reporter: 'html',
   // Per-test timeout: 20s. With 1 retry that's 40s max per test before aborting.
   timeout: 20000,

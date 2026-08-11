@@ -270,6 +270,7 @@ export function KeywordManager() {
                       <button
                         onClick={() => handleDelete(keyword.id)}
                         title="Delete keyword"
+                        aria-label={`Delete keyword ${keyword.keyword}`}
                         className="p-1.5 rounded text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

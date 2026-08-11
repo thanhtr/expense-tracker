@@ -1,125 +1,101 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise, mockExpense } from '../fixtures/splitwise-mock';
+import { setupSplitwise } from '../fixtures/splitwise-mock';
+
+const OP_CSV = `Kirjauspäivä;Arvopäivä;Määrä EUROA;Laji;Selitys;Saaja/Maksaja;Saajan tilinumero ja pankin BIC;Viite;Viesti;Arkistointitunnus
+05.04.2026;05.04.2026;-29,90;720;MAKSUPALVELU;Spotify AB;;
+04.04.2026;04.04.2026;-14,50;720;MAKSUPALVELU;Netflix Inc;;`;
+
+const AMEX_CSV = `Date,Description,Amount
+2026-04-05,STARBUCKS,4.50
+2026-04-04,AMAZON,32.00`;
 
 test.describe('CSV Upload', () => {
-  test('should navigate to upload page', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await setupSplitwise(page, []);
-
-    await page.goto('/');
-
-    // Click on Upload link
-    const uploadLink = page.locator('a:has-text("Upload")');
-    if (await uploadLink.count() > 0) {
-      await uploadLink.click();
-      await expect(page).toHaveURL(/\/upload/);
-    }
-  });
-
-  test('should show upload form', async ({ page }) => {
-    await setupSplitwise(page, []);
-
-    await page.goto('/upload');
-
-    // Check for file input
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toBeVisible();
-
-    // Check for account selector
-    const accountSelect = page.locator('select');
-    if (await accountSelect.count() > 0) {
-      await expect(accountSelect.first()).toBeVisible();
-    }
-  });
-
-  test('should show duplicate detection warning', async ({ page }) => {
-    // Mock an existing expense that matches what we'll upload
-    const existingExpense = mockExpense({
-      date: '2026-04-10',
-      merchant: 'Amazon',
-      amount: 45.67,
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        json: { imported: 2, duplicates: 0, errors: 0, total: 2, created: 2, skipped: 0 },
+      });
     });
-
-    await setupSplitwise(page, [existingExpense]);
-
-    await page.goto('/upload');
-
-    // Verify upload form exists
-    const fileInput = page.locator('input[type="file"]');
-    if (await fileInput.count() > 0) {
-      await expect(fileInput).toBeVisible();
-    }
   });
 
-  test('should handle file upload and show results', async ({ page }) => {
-    await setupSplitwise(page, []);
-
-    await page.goto('/upload');
-
-    // Verify form elements exist
-    const fileInput = page.locator('input[type="file"]');
-    const submitButton = page.locator('button:has-text("Upload"), button:has-text("Import")');
-
-    if (await fileInput.count() > 0) {
-      await expect(fileInput).toBeVisible();
-    }
-
-    if (await submitButton.count() > 0) {
-      await expect(submitButton).toBeVisible();
-    }
+  test('should navigate to upload page from nav', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Upload', exact: true }).click();
+    await expect(page).toHaveURL(/\/upload/);
   });
 
-  test('should select account before upload', async ({ page }) => {
-    await setupSplitwise(page, []);
-
+  test('should show file input and account selector', async ({ page }) => {
     await page.goto('/upload');
-
-    // Just verify the upload page renders
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toBeVisible().catch(() => {});
-
-    // Page should load without errors
-    expect(await page.content()).toBeDefined();
+    await expect(page.locator('input[type="file"]')).toBeVisible();
+    await expect(page.locator('select').first()).toBeVisible();
   });
 
-  test('should prevent upload without selecting account', async ({ page }) => {
-    await setupSplitwise(page, []);
-
+  test('should upload OP Bank CSV and show import results', async ({ page }) => {
     await page.goto('/upload');
-
-    // Try to find and click upload button
-    const uploadButton = page.locator('button:has-text("Upload"), button:has-text("Import")');
-    if (await uploadButton.count() > 0) {
-      // Button should exist; actual validation depends on form implementation
-      await expect(uploadButton).toBeVisible();
-    }
+    await page.locator('select').first().selectOption('op');
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'op-april.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(OP_CSV),
+    });
+    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('text=/2|imported|success/i').first()).toBeVisible();
   });
 
-  test('should show progress during upload', async ({ page }) => {
-    await setupSplitwise(page, []);
-
+  test('should upload Amex CSV and show import results', async ({ page }) => {
     await page.goto('/upload');
-
-    // Page should render without errors
-    expect(await page.content()).toBeDefined();
+    await page.locator('select').first().selectOption('amex');
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'amex-april.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(AMEX_CSV),
+    });
+    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('text=/2|imported|success/i').first()).toBeVisible();
   });
 
-  test('should display success message after upload', async ({ page }) => {
-    await setupSplitwise(page, []);
-
+  test('should report duplicates when re-importing the same CSV', async ({ page }) => {
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({
+        json: { imported: 0, duplicates: 2, errors: 0, total: 2, created: 0, skipped: 2 },
+      });
+    });
     await page.goto('/upload');
-
-    // After upload completes, should show results
-    // (This would require actual form submission which is complex in E2E)
-    // Instead, verify the upload page loads without errors
-    await expect(page.locator('input[type="file"]')).toBeVisible().catch(() => {});
+    await page.locator('select').first().selectOption('op');
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'op-april.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(OP_CSV),
+    });
+    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('text=/duplicate|skipped/i').first()).toBeVisible();
   });
 
-  test('should handle upload errors gracefully', async ({ page }) => {
-    await setupSplitwise(page, []);
-
+  test('should disable Upload button until file is selected', async ({ page }) => {
     await page.goto('/upload');
+    await page.locator('select').first().selectOption('op');
+    const uploadButton = page.locator('button:has-text("Upload"), button:has-text("Import")').first();
+    // Without a file the button should be disabled
+    await expect(uploadButton).toBeDisabled();
+  });
 
-    // Form should still be visible and usable
-    await expect(page.locator('input[type="file"]')).toBeVisible().catch(() => {});
+  test('should handle server error during upload', async ({ page }) => {
+    await page.route('**/api/upload', async (route) => {
+      await route.fulfill({ status: 500, json: { error: 'Internal Server Error' } });
+    });
+    await page.goto('/upload');
+    await page.locator('select').first().selectOption('op');
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'op-april.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(OP_CSV),
+    });
+    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('text=/error|failed/i')).toBeVisible();
   });
 });
