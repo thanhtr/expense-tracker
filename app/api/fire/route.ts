@@ -20,9 +20,11 @@ const DEFAULTS: Omit<FireConfig, never> = {
 };
 
 async function getOrCreateConfig(): Promise<FireConfig & { id: number; updatedAt: Date }> {
-  const existing = await prisma.fireConfig.findFirst({ orderBy: { id: 'asc' } });
-  if (existing) return existing;
-  return prisma.fireConfig.create({ data: { id: 1, ...DEFAULTS } });
+  return prisma.fireConfig.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, ...DEFAULTS },
+  });
 }
 
 async function getCurrentPortfolio(): Promise<number> {

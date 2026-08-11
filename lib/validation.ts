@@ -166,6 +166,26 @@ export const fireConfigSchema = z.object({
   phase1bNetMonthly:   z.number().min(0).finite().optional(),
   phase2NetMonthly:    z.number().min(0).finite().optional(),
   pensionNetMonthly:   z.number().min(0).finite().optional(),
+}).superRefine((d, ctx) => {
+  // Age ordering must be monotonically increasing to keep simulation loops valid.
+  // Only validate fields that are present in this partial update.
+  const ages = [
+    { key: 'currentAge',      val: d.currentAge },
+    { key: 'retirementAge',   val: d.retirementAge },
+    { key: 'mortgageEndAge',  val: d.mortgageEndAge },
+    { key: 'pensionAge',      val: d.pensionAge },
+    { key: 'lifeExpectancy',  val: d.lifeExpectancy },
+  ].filter(a => a.val !== undefined) as { key: string; val: number }[];
+
+  for (let i = 1; i < ages.length; i++) {
+    if (ages[i]!.val <= ages[i - 1]!.val) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [ages[i]!.key],
+        message: `must be greater than ${ages[i - 1]!.key} (${ages[i - 1]!.val})`,
+      });
+    }
+  }
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
