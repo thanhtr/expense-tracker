@@ -18,7 +18,7 @@ interface TransactionRowProps {
   onUpdate: (id: number, category: string) => void;
   onDelete: (id: number) => void;
   selected?: boolean;
-  onSelect?: (id: number, checked: boolean) => void;
+  onSelect?: (id: number, checked: boolean, shiftKey: boolean) => void;
 }
 
 const TAG_COLORS: Record<string, string> = {
@@ -42,6 +42,7 @@ export const TransactionRow = memo(function TransactionRow({
   const [saving, setSaving] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const tagBtnRef = useRef<HTMLButtonElement>(null);
+  const shiftPressedRef = useRef(false);
 
   // Note editing state
   const [note, setNote] = useState(transaction.note ?? '');
@@ -210,7 +211,8 @@ export const TransactionRow = memo(function TransactionRow({
             type="checkbox"
             aria-label={`Select ${transaction.merchant}`}
             checked={selected ?? false}
-            onChange={(e) => onSelect(transaction.id, e.target.checked)}
+            onMouseDown={(e) => { if (e.button === 0) shiftPressedRef.current = e.shiftKey; }}
+            onChange={(e) => { const shift = shiftPressedRef.current; shiftPressedRef.current = false; onSelect(transaction.id, e.target.checked, shift); }}
             className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
           />
         </td>
