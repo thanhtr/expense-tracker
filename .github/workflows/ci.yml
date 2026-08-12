@@ -47,6 +47,7 @@ jobs:
       run: npm run build
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
 
     - name: Type check
       run: npx tsc --noEmit
@@ -177,6 +178,7 @@ jobs:
       run: npm run build
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
 
     - name: Cache Playwright browsers
       uses: actions/cache@v5
