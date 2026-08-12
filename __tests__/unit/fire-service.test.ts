@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   FIRE_DEFAULTS,
+  computeCurrentAge,
   computeFireTarget,
   computePhases,
   computeYearsToFire,
@@ -96,14 +97,14 @@ describe('computeYearsToFire', () => {
     const years = computeYearsToFire(FIRE_DEFAULTS, 82_000, target);
     expect(years).not.toBeNull();
     expect(years!).toBeGreaterThan(0);
-    expect(years!).toBeLessThanOrEqual(FIRE_DEFAULTS.retirementAge - FIRE_DEFAULTS.currentAge);
+    expect(years!).toBeLessThanOrEqual(FIRE_DEFAULTS.retirementAge - computeCurrentAge(FIRE_DEFAULTS.dateOfBirth));
   });
 });
 
 describe('simulateProjection', () => {
-  it('starts at currentAge and ends at lifeExpectancy', () => {
+  it('starts at current fractional age and ends at lifeExpectancy', () => {
     const pts = simulateProjection(FIRE_DEFAULTS, 82_000);
-    expect(pts[0]!.age).toBe(FIRE_DEFAULTS.currentAge);
+    expect(pts[0]!.age).toBeCloseTo(computeCurrentAge(FIRE_DEFAULTS.dateOfBirth), 1);
     expect(pts[pts.length - 1]!.age).toBe(FIRE_DEFAULTS.lifeExpectancy);
   });
 
