@@ -95,4 +95,33 @@ describe('parseOPBank', () => {
 
     expect(result[0].note).toBe('Order #12345');
   });
+
+  it('should extract sender name from note for incoming MobilePay (11-char BIC)', async () => {
+    const csv = `Kirjauspäivä;Määrä EUROA;Saaja/Maksaja;Viesti
+2026-05-01;+25,00;MobilePay;SEPA INSTANT CREDIT TRANSFER SCIDABAFIHHFFHODH3PVI1B Message: MobilePay Hieu Nguyen Dinh DABAFIHHXXX`;
+
+    const result = await parseOPBank(csv);
+
+    expect(result[0].merchant).toBe('Hieu Nguyen Dinh');
+    expect(result[0].type).toBe('Income');
+  });
+
+  it('should extract sender name from note for incoming MobilePay (8-char BIC)', async () => {
+    const csv = `Kirjauspäivä;Määrä EUROA;Saaja/Maksaja;Viesti
+2026-05-02;+10,00;MobilePay;SEPA INSTANT CREDIT TRANSFER SCIDABAFIHHCFEBMHODDQ1R Message: MobilePay Vinh Phuc Doan DABAFIHH`;
+
+    const result = await parseOPBank(csv);
+
+    expect(result[0].merchant).toBe('Vinh Phuc Doan');
+  });
+
+  it('should not affect outgoing MobilePay (merchant already correct from Saaja/Maksaja)', async () => {
+    const csv = `Kirjauspäivä;Määrä EUROA;Saaja/Maksaja;Viesti
+2026-05-03;-15,00;Erika Virtanen;MobilePay`;
+
+    const result = await parseOPBank(csv);
+
+    expect(result[0].merchant).toBe('Erika Virtanen');
+    expect(result[0].type).toBe('Expense');
+  });
 });
