@@ -200,6 +200,8 @@ jobs:
       env:
         CI: 'true'
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+        AUTH_PASSWORD: ${{ secrets.AUTH_PASSWORD }}
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v6
