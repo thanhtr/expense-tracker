@@ -9,7 +9,9 @@ export async function POST(request: NextRequest) {
     if ('error' in parsed) return parsed.error;
     const { category, ids, merchant } = parsed.data;
 
-    if (!(CATEGORIES as readonly string[]).includes(category)) {
+    const dbCategories = await prisma.category.findMany({ select: { name: true } });
+    const allCategories = new Set([...CATEGORIES, ...dbCategories.map(c => c.name)]);
+    if (!allCategories.has(category)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
     }
 
