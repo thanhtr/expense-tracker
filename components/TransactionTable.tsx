@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { TransactionRow } from './TransactionRow';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
@@ -63,6 +63,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState('');
+  const lastSelectedIndex = useRef<number | null>(null);
+  const transactionsRef = useRef<Transaction[]>([]);
   const limit = 50;
 
   const handleSort = (field: 'date' | 'amount') => {
@@ -75,16 +77,28 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     setOffset(0);
   };
 
-  const handleSelect = useCallback((id: number, checked: boolean) => {
+  const handleSelect = useCallback((id: number, checked: boolean, shiftKey: boolean) => {
+    const txns = transactionsRef.current;
+    const index = txns.findIndex(t => t.id === id);
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (checked) { next.add(id); } else { next.delete(id); }
+      if (shiftKey && lastSelectedIndex.current !== null && index !== -1) {
+        const from = Math.min(lastSelectedIndex.current, index);
+        const to = Math.max(lastSelectedIndex.current, index);
+        for (let i = from; i <= to; i++) {
+          if (checked) { next.add(txns[i]!.id); } else { next.delete(txns[i]!.id); }
+        }
+      } else {
+        if (checked) { next.add(id); } else { next.delete(id); }
+      }
       return next;
     });
+    if (index !== -1 && !shiftKey) lastSelectedIndex.current = index;
   }, []);
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedIds(checked ? new Set(transactions.map(t => t.id)) : new Set());
+    lastSelectedIndex.current = null;
   };
 
   const handleBulkCategorize = async () => {
@@ -122,7 +136,15 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   useEffect(() => {
     setOffset(0);
     setSelectedIds(new Set());
+    lastSelectedIndex.current = null;
   }, [filters]);
+
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    setSelectedIds(new Set());
+    lastSelectedIndex.current = null;
+  }, [offset, sortBy, sortOrder]);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -137,6 +159,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         const res = await fetch(`/api/transactions?${params}`);
         if (res.ok) {
           const data = await res.json();
+          transactionsRef.current = data.transactions;
           setTransactions(data.transactions);
           setTotal(data.total);
         }
