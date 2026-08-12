@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -21,7 +21,13 @@ const NAV_LINKS = [
 
 export function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  };
 
   return (
     <nav className="bg-surface border-b border-border-soft">
@@ -52,6 +58,13 @@ export function Navigation() {
             })}
             <CommandPalette />
             <ThemeToggle />
+            <button
+              onClick={handleLogout}
+              className="text-fg-2 hover:text-foreground text-sm font-medium"
+              aria-label="Sign out"
+            >
+              Sign out
+            </button>
           </div>
 
           {/* Hamburger button (mobile only) */}
@@ -95,6 +108,12 @@ export function Navigation() {
                 </Link>
               );
             })}
+            <button
+              onClick={handleLogout}
+              className="block w-full text-left px-3 py-2 rounded-md text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-foreground"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       )}

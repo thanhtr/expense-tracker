@@ -178,6 +178,8 @@ jobs:
       run: npm run build
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Hardcoded test-only secret — production value lives in Vercel env vars
+        AUTH_SECRET: e2e-test-secret-not-used-in-production-must-be-at-least-32-chars
 
     - name: Cache Playwright browsers
       uses: actions/cache@v5
@@ -199,6 +201,9 @@ jobs:
       env:
         CI: 'true'
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Hardcoded test-only credentials — production values live in Vercel env vars
+        AUTH_SECRET: e2e-test-secret-not-used-in-production-must-be-at-least-32-chars
+        AUTH_PASSWORD: testpassword
 
     - name: Upload Playwright report
       uses: actions/upload-artifact@v6
