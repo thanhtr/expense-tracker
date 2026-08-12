@@ -1,5 +1,9 @@
+export function computeCurrentAge(dateOfBirth: string): number {
+  return (Date.now() - new Date(dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
+}
+
 export interface FireConfig {
-  currentAge: number;
+  dateOfBirth: string;
   retirementAge: number;
   mortgageEndAge: number;
   pensionAge: number;
@@ -15,7 +19,7 @@ export interface FireConfig {
 }
 
 export const FIRE_DEFAULTS: FireConfig = {
-  currentAge: 36,
+  dateOfBirth: '1990-05-15',
   retirementAge: 50,
   mortgageEndAge: 60,
   pensionAge: 65,
@@ -175,10 +179,11 @@ export function simulateProjection(
   currentPortfolio: number,
   activeIncomeMonthly = 0,
 ): ProjectionPoint[] {
-  const { currentAge, retirementAge, mortgageEndAge, pensionAge, lifeExpectancy,
+  const { dateOfBirth, retirementAge, mortgageEndAge, pensionAge, lifeExpectancy,
     monthlyContribution, accumulationReturn, drawdownReturn, capitalGainsTaxRate,
     phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
 
+  const currentAge = computeCurrentAge(dateOfBirth);
   const currentYear = new Date().getFullYear();
   const points: ProjectionPoint[] = [];
 
@@ -196,13 +201,13 @@ export function simulateProjection(
     const age = currentAge + m / 12;
     if (Math.floor(age) > lastRecordedAge) {
       const intAge = Math.floor(age);
-      points.push({ age: intAge, year: currentYear + (intAge - currentAge), portfolio });
+      points.push({ age: intAge, year: currentYear + Math.round(intAge - currentAge), portfolio });
       lastRecordedAge = intAge;
     }
   }
   // Ensure retirementAge is recorded
   if (lastRecordedAge < retirementAge) {
-    points.push({ age: retirementAge, year: currentYear + (retirementAge - currentAge), portfolio });
+    points.push({ age: retirementAge, year: currentYear + Math.round(retirementAge - currentAge), portfolio });
     lastRecordedAge = retirementAge;
   }
 
@@ -227,14 +232,14 @@ export function simulateProjection(
 
     if (Math.floor(age) > lastRecordedAge) {
       const intAge = Math.floor(age);
-      points.push({ age: intAge, year: currentYear + (intAge - currentAge), portfolio });
+      points.push({ age: intAge, year: currentYear + Math.round(intAge - currentAge), portfolio });
       lastRecordedAge = intAge;
     }
   }
 
   // Ensure lifeExpectancy is recorded
   if (lastRecordedAge < lifeExpectancy) {
-    points.push({ age: lifeExpectancy, year: currentYear + (lifeExpectancy - currentAge), portfolio });
+    points.push({ age: lifeExpectancy, year: currentYear + Math.round(lifeExpectancy - currentAge), portfolio });
   }
 
   return points;
@@ -245,7 +250,8 @@ export function computeYearsToFire(
   currentPortfolio: number,
   fireTarget: number,
 ): number | null {
-  const { currentAge, retirementAge, accumulationReturn, monthlyContribution } = config;
+  const { dateOfBirth, retirementAge, accumulationReturn, monthlyContribution } = config;
+  const currentAge = computeCurrentAge(dateOfBirth);
   const accRate = monthlyRate(accumulationReturn);
   let portfolio = currentPortfolio;
   const maxMonths = (retirementAge - currentAge) * 12;
@@ -277,7 +283,7 @@ export function baristaVariants(config: FireConfig, currentPortfolio: number): {
     const fireTarget = computeFireTarget(config, activeIncomeMonthly);
     const yearsToFire = computeYearsToFire(config, currentPortfolio, fireTarget);
     const projectedRetirementAge = yearsToFire !== null
-      ? config.currentAge + yearsToFire
+      ? computeCurrentAge(config.dateOfBirth) + yearsToFire
       : null;
     const projection = simulateProjection(config, currentPortfolio, activeIncomeMonthly);
     const portfolioAtDeath = projection[projection.length - 1]?.portfolio ?? 0;

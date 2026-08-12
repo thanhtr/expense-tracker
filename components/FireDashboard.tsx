@@ -6,7 +6,7 @@ import {
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 import { fmtEUR } from '@/lib/utils';
-import { FIRE_DEFAULTS, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, computeCurrentAge, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
 import { AssetManager } from '@/components/AssetManager';
 
 type FireApiResponse = FireCalculationResult & { config: FireConfig };
@@ -365,7 +365,6 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
   {
     group: 'Age milestones',
     fields: [
-      { key: 'currentAge', label: 'Current age', min: 18, max: 80, step: 1 },
       { key: 'retirementAge', label: 'Target retirement age', min: 30, max: 90, step: 1 },
       { key: 'mortgageEndAge', label: 'Mortgage end age', min: 30, max: 90, step: 1,
         tip: 'Age when your mortgage is fully paid off. Phase 1A ends here and monthly spend drops.' },
@@ -447,6 +446,22 @@ function ConfigPanel({ config, onSave, saving }: {
 
       {open && (
         <div className="border-t border-[var(--border)] p-5 space-y-6">
+          {/* Date of birth — special string field, determines fractional current age */}
+          <div>
+            <div className="tool-label text-[var(--fg-3)] mb-3">Your age</div>
+            <label className="flex flex-col gap-[4px] max-w-[200px]">
+              <span className="text-[11px] text-[var(--fg-2)]">
+                Date of birth
+                <InfoTip text="Used to compute your exact current age, including partial years. More accurate than an integer age — e.g. born May 1990, currently August 2026 → age 36.24, not 36." />
+              </span>
+              <input
+                type="date"
+                className="date-input"
+                value={(draft.dateOfBirth ?? config.dateOfBirth ?? '').slice(0, 10)}
+                onChange={e => setDraft(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+              />
+            </label>
+          </div>
           {CONFIG_FIELDS.map(group => (
             <div key={group.group}>
               <div className="tool-label text-[var(--fg-3)] mb-3">{group.group}</div>
@@ -579,7 +594,7 @@ export function FireDashboard() {
       <ProjectionChart
         data={data}
         fireTarget={fireTarget}
-        currentAge={config.currentAge}
+        currentAge={computeCurrentAge(config.dateOfBirth)}
         currentPortfolio={currentPortfolio}
         retirementAge={config.retirementAge}
       />

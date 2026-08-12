@@ -118,7 +118,7 @@ model AssetSnapshot {
 
 model FireConfig {
   id                  Int      @id @default(autoincrement())
-  currentAge          Int      @default(36)
+  dateOfBirth         String   @default("1990-05-15")
   retirementAge       Int      @default(50)
   mortgageEndAge      Int      @default(60)
   pensionAge          Int      @default(65)

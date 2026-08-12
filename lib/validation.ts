@@ -153,7 +153,7 @@ export const updateCategorySchema = z.object({
 });
 
 export const fireConfigSchema = z.object({
-  currentAge:          z.number().int().min(18).max(80).optional(),
+  dateOfBirth:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').optional(),
   retirementAge:       z.number().int().min(30).max(90).optional(),
   mortgageEndAge:      z.number().int().min(30).max(90).optional(),
   pensionAge:          z.number().int().min(55).max(75).optional(),
@@ -170,7 +170,6 @@ export const fireConfigSchema = z.object({
   // Age ordering must be monotonically increasing to keep simulation loops valid.
   // Only validate fields that are present in this partial update.
   const ages = [
-    { key: 'currentAge',      val: d.currentAge },
     { key: 'retirementAge',   val: d.retirementAge },
     { key: 'mortgageEndAge',  val: d.mortgageEndAge },
     { key: 'pensionAge',      val: d.pensionAge },
