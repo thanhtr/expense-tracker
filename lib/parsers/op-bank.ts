@@ -76,8 +76,20 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               const recipient = (recipientStr?.trim() || '').replace(/"/g, '');
               const desc = (descStr?.trim() || '').replace(/"/g, '');
               // Prefer the actual payee name; fall back to the transaction-type description
-              const merchant = recipient || desc || 'Unknown';
+              let merchant = recipient || desc || 'Unknown';
               const note = (noteStr?.replace(/"/g, '').trim()) || '';
+
+              // Incoming MobilePay: OP Bank puts "MobilePay" in Saaja/Maksaja and buries
+              // the sender name in Viesti as:
+              // "SEPA INSTANT CREDIT TRANSFER <ref> Message: MobilePay <Name> <BIC>"
+              // Extract the name and use it as merchant instead.
+              // BIC codes are 8–11 chars: 4-letter bank + 2-letter country + 2-char location + optional 3-char branch
+              const mobilePayMatch = note.match(
+                /Message:\s+MobilePay\s+(.+?)\s+[A-Z]{6}[A-Z0-9]{2,5}$/
+              );
+              if (mobilePayMatch?.[1]) {
+                merchant = mobilePayMatch[1].trim();
+              }
 
               if (isNaN(date.getTime())) {
                 console.log(`   ⚠️ Invalid date: ${dateStr}`);
