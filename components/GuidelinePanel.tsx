@@ -115,7 +115,7 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
           <div className="space-y-3">
             {computed.map(b => (
               <div key={b.bucket}>
-                <div className="flex items-center justify-between mb-1 gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 gap-1 sm:gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span
                       className="inline-block w-[8px] h-[8px] rounded-full flex-shrink-0"
@@ -123,7 +123,7 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
                     />
                     <span className="text-[13px] font-medium">{BUCKET_LABELS[b.bucket]}</span>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0 text-[12px] mono">
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[12px] mono">
                     <span className={b.over ? 'text-red-600 dark:text-red-400 font-semibold' : b.warn ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--fg-2)]'}>
                       {b.actualPct.toFixed(0)}% actual
                     </span>

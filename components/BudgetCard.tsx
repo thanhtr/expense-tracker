@@ -149,9 +149,9 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
 
           return (
             <div key={b.id} className="space-y-[6px]">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-[6px] flex-1 min-w-0">
-                  <span className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{b.category}</span>
+                  <span className="min-w-0 text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{b.category}</span>
                   {/* Rollover toggle */}
                   <button
                     type="button"
@@ -166,7 +166,7 @@ export function BudgetCard({ spentByCategory, categories }: BudgetCardProps) {
                     rollover
                   </button>
                 </div>
-                <div className="flex items-center gap-[10px] flex-shrink-0">
+                <div className="flex items-center gap-[10px] flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                   {isEditing ? (
                     <>
                       <span className="text-[12px] text-[var(--fg-3)]">€</span>

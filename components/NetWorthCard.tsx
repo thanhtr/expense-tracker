@@ -174,14 +174,14 @@ export function NetWorthCard() {
             const typeKey = a.type as AssetType;
             const isEditing = editingId === a.id;
             return (
-              <div key={a.id} className="flex items-center justify-between gap-2">
+              <div key={a.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex items-center gap-[6px] flex-1 min-w-0">
                   <span className={`text-[10px] px-[5px] py-[1px] rounded-full font-medium shrink-0 ${TYPE_COLORS[typeKey] ?? ''}`}>
                     {TYPE_LABELS[typeKey] ?? a.type}
                   </span>
-                  <span className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
+                  <span className="min-w-0 text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
                 </div>
-                <div className="flex items-center gap-[8px] flex-shrink-0">
+                <div className="flex items-center gap-[8px] flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                   {isEditing ? (
                     <>
                       <input

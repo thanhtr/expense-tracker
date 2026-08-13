@@ -158,10 +158,10 @@ export function GoalsCard() {
 
           return (
             <div key={g.id} className="space-y-[6px]">
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-[6px] flex-wrap">
-                    <span className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{g.name}</span>
+                    <span className="min-w-0 max-w-full text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{g.name}</span>
                     <OnTrackBadge goal={g} />
                     {g.linkedCategory && (
                       <span className="text-[10px] px-[6px] py-[1px] rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium" title="Auto-tracked from income">
@@ -175,7 +175,7 @@ export function GoalsCard() {
                       : days === 0 ? 'Due today' : `Overdue by ${Math.abs(days)} days`}
                   </div>
                 </div>
-                <div className="flex items-center gap-[8px] flex-shrink-0">
+                <div className="flex items-center gap-[8px] flex-wrap sm:flex-nowrap sm:flex-shrink-0">
                   {isEditing ? (
                     <>
                       <span className="text-[12px] text-[var(--fg-3)]">€</span>
