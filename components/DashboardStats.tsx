@@ -1149,7 +1149,10 @@ export function DashboardStats() {
 
       {/* Budgets */}
       <BudgetCard
-        spentByCategory={Object.fromEntries(data.byCategory.map(c => [c.category, c.amount]))}
+        spentByCategory={{
+          ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
+          ...(data.totalInvestments > 0 ? { Investments: data.totalInvestments } : {}),
+        }}
         categories={unfiltered?.allCategories ?? []}
       />
 
@@ -1161,8 +1164,13 @@ export function DashboardStats() {
 
       {/* Spending Guidelines */}
       <GuidelinePanel
-        spentByCategory={Object.fromEntries(data.byCategory.map(c => [c.category, c.amount]))}
-        totalExpenses={data.totalExpenses}
+        spentByCategory={{
+          ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
+          // Re-inject investments so the savings bucket still tracks it,
+          // even though it's excluded from expense charts/totals
+          ...(data.totalInvestments > 0 ? { Investments: data.totalInvestments } : {}),
+        }}
+        totalExpenses={data.totalExpenses + data.totalInvestments}
       />
 
       {/* Recent activity */}
