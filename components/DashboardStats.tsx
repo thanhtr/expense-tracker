@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { DashboardAggregation } from '@/lib/types';
 import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
@@ -638,15 +639,39 @@ function DashboardSkeleton() {
 
 // ----- main component -----
 
-export function DashboardStats() {
-  const [preset, setPreset] = useState<Preset>('This month');
-  const initial = rangeForPreset('This month');
-  const [dateFrom, setDateFrom] = useState(initial.from);
-  const [dateTo, setDateTo] = useState(initial.to);
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>('bars');
+const DEFAULT_PRESET: Preset = 'Last month';
 
-  const [compareMode, setCompareMode] = useState<'prev' | 'yoy'>('prev');
+export function DashboardStats() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const initPreset: Preset = (() => {
+    const p = searchParams.get('preset');
+    return (PERIOD_PRESETS as readonly string[]).includes(p ?? '') ? (p as Preset) : DEFAULT_PRESET;
+  })();
+
+  const initRange = (() => {
+    if (initPreset === 'Custom') {
+      const from = searchParams.get('from') ?? '';
+      const to = searchParams.get('to') ?? '';
+      if (from && to) return { from, to };
+    }
+    return rangeForPreset(initPreset);
+  })();
+
+  const [preset, setPreset] = useState<Preset>(initPreset);
+  const [dateFrom, setDateFrom] = useState(initRange.from);
+  const [dateTo, setDateTo] = useState(initRange.to);
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') ?? '');
+  const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>(() => {
+    const c = searchParams.get('chart');
+    return c === 'donut' ? 'donut' : 'bars';
+  });
+
+  const [compareMode, setCompareMode] = useState<'prev' | 'yoy'>(() => {
+    const c = searchParams.get('compare');
+    return c === 'yoy' ? 'yoy' : 'prev';
+  });
 
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
@@ -722,10 +747,30 @@ export function DashboardStats() {
     return m;
   }, [prevData]);
 
+  const monthlyAverage = useMemo(() => {
+    if (!data || !data.byMonth.length) return 0;
+    return data.totalExpenses / data.byMonth.length;
+  }, [data]);
+
   const dailyAverage = useMemo(() => {
     if (!data || !data.byDay.length) return 0;
     return data.totalExpenses / data.byDay.length;
   }, [data]);
+
+  // Sync filter state to URL so the view is shareable / survives refresh
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (preset !== DEFAULT_PRESET) params.set('preset', preset);
+    if (preset === 'Custom') {
+      params.set('from', dateFrom);
+      params.set('to', dateTo);
+    }
+    if (selectedCategory) params.set('category', selectedCategory);
+    if (compareMode !== 'prev') params.set('compare', compareMode);
+    if (chartStyle !== 'bars') params.set('chart', chartStyle);
+    const qs = params.toString();
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false });
+  }, [preset, dateFrom, dateTo, selectedCategory, compareMode, chartStyle, router]);
 
   const biggestChange = useMemo(() => {
     if (!data || !prevData) return null;
@@ -999,9 +1044,9 @@ export function DashboardStats() {
               sub={data.topTransaction ? `${fmtEUR(data.topTransaction.amount, { cents: true })} · ${data.topTransaction.category}` : '—'}
             />
             <InsightTile
-              label="Daily average"
-              value={fmtEUR(dailyAverage, { cents: true })}
-              sub={`Over ${data.byDay.length} ${data.byDay.length === 1 ? 'day' : 'days'}`}
+              label="Monthly average"
+              value={fmtEUR(monthlyAverage, { cents: true })}
+              sub={`Over ${data.byMonth.length} ${data.byMonth.length === 1 ? 'month' : 'months'}`}
             />
             <InsightTile
               label="Biggest change"

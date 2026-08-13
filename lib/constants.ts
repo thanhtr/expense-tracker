@@ -24,6 +24,15 @@ export type Category = typeof CATEGORIES[number];
 
 export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa", "Splitwise"] as const;
 
+export const PAID_BY = ['tung', 'thuy', 'other'] as const;
+export type PaidBy = typeof PAID_BY[number];
+
+export const TRANSACTION_TYPES = ['Income', 'Expense'] as const;
+export type TransactionType = typeof TRANSACTION_TYPES[number];
+
+export const ASSET_TYPES = ['bank', 'investment', 'property', 'crypto', 'liability'] as const;
+export type AssetType = typeof ASSET_TYPES[number];
+
 export const TAGS = [
   'reimbursable',
   'work',

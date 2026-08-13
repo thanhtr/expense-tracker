@@ -7,7 +7,7 @@ test.describe('Dashboard', () => {
     await page.goto('/');
     await expect(page.locator('h1, h2').first()).toBeVisible();
     await expect(page.locator('text=Top Category')).toBeVisible();
-    await expect(page.locator('text=Daily Average')).toBeVisible();
+    await expect(page.locator('text=Monthly average')).toBeVisible();
     await expect(page.locator('.recharts-surface').first()).toBeVisible();
   });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fmtEUR, today } from '@/lib/utils';
+import { ASSET_TYPES } from '@/lib/constants';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Asset {
@@ -12,7 +13,6 @@ interface Asset {
   recordedAt: string;
 }
 
-const ASSET_TYPES = ['bank', 'investment', 'property', 'crypto', 'liability'] as const;
 type AssetType = typeof ASSET_TYPES[number];
 
 const TYPE_LABELS: Record<AssetType, string> = {

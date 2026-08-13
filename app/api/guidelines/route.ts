@@ -21,12 +21,12 @@ const DEFAULTS: BucketConfig[] = [
   {
     bucket: 'wants',
     targetPct: 30,
-    categories: ['Dining Out', 'Shopping', 'Electronics', 'Entertainment', 'Subscriptions', 'Sports', 'Memberships', 'Travel & Flights', 'Gifts & Charity', 'Home Supplies'],
+    categories: [], // catch-all: everything not in needs or savings
   },
   {
     bucket: 'savings',
     targetPct: 20,
-    categories: ['Investments', 'Other'],
+    categories: ['Investments'],
   },
 ];
 

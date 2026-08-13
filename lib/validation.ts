@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
+import { PAID_BY, TRANSACTION_TYPES, ASSET_TYPES } from './constants';
 
 const dateParam = z
   .string()
@@ -11,7 +12,7 @@ export const dashboardQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
   category: z.string().max(100).optional(),
-  paid_by: z.enum(['tung', 'thuy', 'other']).optional(),
+  paid_by: z.enum(PAID_BY).optional(),
   account: z.string().max(100).optional(),
 });
 
@@ -21,8 +22,8 @@ export const transactionQuerySchema = z.object({
   account: z.string().max(100).optional(),
   category: z.string().max(100).optional(),
   merchant: z.string().max(200).optional(),
-  type: z.enum(['Income', 'Expense']).optional(),
-  paid_by: z.enum(['tung', 'thuy', 'other']).optional(),
+  type: z.enum(TRANSACTION_TYPES).optional(),
+  paid_by: z.enum(PAID_BY).optional(),
   amount_min: z
     .string()
     .regex(/^-?\d+(\.\d+)?$/, 'must be a number')
@@ -60,8 +61,8 @@ export const exportQuerySchema = z.object({
   account: z.string().max(100).optional(),
   category: z.string().max(100).optional(),
   merchant: z.string().max(200).optional(),
-  type: z.enum(['Income', 'Expense']).optional(),
-  paid_by: z.enum(['tung', 'thuy', 'other']).optional(),
+  type: z.enum(TRANSACTION_TYPES).optional(),
+  paid_by: z.enum(PAID_BY).optional(),
 });
 
 // ── Body schemas ──────────────────────────────────────────────────────────────
@@ -89,14 +90,14 @@ export const updateGoalSchema = z.object({
 
 export const createAssetSchema = z.object({
   name: z.string().min(1).max(200).transform(s => s.trim()),
-  type: z.enum(['bank', 'investment', 'property', 'crypto', 'liability']),
+  type: z.enum(ASSET_TYPES),
   balance: z.number().finite(),
   recordedAt: dateField,
 });
 
 export const updateAssetSchema = z.object({
   name: z.string().min(1).max(200).transform(s => s.trim()).optional(),
-  type: z.enum(['bank', 'investment', 'property', 'crypto', 'liability']).optional(),
+  type: z.enum(ASSET_TYPES).optional(),
   balance: z.number().finite().optional(),
   recordedAt: dateField.optional(),
 });

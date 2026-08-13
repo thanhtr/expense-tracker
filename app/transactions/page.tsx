@@ -1,22 +1,61 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { TransactionFilters } from '@/components/TransactionFilters';
 import { TransactionTable } from '@/components/TransactionTable';
 import type { TransactionFilterValues } from '@/lib/types';
 
 function TransactionsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [filters, setFilters] = useState<TransactionFilterValues>(() => {
+    const f: TransactionFilterValues = {};
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const account = searchParams.get('account');
+    const type = searchParams.get('type');
+    const category = searchParams.get('category');
+    const paidBy = searchParams.get('paid_by');
     const merchant = searchParams.get('merchant');
-    return merchant ? { merchant } : {};
+    const amountMin = searchParams.get('amt_min');
+    const amountMax = searchParams.get('amt_max');
+    const tag = searchParams.get('tag');
+    if (from) f.dateFrom = from;
+    if (to) f.dateTo = to;
+    if (account) f.account = account;
+    if (type) f.type = type;
+    if (category) f.category = category;
+    if (paidBy) f.paidBy = paidBy;
+    if (merchant) f.merchant = merchant;
+    if (amountMin) f.amountMin = amountMin;
+    if (amountMax) f.amountMax = amountMax;
+    if (tag) f.tag = tag;
+    return f;
   });
+
+  const handleFilter = useCallback((newFilters: TransactionFilterValues) => {
+    setFilters(newFilters);
+    const params = new URLSearchParams();
+    if (newFilters.dateFrom) params.set('from', newFilters.dateFrom);
+    if (newFilters.dateTo) params.set('to', newFilters.dateTo);
+    if (newFilters.account) params.set('account', newFilters.account);
+    if (newFilters.type) params.set('type', newFilters.type);
+    if (newFilters.category) params.set('category', newFilters.category);
+    if (newFilters.paidBy) params.set('paid_by', newFilters.paidBy);
+    if (newFilters.merchant) params.set('merchant', newFilters.merchant);
+    if (newFilters.amountMin) params.set('amt_min', newFilters.amountMin);
+    if (newFilters.amountMax) params.set('amt_max', newFilters.amountMax);
+    if (newFilters.tag) params.set('tag', newFilters.tag);
+    const qs = params.toString();
+    router.replace(qs ? `/transactions?${qs}` : '/transactions', { scroll: false });
+  }, [router]);
 
   return (
     <>
-      <TransactionFilters onFilter={setFilters} initialFilters={filters} />
+      <TransactionFilters onFilter={handleFilter} initialFilters={filters} />
       <TransactionTable filters={filters} />
     </>
   );

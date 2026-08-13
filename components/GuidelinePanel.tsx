@@ -47,8 +47,14 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
 
   if (loading) return null;
 
+  const nonWantsCats = new Set(
+    buckets.filter(b => b.bucket !== 'wants').flatMap(b => b.categories)
+  );
+
   const computed = buckets.map(b => {
-    const spent = b.categories.reduce((s, cat) => s + (spentByCategory[cat] ?? 0), 0);
+    const spent = b.bucket === 'wants'
+      ? Object.entries(spentByCategory).filter(([cat]) => !nonWantsCats.has(cat)).reduce((s, [, v]) => s + v, 0)
+      : b.categories.reduce((s, cat) => s + (spentByCategory[cat] ?? 0), 0);
     const actualPct = totalExpenses > 0 ? (spent / totalExpenses) * 100 : 0;
     const over = actualPct > b.targetPct;
     const warn = actualPct > b.targetPct * 0.85 && !over;

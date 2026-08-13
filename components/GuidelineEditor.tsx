@@ -24,8 +24,8 @@ const BUCKET_LABELS: Record<string, string> = {
 
 const BUCKET_DESCRIPTIONS: Record<string, string> = {
   needs: 'Essential living expenses',
-  wants: 'Lifestyle & discretionary',
-  savings: 'Investments & savings',
+  wants: 'Everything not in Needs or Savings',
+  savings: 'Investments',
 };
 
 const BUCKET_COLORS: Record<string, string> = {
@@ -86,7 +86,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
       const buckets: BucketConfig[] = BUCKETS.map(b => ({
         bucket: b,
         targetPct: pcts[b],
-        categories: [...catMap[b]],
+        categories: b === 'wants' ? [] : [...catMap[b]],
       }));
       const res = await fetch('/api/guidelines', {
         method: 'PUT',
@@ -195,8 +195,8 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
           {/* Category assignment */}
           <div className="space-y-4">
             <div className="text-[11px] font-medium text-fg-3 uppercase tracking-wide">Category Assignment</div>
-            <p className="text-[12px] text-fg-3">Click a category chip to move it to a different bucket.</p>
-            {BUCKETS.map(b => (
+            <p className="text-[12px] text-fg-3">Click a category to move it between Needs and Savings. Wants automatically catches everything else.</p>
+            {BUCKETS.filter(b => b !== 'wants').map(b => (
               <div key={b}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="inline-block w-[8px] h-[8px] rounded-full" style={{ background: BUCKET_COLORS[b] }} />
@@ -222,10 +222,22 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
               </div>
             ))}
 
+            {/* Wants: catch-all, no chip assignment needed */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-block w-[8px] h-[8px] rounded-full" style={{ background: BUCKET_COLORS.wants }} />
+                <span className="text-[12px] font-semibold text-foreground">Wants</span>
+                <span className="text-[11px] text-fg-3">— {BUCKET_DESCRIPTIONS.wants}</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 px-2 py-1.5 rounded-lg bg-surface-2 border border-border-soft">
+                <span className="text-[11px] text-fg-3 italic">Auto — captures all spending not assigned to Needs or Savings</span>
+              </div>
+            </div>
+
             {unassigned.length > 0 && (
               <div>
-                <div className="text-[12px] font-semibold text-fg-3 mb-2">Unassigned — click to assign</div>
-                {BUCKETS.map(b => (
+                <div className="text-[12px] font-semibold text-fg-3 mb-2">Unassigned — click to add to Needs or Savings</div>
+                {(['needs', 'savings'] as const).map(b => (
                   <div key={b} className="flex flex-wrap gap-1.5 mb-2">
                     <span className="text-[11px] text-fg-3 w-full">→ {BUCKET_LABELS[b]}:</span>
                     {unassigned.map(cat => (
