@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,8 +18,10 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
-        router.refresh();
-        router.push('/');
+        // Hard redirect so the proxy sees the freshly-set session cookie
+        // on a clean request, rather than relying on client-side router
+        // navigation which can race with the cookie being established.
+        window.location.replace('/');
       } else {
         setError('Incorrect password');
       }
