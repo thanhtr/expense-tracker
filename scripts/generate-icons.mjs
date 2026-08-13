@@ -1,7 +1,7 @@
 // Run once: node scripts/generate-icons.mjs
 // Requires sharp (already a Next.js dependency).
 import sharp from 'sharp';
-import { readFileSync, mkdirSync } from 'fs';
+import { mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
