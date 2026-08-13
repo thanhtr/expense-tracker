@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Expenses",
   },
 };
@@ -29,7 +29,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#2563eb",
+  // Matches the app background in each mode so the iOS status bar blends in
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9f9f3" },
+    { media: "(prefers-color-scheme: dark)",  color: "#141418" },
+  ],
 };
 
 export default function RootLayout({
@@ -45,7 +49,7 @@ export default function RootLayout({
     >
       <head>
         {/* Flash prevention: apply saved theme before first paint */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.classList.add('dark')}else if(t==='light'){document.documentElement.classList.add('light')}else if(window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.classList.add('dark')}}catch(e){}})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');var dark=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(t==='dark'){document.documentElement.classList.add('dark')}else if(t==='light'){document.documentElement.classList.add('light')}else if(dark){document.documentElement.classList.add('dark')}if(t==='dark'||t==='light'){var m=document.createElement('meta');m.name='theme-color';m.content=dark?'#141418':'#f9f9f3';document.head.appendChild(m);}}catch(e){}})();` }} />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         {/* Register service worker */}
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'});})}` }} />
