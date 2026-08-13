@@ -49,7 +49,7 @@ export default function RootLayout({
     >
       <head>
         {/* Flash prevention: apply saved theme before first paint */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');var dark=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(t==='dark'){document.documentElement.classList.add('dark')}else if(t==='light'){document.documentElement.classList.add('light')}else if(dark){document.documentElement.classList.add('dark')}if(t==='dark'||t==='light'){var m=document.createElement('meta');m.name='theme-color';m.content=dark?'#141418':'#f9f9f3';document.head.appendChild(m);}}catch(e){}})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');var dark=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(t==='dark'){document.documentElement.classList.add('dark')}else if(t==='light'){document.documentElement.classList.add('light')}else if(dark){document.documentElement.classList.add('dark')}if(t==='dark'||t==='light'){var c=dark?'#141418':'#f9f9f3';var metas=document.querySelectorAll('meta[name="theme-color"]');if(metas.length){metas[0].setAttribute('content',c);metas[0].removeAttribute('media');for(var i=1;i<metas.length;i++){metas[i].remove()}}else{var m=document.createElement('meta');m.name='theme-color';m.content=c;document.head.appendChild(m)}}}catch(e){}})();` }} />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         {/* Register service worker */}
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'});})}` }} />
