@@ -847,6 +847,12 @@ export function DashboardStats() {
 
   const displayCategories = data.byCategory.map(c => c.category);
 
+  // When filtering to 'Investments', byCategory already contains those rows —
+  // skip the re-injection to avoid doubling the amount in guidelines/budgets.
+  const investmentsInjection: Record<string, number> = data.totalInvestments > 0 && selectedCategory !== 'Investments'
+    ? { Investments: data.totalInvestments }
+    : {};
+
   return (
     <div className="space-y-[20px]">
       {/* Header */}
@@ -1196,7 +1202,7 @@ export function DashboardStats() {
       <BudgetCard
         spentByCategory={{
           ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
-          ...(data.totalInvestments > 0 ? { Investments: data.totalInvestments } : {}),
+          ...investmentsInjection,
         }}
         categories={unfiltered?.allCategories ?? []}
       />
@@ -1211,11 +1217,9 @@ export function DashboardStats() {
       <GuidelinePanel
         spentByCategory={{
           ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
-          // Re-inject investments so the savings bucket still tracks it,
-          // even though it's excluded from expense charts/totals
-          ...(data.totalInvestments > 0 ? { Investments: data.totalInvestments } : {}),
+          ...investmentsInjection,
         }}
-        totalExpenses={data.totalExpenses + data.totalInvestments}
+        totalExpenses={data.totalExpenses + (investmentsInjection.Investments ?? 0)}
       />
 
       {/* Recent activity */}
