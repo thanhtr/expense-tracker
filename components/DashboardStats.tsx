@@ -722,9 +722,9 @@ export function DashboardStats() {
     return m;
   }, [prevData]);
 
-  const dailyAverage = useMemo(() => {
-    if (!data || !data.byDay.length) return 0;
-    return data.totalExpenses / data.byDay.length;
+  const monthlyAverage = useMemo(() => {
+    if (!data || !data.byMonth.length) return 0;
+    return data.totalExpenses / data.byMonth.length;
   }, [data]);
 
   const biggestChange = useMemo(() => {
@@ -999,9 +999,9 @@ export function DashboardStats() {
               sub={data.topTransaction ? `${fmtEUR(data.topTransaction.amount, { cents: true })} · ${data.topTransaction.category}` : '—'}
             />
             <InsightTile
-              label="Daily average"
-              value={fmtEUR(dailyAverage, { cents: true })}
-              sub={`Over ${data.byDay.length} ${data.byDay.length === 1 ? 'day' : 'days'}`}
+              label="Monthly average"
+              value={fmtEUR(monthlyAverage, { cents: true })}
+              sub={`Over ${data.byMonth.length} ${data.byMonth.length === 1 ? 'month' : 'months'}`}
             />
             <InsightTile
               label="Biggest change"
