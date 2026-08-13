@@ -786,13 +786,19 @@ export function DashboardStats() {
 
   const prevTotalExpenses = prevData?.totalExpenses ?? 0;
   const prevTotalIncome = prevData?.totalIncome ?? 0;
+  const prevTotalInvestments = prevData?.totalInvestments ?? 0;
   const prevNet = prevData?.net ?? 0;
   const prevTxCount = prevData?.transactionCount ?? 0;
 
   const sparkExpenses = [prevTotalExpenses || data.totalExpenses, data.totalExpenses];
   const sparkIncome = [prevTotalIncome || data.totalIncome, data.totalIncome];
+  const sparkInvestments = [prevTotalInvestments || data.totalInvestments, data.totalInvestments];
   const sparkNet = [prevNet || data.net, data.net];
   const sparkTx = [prevTxCount || data.transactionCount, data.transactionCount];
+
+  const savingsRate = data.totalIncome > 0
+    ? Math.round((data.totalInvestments / data.totalIncome) * 100)
+    : 0;
 
   const displayCategories = data.byCategory.map(c => c.category);
 
@@ -874,7 +880,7 @@ export function DashboardStats() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[20px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-[20px]">
         <KPI
           label="Total expenses"
           value={fmtEUR(data.totalExpenses, { cents: true })}
@@ -905,6 +911,17 @@ export function DashboardStats() {
           sparkData={sparkNet}
           sparkColor={data.net >= 0 ? 'var(--pos)' : 'var(--neg)'}
           valueColor={data.net >= 0 ? 'oklch(0.38 0.10 160)' : 'oklch(0.42 0.14 25)'}
+          vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
+        />
+        <KPI
+          label={`Investments${savingsRate > 0 ? ` · ${savingsRate}% saved` : ''}`}
+          value={fmtEUR(data.totalInvestments, { cents: true })}
+          curr={data.totalInvestments}
+          prev={prevTotalInvestments}
+          goodWhenDown={false}
+          sparkData={sparkInvestments}
+          sparkColor="oklch(0.55 0.10 225)"
+          valueColor="oklch(0.38 0.10 225)"
           vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
         <KPI

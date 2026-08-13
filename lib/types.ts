@@ -45,6 +45,7 @@ export interface TransactionWithId extends ParsedTransaction {
 export interface DashboardAggregation {
   totalExpenses: number;
   totalIncome: number;
+  totalInvestments: number;
   net: number;
   byCategory: { category: string; amount: number }[];
   byAccount: Record<string, number>;

@@ -71,10 +71,11 @@ function setupMocks(opts: {
     .mockResolvedValueOnce(byDayCatGroups as never)
     .mockResolvedValueOnce([] as never); // income sources (empty by default)
 
-  // aggregate called twice: expense totals, then income
+  // aggregate called three times: expense totals, income, investments
   vi.mocked(prisma.transaction.aggregate)
     .mockResolvedValueOnce({ _sum: { amount: totalAmount }, _count: { id: totalCount } } as never)
-    .mockResolvedValueOnce({ _sum: { amount: incomeAmount } } as never);
+    .mockResolvedValueOnce({ _sum: { amount: incomeAmount } } as never)
+    .mockResolvedValueOnce({ _sum: { amount: 0 } } as never);
 
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
   vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(topTx as never);
