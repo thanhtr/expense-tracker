@@ -136,6 +136,10 @@ export const bulkCategorizeSchema = z.object({
   merchant: z.string().max(200).optional(),
 });
 
+export const bulkDeleteSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+});
+
 export const updateGuidelinesSchema = z.object({
   buckets: z.array(z.object({
     bucket: z.enum(['needs', 'wants', 'savings']),

@@ -125,6 +125,29 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} transaction${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch('/api/transactions/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        const { deleted } = await res.json();
+        setTransactions(prev => prev.filter(t => !selectedIds.has(t.id)));
+        setTotal(prev => prev - deleted);
+        setSelectedIds(new Set());
+        toast.success(`Deleted ${deleted} transaction${deleted === 1 ? '' : 's'}`);
+      } else {
+        toast.error('Failed to delete');
+      }
+    } catch {
+      toast.error('Failed to delete');
+    }
+  };
+
   // Fetch the category list once so rows can show a dropdown
   useEffect(() => {
     fetch('/api/categories')
@@ -250,6 +273,12 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
             className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Apply
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700"
+          >
+            Delete
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
