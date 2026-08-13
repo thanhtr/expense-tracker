@@ -24,22 +24,38 @@ export async function getDashboardStats(
   const cached = _cache.get(key);
   if (cached && Date.now() < cached.expiry) return cached.data;
 
-  const where: Prisma.TransactionWhereInput = {};
+  // baseWhere: period + account + person filters, no category
+  const baseWhere: Prisma.TransactionWhereInput = {};
 
   if (dateFrom || dateTo) {
     const dateFilter: Prisma.DateTimeFilter = {};
     if (dateFrom) dateFilter.gte = dateFrom;
     if (dateTo) dateFilter.lte = dateTo;
-    where.date = dateFilter;
+    baseWhere.date = dateFilter;
   }
 
+  if (paidBy) baseWhere.paidBy = paidBy;
+  if (account) baseWhere.account = account;
+
+  const where: Prisma.TransactionWhereInput = { ...baseWhere };
   if (category) where.category = category;
-  if (paidBy) where.paidBy = paidBy;
-  if (account) where.account = account;
 
-  const expenseWhere = { ...where, type: 'Expense' };
+  // Exclude Investments from expense queries so charts/totals reflect living costs only.
+  // Exception: if the user explicitly filtered to Investments, pass through as-is.
+  const expenseWhere: Prisma.TransactionWhereInput = {
+    ...where,
+    type: 'Expense',
+    ...(category ? {} : { NOT: { category: 'Investments' } }),
+  };
 
-  const incomeWhere = { ...where, type: 'Income' };
+  const incomeWhere: Prisma.TransactionWhereInput = { ...where, type: 'Income' };
+
+  // Investment total always computed for the period regardless of category filter
+  const investmentsWhere: Prisma.TransactionWhereInput = {
+    ...baseWhere,
+    type: 'Expense',
+    category: 'Investments',
+  };
 
   const [
     byCategoryGroups,
@@ -49,6 +65,7 @@ export async function getDashboardStats(
     totalAgg,
     uncategorizedCount,
     incomeAggregate,
+    investmentsAggregate,
     incomeSourceGroups,
     topTx,
     incomeRows,
@@ -87,6 +104,10 @@ export async function getDashboardStats(
       where: incomeWhere,
       _sum: { amount: true },
     }),
+    prisma.transaction.aggregate({
+      where: investmentsWhere,
+      _sum: { amount: true },
+    }),
     prisma.transaction.groupBy({
       by: ['merchant'],
       where: incomeWhere,
@@ -109,6 +130,7 @@ export async function getDashboardStats(
 
   const totalExpenses = Math.abs(totalAgg._sum.amount ?? 0);
   const totalIncome = incomeAggregate._sum.amount ?? 0;
+  const totalInvestments = Math.abs(investmentsAggregate._sum.amount ?? 0);
   const transactionCount = totalAgg._count.id;
 
   const byIncomeSource = incomeSourceGroups.map(g => ({
@@ -255,6 +277,7 @@ export async function getDashboardStats(
   const result: DashboardAggregation = {
     totalExpenses,
     totalIncome,
+    totalInvestments,
     net: totalIncome - totalExpenses,
     byCategory: finalByCategoryArray,
     byAccount,
