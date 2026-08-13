@@ -113,7 +113,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
     <div className="space-y-6">
       {/* Summary */}
       {assets.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="dash-card p-[12px_16px]">
             <div className="tool-label text-[var(--fg-3)] mb-1">Investment portfolio</div>
             <div className="mono font-semibold text-[var(--accent)]">{fmtEUR(totalInvestment)}</div>
