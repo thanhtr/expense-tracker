@@ -124,4 +124,14 @@ describe('parseOPBank', () => {
     expect(result[0].merchant).toBe('Erika Virtanen');
     expect(result[0].type).toBe('Expense');
   });
+
+  it('should extract sender name when Saaja/Maksaja is "VIPPS MOBILEPAY AS,"', async () => {
+    const csv = `Kirjauspäivä;Määrä EUROA;Saaja/Maksaja;Viesti
+2026-06-28;+18,00;VIPPS MOBILEPAY AS,;SEPA INSTANT CREDIT TRANSFER SCIDABAFIHHCFEBMHODDQ1R Message: MobilePay Vinh Phuc Doan DABAFIHHXXX`;
+
+    const result = await parseOPBank(csv);
+
+    expect(result[0].merchant).toBe('Vinh Phuc Doan');
+    expect(result[0].type).toBe('Income');
+  });
 });
