@@ -93,6 +93,11 @@ html.light {
   --neg-soft: oklch(0.95 0.03 25);
 }
 
+/* Safe-area utility for iOS home-bar / notch clearance */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
