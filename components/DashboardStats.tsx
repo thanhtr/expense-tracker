@@ -164,7 +164,7 @@ function CategoryBarList({
           <div key={c.category} className="grid grid-cols-[1fr_auto] gap-x-[10px] gap-y-[4px] items-center">
             <div className="flex items-center gap-[8px] min-w-0">
               <span className="w-[10px] h-[10px] rounded-[3px] inline-block flex-none" style={{ background: color }} />
-              <span className="text-[13px] font-medium text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{c.category}</span>
+              <span className="min-w-0 text-[13px] font-medium text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{c.category}</span>
               <span className="text-[11px] text-[var(--fg-3)]">{share.toFixed(0)}%</span>
             </div>
             <div className="flex items-center gap-[8px]">
@@ -477,7 +477,7 @@ function RecentActivity() {
             {/* Desktop layout */}
             <div className="hidden sm:grid grid-cols-[72px_1fr_auto_110px] gap-[12px] items-center">
               <div className="text-[12px] text-[var(--fg-3)] mono">{dateStr}</div>
-              <div className="text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{t.merchant}</div>
+              <div className="min-w-0 text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{t.merchant}</div>
               <span className="inline-flex items-center gap-[5px] text-[11px] font-medium text-[var(--fg-2)] bg-[oklch(0.96_0.004_260)] px-[7px] py-[3px] rounded-full">
                 <span className="w-[6px] h-[6px] rounded-full" style={{ background: dotColor }} />
                 {t.category || 'Uncategorized'}
@@ -1060,23 +1060,23 @@ export function DashboardStats() {
               }
             />
             {Object.keys(data.byAccount).length > 0 && (
-              <div className="col-span-2 flex items-end justify-between pt-[4px] gap-[12px]">
+              <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px]">
                 {Object.entries(data.byAccount).map(([a, v]) => (
                   <div key={a} className="min-w-0">
                     <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">{a}</div>
-                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(v, { cents: true })}</div>
+                    <div className="mono text-[15px] font-medium mt-[2px] overflow-hidden text-ellipsis whitespace-nowrap">{fmtEUR(v, { cents: true })}</div>
                   </div>
                 ))}
               </div>
             )}
             {data.byPerson.length > 0 && (
-              <div className="col-span-2 flex items-end justify-between pt-[4px] gap-[12px] border-t border-[var(--border)] mt-[4px]">
+              <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px] border-t border-[var(--border)] mt-[4px]">
                 {data.byPerson.map(({ person, amount }) => (
                   <div key={person} className="min-w-0">
                     <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">
                       {person === 'tung' ? 'Tung' : person === 'thuy' ? 'Thuy' : 'Other'}
                     </div>
-                    <div className="mono text-[15px] font-medium mt-[2px]">{fmtEUR(amount, { cents: true })}</div>
+                    <div className="mono text-[15px] font-medium mt-[2px] overflow-hidden text-ellipsis whitespace-nowrap">{fmtEUR(amount, { cents: true })}</div>
                   </div>
                 ))}
               </div>
@@ -1087,7 +1087,7 @@ export function DashboardStats() {
                 <div className="flex flex-col gap-[6px]">
                   {data.byIncomeSource.map(({ merchant, amount }) => (
                     <div key={merchant} className="flex items-center justify-between gap-2">
-                      <span className="text-[12px] text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{merchant}</span>
+                      <span className="min-w-0 text-[12px] text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{merchant}</span>
                       <span className="mono text-[12px] font-medium text-[var(--pos)] flex-shrink-0">+{fmtEUR(amount)}</span>
                     </div>
                   ))}
