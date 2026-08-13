@@ -3,7 +3,7 @@ import { getIronSession } from 'iron-session';
 import type { SessionData } from '@/lib/session';
 import { sessionOptions } from '@/lib/session';
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Always allow the login page and auth API routes through

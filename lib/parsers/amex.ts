@@ -21,14 +21,9 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
         const rows: ParsedTransaction[] = [];
 
         if (results.data.length === 0) {
-          console.log('🔍 Amex parser: No rows found');
           resolve(rows);
           return;
         }
-
-        const firstRow = results.data[0];
-        console.log(`🔍 Amex parser: Found ${results.data.length} rows`);
-        console.log(`   Columns: ${firstRow ? Object.keys(firstRow).join(', ') : '(none)'}`);
 
         for (const r of results.data) {
           try {
@@ -37,7 +32,6 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
             const amountStr = findColumn(r, ['Summa', 'Amount']);
 
             if (!dateStr || !amountStr) {
-              console.log(`   ⚠️ Skipping row: missing date or amount`);
               continue;
             }
 
@@ -46,7 +40,6 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
             const amount = parseFinnishAmount(amountStr);
 
             if (isNaN(date.getTime())) {
-              console.log(`   ⚠️ Invalid date: ${dateStr}`);
               continue;
             }
 
@@ -59,13 +52,11 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
               note: '',
               type: amount < 0 ? 'Income' : 'Expense',
             });
-          } catch (error) {
-            console.log(`   ⚠️ Parse error: ${error instanceof Error ? error.message : String(error)}`);
+          } catch {
             continue;
           }
         }
 
-        console.log(`   ✓ Parsed ${rows.length} valid transactions`);
         resolve(rows);
       },
       error: (error: Error) => {

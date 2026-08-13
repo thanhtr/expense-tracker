@@ -118,6 +118,7 @@ jobs:
     needs: [build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v5
@@ -144,11 +145,6 @@ jobs:
 
     - name: Generate Prisma client
       run: npx prisma generate
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-    - name: Resolve failed migration (20260811000000 failed with unique constraint)
-      run: npx prisma migrate resolve --applied 20260811000000_backfill_dedup_key_with_account || true
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
