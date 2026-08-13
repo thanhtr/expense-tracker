@@ -159,8 +159,11 @@ jobs:
 
     # Download the pre-built .next output from the build job.
     # vercel build reuses .next/cache so the Next.js compilation is fast.
+    # continue-on-error: artifact may be absent on the first run or if upload
+    # failed; vercel build will rebuild from scratch in that case.
     - name: Download Next.js build artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
+      continue-on-error: true
       with:
         name: nextjs-build
         path: .next/
