@@ -140,9 +140,11 @@ export async function getDashboardStats(
 
   // Re-include Investments in the category list even though it's excluded from charts,
   // so it still appears in budget/guideline category dropdowns
+  // Always include Investments in the category list for dropdowns unless it's
+  // already present in byCategoryGroups (which happens when category='Investments' is filtered).
   const allCategories = [
     ...byCategoryGroups.map(g => g.category).filter(Boolean),
-    ...(totalInvestments > 0 && !category ? ['Investments'] : []),
+    ...(totalInvestments > 0 && category !== 'Investments' ? ['Investments'] : []),
   ].sort();
 
   const byAccount = Object.fromEntries(
