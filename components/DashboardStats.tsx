@@ -849,7 +849,7 @@ export function DashboardStats() {
 
   // When filtering to 'Investments', byCategory already contains those rows —
   // skip the re-injection to avoid doubling the amount in guidelines/budgets.
-  const investmentsInjection = data.totalInvestments > 0 && selectedCategory !== 'Investments'
+  const investmentsInjection: Record<string, number> = data.totalInvestments > 0 && selectedCategory !== 'Investments'
     ? { Investments: data.totalInvestments }
     : {};
 
