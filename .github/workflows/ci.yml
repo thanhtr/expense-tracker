@@ -114,8 +114,7 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
-    # unit-test is skipped on main push so only build needs to pass.
-    needs: [build, unit-test]
+    needs: [build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
