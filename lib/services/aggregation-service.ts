@@ -138,10 +138,12 @@ export async function getDashboardStats(
     amount: g._sum.amount ?? 0,
   }));
 
-  const allCategories = byCategoryGroups
-    .map(g => g.category)
-    .filter(Boolean)
-    .sort();
+  // Re-include Investments in the category list even though it's excluded from charts,
+  // so it still appears in budget/guideline category dropdowns
+  const allCategories = [
+    ...byCategoryGroups.map(g => g.category).filter(Boolean),
+    ...(totalInvestments > 0 && !category ? ['Investments'] : []),
+  ].sort();
 
   const byAccount = Object.fromEntries(
     byAccountGroups.map(g => [g.account, Math.abs(g._sum.amount ?? 0)])
