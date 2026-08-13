@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { fmtEUR } from '@/lib/utils';
+import { ASSET_TYPES } from '@/lib/constants';
 
-type AssetType = 'bank' | 'investment' | 'property' | 'crypto' | 'liability';
+type AssetType = typeof ASSET_TYPES[number];
 
 interface Asset {
   id: number;

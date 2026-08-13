@@ -4,12 +4,13 @@ import { CATEGORIES } from '@/lib/constants';
 import { createCategorySchema, parseBody } from '@/lib/validation';
 
 async function ensureSeeded() {
-  const count = await prisma.category.count();
-  if (count === 0) {
-    await prisma.category.createMany({
-      data: CATEGORIES.map((name, i) => ({ name, sortOrder: i })),
-      skipDuplicates: true,
-    });
+  const existing = await prisma.category.findMany({ select: { name: true } });
+  const existingNames = new Set(existing.map(r => r.name));
+  const missing = CATEGORIES
+    .map((name, i) => ({ name, sortOrder: i }))
+    .filter(({ name }) => !existingNames.has(name));
+  if (missing.length > 0) {
+    await prisma.category.createMany({ data: missing, skipDuplicates: true });
   }
 }
 
