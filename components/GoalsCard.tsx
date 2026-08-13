@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fmtEUR, today } from '@/lib/utils';
+import { fmtEUR } from '@/lib/utils';
 import { CATEGORIES } from '@/lib/constants';
 
 interface SavingsGoal {

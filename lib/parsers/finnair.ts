@@ -21,14 +21,9 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
         const rows: ParsedTransaction[] = [];
 
         if (results.data.length === 0) {
-          console.log('🔍 Finnair parser: No rows found');
           resolve(rows);
           return;
         }
-
-        const firstRow = results.data[0];
-        console.log(`🔍 Finnair parser: Found ${results.data.length} rows`);
-        console.log(`   Columns: ${firstRow ? Object.keys(firstRow).join(', ') : '(none)'}`);
 
         for (const r of results.data) {
           try {
@@ -37,7 +32,6 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             const amountStr = findColumn(r, ['Amount', 'Summa']);
 
             if (!dateStr || !amountStr) {
-              console.log(`   ⚠️ Skipping row: missing date or amount`);
               continue;
             }
 
@@ -46,7 +40,6 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             const amount = parseFinnishAmount(amountStr.trim());
 
             if (isNaN(date.getTime())) {
-              console.log(`   ⚠️ Invalid date: ${dateStr}`);
               continue;
             }
 
@@ -58,13 +51,11 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
               note: '',
               type: amount > 0 ? 'Income' : 'Expense',
             });
-          } catch (error) {
-            console.log(`   ⚠️ Parse error: ${error instanceof Error ? error.message : String(error)}`);
+          } catch {
             continue;
           }
         }
 
-        console.log(`   ✓ Parsed ${rows.length} valid transactions`);
         resolve(rows);
       },
       error: (error: Error) => {

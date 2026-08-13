@@ -22,8 +22,6 @@ export const CATEGORIES = [
 
 export type Category = typeof CATEGORIES[number];
 
-export const DEFAULT_CATEGORY = 'Other';
-
 export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa", "Splitwise"] as const;
 
 export const TAGS = [

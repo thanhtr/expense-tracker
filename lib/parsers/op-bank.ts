@@ -28,7 +28,6 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
 
     function tryParse(delimiterIndex: number) {
       const delimiter = delimiters[delimiterIndex];
-      console.log(`🔍 OP Bank parser: Attempt ${delimiterIndex + 1} with delimiter '${delimiter === '\t' ? 'TAB' : delimiter}'`);
 
       Papa.parse<Record<string, string>>(fileContent, {
         header: true,
@@ -38,20 +37,13 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
           const rows: ParsedTransaction[] = [];
 
           if (results.data.length === 0) {
-            console.log(`   ℹ️ No rows found with this delimiter`);
             if (delimiterIndex < delimiters.length - 1) {
               tryParse(delimiterIndex + 1);
               return;
             }
-            console.log('🔍 OP Bank parser: No rows found with any delimiter');
             resolve(rows);
             return;
           }
-
-          const firstRow = results.data[0];
-          console.log(`🔍 OP Bank parser: Found ${results.data.length} rows`);
-          console.log(`   Columns: ${firstRow ? Object.keys(firstRow).join(', ') : '(none)'}`);
-          console.log(`   First row data: ${JSON.stringify(firstRow)}`);
 
           for (const r of results.data) {
             try {
@@ -67,7 +59,6 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               const noteStr = findColumn(r, ['Viesti', 'Selitys', 'Message', 'Note']);
 
               if (!amountStr || !dateStr) {
-                console.log(`   ⚠️ Skipping row: missing amount or date`);
                 continue;
               }
 
@@ -92,7 +83,6 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               }
 
               if (isNaN(date.getTime())) {
-                console.log(`   ⚠️ Invalid date: ${dateStr}`);
                 continue;
               }
 
@@ -104,13 +94,11 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
                 note,
                 type: amount > 0 ? 'Income' : 'Expense',
               });
-            } catch (error) {
-              console.log(`   ⚠️ Parse error: ${error instanceof Error ? error.message : String(error)}`);
-              continue; // Skip invalid rows
+            } catch {
+              continue;
             }
           }
 
-          console.log(`   ✓ Parsed ${rows.length} valid transactions`);
           resolve(rows);
         },
         error: (error: Error) => {

@@ -33,6 +33,8 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   { rules: a11yRules },
+  // Allow _-prefixed variables as intentional "discard" slots in destructuring.
+  { rules: { "@typescript-eslint/no-unused-vars": ["warn", { varsIgnorePattern: "^_", argsIgnorePattern: "^_" }] } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -40,6 +42,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent worktrees — not part of the codebase
+    ".claude/**",
   ]),
 ]);
 

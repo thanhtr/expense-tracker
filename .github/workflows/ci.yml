@@ -52,17 +52,6 @@ jobs:
     - name: Type check
       run: npx tsc --noEmit
 
-    # Upload the Next.js build output as an artifact so the deploy job can
-    # reuse the webpack cache and skip re-building on Vercel's servers.
-    - name: Upload Next.js build artifact
-      uses: actions/upload-artifact@v6
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      with:
-        name: nextjs-build
-        path: .next/
-        retention-days: 1
-        include-hidden-files: true
-
   unit-test:
     runs-on: ubuntu-latest
     needs: build
@@ -118,6 +107,7 @@ jobs:
     needs: [build]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v5
@@ -128,27 +118,11 @@ jobs:
         node-version: '22'
         cache: 'npm'
 
-    # Reuse node_modules cached by the build job — saves npm ci time on cache hit.
-    - name: Restore node modules cache
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.npm
-          node_modules
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
-
     - name: Install dependencies
       run: npm ci
 
     - name: Generate Prisma client
       run: npx prisma generate
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-    - name: Resolve failed migration (20260811000000 failed with unique constraint)
-      run: npx prisma migrate resolve --applied 20260811000000_backfill_dedup_key_with_account || true
       env:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
@@ -158,38 +132,8 @@ jobs:
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
         PRISMA_MIGRATE_ADVISORY_LOCKING: '0'
 
-    # Download the pre-built .next output from the build job.
-    # vercel build reuses .next/cache so the Next.js compilation is fast.
-    # continue-on-error: artifact may be absent on the first run or if upload
-    # failed; vercel build will rebuild from scratch in that case.
-    - name: Download Next.js build artifact
-      uses: actions/download-artifact@v6
-      continue-on-error: true
-      with:
-        name: nextjs-build
-        path: .next/
-
-    - name: Pull Vercel project settings
-      run: npx vercel pull --yes --environment=production
-      env:
-        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-    # Build into .vercel/output using the cached .next (fast — webpack cache hits).
-    # vercel deploy --prebuilt then uploads that output directly, skipping
-    # a second full build on Vercel's servers.
-    - name: Package for Vercel (prebuilt)
-      run: npx vercel build --prod
-      env:
-        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-
-    - name: Deploy to Vercel (prebuilt)
-      run: npx vercel deploy --prebuilt --prod
+    - name: Deploy to Vercel
+      run: npx vercel deploy --prod --yes
       env:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
