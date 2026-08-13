@@ -169,6 +169,13 @@ jobs:
         name: nextjs-build
         path: .next/
 
+    - name: Pull Vercel project settings
+      run: npx vercel pull --yes --environment=production
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
     # Build into .vercel/output using the cached .next (fast — webpack cache hits).
     # vercel deploy --prebuilt then uploads that output directly, skipping
     # a second full build on Vercel's servers.
