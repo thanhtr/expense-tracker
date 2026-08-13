@@ -262,7 +262,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
 function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
   const colors = ['var(--accent)', 'oklch(0.60 0.09 155)', 'oklch(0.55 0.10 225)'];
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {phases.map((p, i) => (
         <div key={p.label} className="dash-card p-[14px_18px]">
           <div className="flex items-center gap-2 mb-3">
@@ -322,37 +322,39 @@ function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
   return (
     <div className="dash-card overflow-hidden">
       <div className="p-[14px_20px_10px] border-b border-[var(--border)] text-[13px] font-semibold">Scenario Comparison</div>
-      <table className="w-full text-[12px]">
-        <thead>
-          <tr className="border-b border-[var(--border)]">
-            <th className="text-left px-5 py-[8px] font-medium text-[var(--fg-3)]">Scenario</th>
-            <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">Active income</th>
-            <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">FIRE target</th>
-            <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">Retire age</th>
-            <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)]">
-              Plan-end balance
-              <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." align="right" />
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[var(--border)]">
-          {variants.map(v => (
-            <tr key={v.label} className="hover:bg-[var(--surface-2)]">
-              <td className="px-5 py-[9px] font-medium">{v.label}</td>
-              <td className="px-5 py-[9px] text-right mono text-[var(--fg-2)]">
-                {v.activeIncomeMonthly > 0 ? `+${fmtEUR(Math.round(v.activeIncomeMonthly))}/mo` : '—'}
-              </td>
-              <td className="px-5 py-[9px] text-right mono">{fmt(v.fireTarget)}</td>
-              <td className="px-5 py-[9px] text-right mono">
-                {v.projectedRetirementAge !== null ? v.projectedRetirementAge.toFixed(1) : '> target'}
-              </td>
-              <td className={`px-5 py-[9px] text-right mono font-medium ${v.portfolioAtDeath < 0 ? 'text-[var(--neg)]' : 'text-[var(--pos)]'}`}>
-                {v.portfolioAtDeath < 0 ? `−${fmt(Math.abs(v.portfolioAtDeath))}` : fmt(v.portfolioAtDeath)}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="border-b border-[var(--border)]">
+              <th className="text-left px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">Scenario</th>
+              <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">Active income</th>
+              <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">FIRE target</th>
+              <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">Retire age</th>
+              <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">
+                Plan-end balance
+                <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." align="right" />
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[var(--border)]">
+            {variants.map(v => (
+              <tr key={v.label} className="hover:bg-[var(--surface-2)]">
+                <td className="px-5 py-[9px] font-medium whitespace-nowrap">{v.label}</td>
+                <td className="px-5 py-[9px] text-right mono text-[var(--fg-2)] whitespace-nowrap">
+                  {v.activeIncomeMonthly > 0 ? `+${fmtEUR(Math.round(v.activeIncomeMonthly))}/mo` : '—'}
+                </td>
+                <td className="px-5 py-[9px] text-right mono whitespace-nowrap">{fmt(v.fireTarget)}</td>
+                <td className="px-5 py-[9px] text-right mono whitespace-nowrap">
+                  {v.projectedRetirementAge !== null ? v.projectedRetirementAge.toFixed(1) : '> target'}
+                </td>
+                <td className={`px-5 py-[9px] text-right mono font-medium whitespace-nowrap ${v.portfolioAtDeath < 0 ? 'text-[var(--neg)]' : 'text-[var(--pos)]'}`}>
+                  {v.portfolioAtDeath < 0 ? `−${fmt(Math.abs(v.portfolioAtDeath))}` : fmt(v.portfolioAtDeath)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -544,7 +546,7 @@ export function FireDashboard() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1,2,3,4].map(i => <div key={i} className="dash-card h-[80px] animate-pulse bg-[var(--surface-2)]" />)}
         </div>
         <div className="dash-card h-[360px] animate-pulse bg-[var(--surface-2)]" />
