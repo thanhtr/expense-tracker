@@ -158,10 +158,12 @@ test.describe('Transactions Page', () => {
     await page.locator('tbody tr').first().locator('input[type="checkbox"]').check();
     await expect(page.locator('text=/selected/')).toBeVisible();
     // Pick a category and apply
-    const bulkSelect = page.locator('text=/selected/').locator('..').locator('select');
+    const bulkSelect = page.locator('select[aria-label="Bulk category"]');
     await bulkSelect.selectOption({ index: 1 });
-    await page.locator('button:has-text("Apply")').click();
-    await page.waitForResponse(res => res.url().includes('/api/transactions/bulk-categorize'));
+    await Promise.all([
+      page.waitForResponse(res => res.url().includes('/api/transactions/bulk-categorize')),
+      page.locator('button:has-text("Apply")').click(),
+    ]);
     expect(bulkCalled).toBe(true);
   });
 });
