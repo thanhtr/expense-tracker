@@ -253,6 +253,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
           <span className="text-blue-700 dark:text-blue-300 font-medium">{selectedIds.size} selected</span>
           <select
+            aria-label="Bulk category"
             value={bulkCategory}
             onChange={(e) => setBulkCategory(e.target.value)}
             className="px-2 py-1 border border-border-soft rounded bg-surface text-foreground text-sm"
