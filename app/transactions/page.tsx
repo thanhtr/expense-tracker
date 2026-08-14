@@ -68,8 +68,6 @@ export default function TransactionsPage() {
         <h1 className="text-3xl font-bold text-foreground mr-auto">Transactions</h1>
         <div className="flex flex-wrap gap-2">
           <Link href="/transactions/sellers" className="btn-ghost text-[12px]">Sellers →</Link>
-          <Link href="/transactions/suggestions" className="btn-ghost text-[12px]">Suggestions →</Link>
-          <Link href="/transactions/duplicates" className="btn-ghost text-[12px]">Duplicates →</Link>
         </div>
       </div>
       <Suspense fallback={<div className="text-fg-3 text-sm">Loading filters…</div>}>
