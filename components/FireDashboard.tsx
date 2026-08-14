@@ -305,13 +305,24 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
 // ── Info tooltip ──────────────────────────────────────────────────────────────
 
 function InfoTip({ text, align = 'left' }: { text: string; align?: 'left' | 'right' }) {
+  const [open, setOpen] = useState(false);
   const pos = align === 'right' ? 'right-0' : 'left-0';
   return (
-    <span className="relative group inline-flex items-center ml-[5px] align-middle">
-      <span className="cursor-help text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none">?</span>
-      <span className={`absolute bottom-full ${pos} mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 leading-relaxed`}>
-        {text}
-      </span>
+    <span className="relative inline-flex items-center ml-[5px] align-middle">
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        className="cursor-pointer text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none"
+        aria-label="More information"
+      >?</button>
+      {open && (
+        <>
+          <button type="button" aria-label="Close" className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} />
+          <span className={`absolute bottom-full ${pos} mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg z-20 leading-relaxed`}>
+            {text}
+          </span>
+        </>
+      )}
     </span>
   );
 }
