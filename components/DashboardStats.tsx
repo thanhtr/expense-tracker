@@ -26,7 +26,7 @@ const CAT_COLORS = [
   'oklch(0.70 0.05 60)',
 ];
 
-const PERIOD_PRESETS = ['This month', 'Last month', 'YTD', 'Custom'] as const;
+const PERIOD_PRESETS = ['Last month', '2 months ago', 'YTD', 'Custom'] as const;
 type Preset = (typeof PERIOD_PRESETS)[number];
 
 // ----- helpers -----
@@ -36,14 +36,14 @@ function ymd(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pa
 
 function rangeForPreset(p: Preset): { from: string; to: string } {
   const now = new Date();
-  if (p === 'This month') {
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { from: ymd(from), to: ymd(to) };
-  }
   if (p === 'Last month') {
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const to = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { from: ymd(from), to: ymd(to) };
+  }
+  if (p === '2 months ago') {
+    const from = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const to = new Date(now.getFullYear(), now.getMonth() - 1, 0);
     return { from: ymd(from), to: ymd(to) };
   }
   if (p === 'YTD') {
@@ -51,7 +51,7 @@ function rangeForPreset(p: Preset): { from: string; to: string } {
     return { from: ymd(from), to: ymd(now) };
   }
   // Custom — caller keeps current values
-  return { from: ymd(new Date(now.getFullYear(), now.getMonth(), 1)), to: ymd(now) };
+  return { from: ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)), to: ymd(new Date(now.getFullYear(), now.getMonth(), 0)) };
 }
 
 function previousRange(from: string, to: string): { from: string; to: string } {
