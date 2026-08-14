@@ -46,7 +46,7 @@ test.describe('Transactions Page', () => {
     // Account select is the 3rd select on the page (after date pickers, account, type, category...)
     const accountSelect = page.locator('select[aria-label="Account"], select').nth(0);
     await accountSelect.selectOption('OP Bank');
-    await page.waitForLoadState('networkidle');
+    await page.waitForResponse(res => res.url().includes('/api/transactions') && res.status() === 200);
     // After filtering, only OP Bank rows should remain
     const rowCount = await page.locator('tbody tr').count();
     expect(rowCount).toBeGreaterThan(0);
@@ -91,7 +91,7 @@ test.describe('Transactions Page', () => {
     await expect(page.locator('tbody tr').first()).toBeVisible();
     const categorySelect = page.locator('tbody tr').first().locator('select[aria-label="Category"]');
     await categorySelect.selectOption('Shopping');
-    await page.waitForLoadState('networkidle');
+    await page.waitForResponse(res => res.url().includes('/api/transactions/') && res.request().method() === 'PATCH');
     expect(patchBodies.length).toBeGreaterThan(0);
     expect(patchBodies[0].category).toBe('Shopping');
   });
@@ -111,7 +111,7 @@ test.describe('Transactions Page', () => {
     await expect(page.locator('tbody tr').first()).toBeVisible();
     page.on('dialog', (dialog) => dialog.accept());
     await page.locator('button[aria-label="Delete transaction"]').first().click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForResponse(res => res.url().includes('/api/transactions/') && res.request().method() === 'DELETE');
     expect(deleteCalled).toBe(true);
   });
 
@@ -159,7 +159,7 @@ test.describe('Transactions Page', () => {
     const bulkSelect = page.locator('text=/selected/').locator('..').locator('select');
     await bulkSelect.selectOption({ index: 1 });
     await page.locator('button:has-text("Apply")').click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForResponse(res => res.url().includes('/api/transactions/bulk-categorize'));
     expect(bulkCalled).toBe(true);
   });
 });
