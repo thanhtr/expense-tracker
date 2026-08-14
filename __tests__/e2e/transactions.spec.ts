@@ -110,8 +110,10 @@ test.describe('Transactions Page', () => {
     await page.goto('/transactions');
     await expect(page.locator('tbody tr').first()).toBeVisible();
     page.on('dialog', (dialog) => dialog.accept());
-    await page.locator('button[aria-label="Delete transaction"]').first().click();
-    await page.waitForResponse(res => res.url().includes('/api/transactions/') && res.request().method() === 'DELETE');
+    await Promise.all([
+      page.waitForResponse(res => res.url().includes('/api/transactions/') && res.request().method() === 'DELETE'),
+      page.locator('button[aria-label="Delete transaction"]').first().click(),
+    ]);
     expect(deleteCalled).toBe(true);
   });
 
