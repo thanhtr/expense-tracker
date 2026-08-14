@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { TransactionRow } from './TransactionRow';
+import { useCategories } from '@/components/CategoriesProvider';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
 import { buildTransactionFilterParams } from '@/lib/utils';
 
@@ -60,7 +61,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [offset, setOffset] = useState(0);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [categories, setCategories] = useState<string[]>([]);
+  const { categories } = useCategories();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState('');
   const lastSelectedIndex = useRef<number | null>(null);
@@ -147,14 +148,6 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
       toast.error('Failed to delete');
     }
   };
-
-  // Fetch the category list once so rows can show a dropdown
-  useEffect(() => {
-    fetch('/api/categories')
-      .then((r) => r.ok ? r.json() : { categories: [] })
-      .then((data) => setCategories(data.categories ?? []))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     setOffset(0);

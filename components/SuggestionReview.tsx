@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useCategories } from '@/components/CategoriesProvider';
 import type { SuggestionGroup } from '@/app/api/transactions/suggestions/route';
 
 type ActionState = 'idle' | 'saving' | 'done' | 'skipped';
@@ -14,16 +15,12 @@ interface GroupState {
 
 export function SuggestionReview() {
   const [groups, setGroups] = useState<GroupState[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const { categories } = useCategories();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [acceptingAll, setAcceptingAll] = useState(false);
 
   useEffect(() => {
-    fetch('/api/categories')
-      .then(r => r.ok ? r.json() : { categories: [] })
-      .then(d => setCategories(d.categories ?? []))
-      .catch(() => {});
     fetch('/api/transactions/suggestions')
       .then(r => r.ok ? r.json() : Promise.reject(r))
       .then(data => {
