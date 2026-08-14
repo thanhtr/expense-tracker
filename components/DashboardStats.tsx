@@ -8,8 +8,6 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   ComposedChart, Line, CartesianGrid, Legend,
 } from 'recharts';
-import { BudgetCard } from './BudgetCard';
-import { GoalsCard } from './GoalsCard';
 import { NetWorthCard } from './NetWorthCard';
 import { GuidelinePanel } from './GuidelinePanel';
 import { fmtEUR } from '@/lib/utils';
@@ -1197,18 +1195,6 @@ export function DashboardStats() {
 
       {/* Forecast */}
       {forecast && <ForecastCard forecast={forecast} />}
-
-      {/* Budgets */}
-      <BudgetCard
-        spentByCategory={{
-          ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
-          ...investmentsInjection,
-        }}
-        categories={unfiltered?.allCategories ?? []}
-      />
-
-      {/* Savings Goals */}
-      <GoalsCard />
 
       {/* Net Worth */}
       <NetWorthCard />
