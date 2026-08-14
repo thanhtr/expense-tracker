@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { BucketConfig } from '@/app/api/guidelines/route';
-import { CATEGORIES } from '@/lib/constants';
+import { useCategories } from '@/components/CategoriesProvider';
 
 interface GuidelineEditorProps {
   initialBuckets: BucketConfig[];
@@ -38,6 +38,7 @@ type BucketKey = 'needs' | 'wants' | 'savings';
 const BUCKETS: BucketKey[] = ['needs', 'wants', 'savings'];
 
 export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEditorProps) {
+  const { categories, loading: categoriesLoading } = useCategories();
   const [pcts, setPcts] = useState<Record<BucketKey, number>>(() => {
     const m: Record<BucketKey, number> = { needs: 50, wants: 30, savings: 20 };
     initialBuckets.forEach(b => { m[b.bucket as BucketKey] = b.targetPct; });
@@ -73,7 +74,7 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
   };
 
   const assignedCats = new Set(BUCKETS.flatMap(b => [...catMap[b]]));
-  const unassigned = CATEGORIES.filter(c => !assignedCats.has(c));
+  const unassigned = categories.filter(c => !assignedCats.has(c));
 
   const handleSave = async () => {
     setErr('');
@@ -234,7 +235,9 @@ export function GuidelineEditor({ initialBuckets, onSave, onClose }: GuidelineEd
               </div>
             </div>
 
-            {unassigned.length > 0 && (
+            {categoriesLoading ? (
+              <div className="text-[11px] text-fg-3 italic">Loading categories…</div>
+            ) : unassigned.length > 0 && (
               <div>
                 <div className="text-[12px] font-semibold text-fg-3 mb-2">Unassigned — click to add to Needs or Savings</div>
                 {(['needs', 'savings'] as const).map(b => (

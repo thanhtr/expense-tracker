@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
+import { CategoriesProvider } from "@/components/CategoriesProvider";
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -55,9 +56,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'});})}` }} />
       </head>
       <body className="min-h-full flex flex-col bg-background pb-safe">
-        <Navigation />
-        <main className="flex-1">{children}</main>
-        <Toaster richColors closeButton position="bottom-right" />
+        <CategoriesProvider>
+          <Navigation />
+          <main className="flex-1">{children}</main>
+          <Toaster richColors closeButton position="bottom-right" />
+        </CategoriesProvider>
       </body>
     </html>
   );

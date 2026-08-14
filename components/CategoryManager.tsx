@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useCategories } from '@/components/CategoriesProvider';
 
 interface Category {
   id: number;
@@ -10,6 +11,7 @@ interface Category {
 }
 
 export function CategoryManager() {
+  const { refresh: refreshContext } = useCategories();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -42,6 +44,7 @@ export function CategoryManager() {
         setCategories(prev => [...prev, cat]);
         setNewName('');
         toast.success(`Category "${name}" added`);
+        void refreshContext();
       } else {
         const err = await res.json() as { error: string };
         toast.error(err.error ?? 'Failed to add');
@@ -56,6 +59,7 @@ export function CategoryManager() {
     if (res.ok) {
       setCategories(prev => prev.filter(c => c.id !== cat.id));
       toast.success(`"${cat.name}" removed`);
+      void refreshContext();
     } else {
       toast.error('Failed to delete');
     }
@@ -74,6 +78,7 @@ export function CategoryManager() {
       setCategories(prev => prev.map(c => c.id === cat.id ? updated : c));
       setEditingId(null);
       toast.success(`Renamed to "${name}"`);
+      void refreshContext();
     } else {
       toast.error('Failed to rename');
     }

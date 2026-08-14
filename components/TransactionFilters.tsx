@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ACCOUNT_NAMES, TAGS, PAID_BY, TRANSACTION_TYPES } from '@/lib/constants';
+import { useCategories } from '@/components/CategoriesProvider';
 import type { TransactionFilterValues } from '@/lib/types';
 
 export type { TransactionFilterValues };
@@ -23,8 +24,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
   const [amountMax, setAmountMax] = useState(initialFilters?.amountMax ?? '');
   const [tag, setTag] = useState(initialFilters?.tag ?? '');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const { categories, loading: categoriesLoading } = useCategories();
 
   // Debounced versions of text/number inputs
   const [debouncedMerchant, setDebouncedMerchant] = useState(initialFilters?.merchant ?? '');
@@ -45,14 +45,6 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     const t = setTimeout(() => setDebouncedAmountMax(amountMax), 300);
     return () => clearTimeout(t);
   }, [amountMax]);
-
-  useEffect(() => {
-    fetch('/api/categories')
-      .then(r => r.ok ? r.json() : { categories: [] })
-      .then(data => setCategories(data.categories ?? []))
-      .catch(() => {})
-      .finally(() => setCategoriesLoading(false));
-  }, []);
 
   // Keep a stable ref to onFilter so it never needs to be a dep
   const onFilterRef = useRef(onFilter);

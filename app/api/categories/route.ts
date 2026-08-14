@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { CATEGORIES } from '@/lib/constants';
+import { getCategoriesCached } from '@/lib/categories-cache';
 import { createCategorySchema, parseBody } from '@/lib/validation';
 
-async function ensureSeeded() {
-  const existing = await prisma.category.findMany({ select: { name: true } });
-  const existingNames = new Set(existing.map(r => r.name));
-  const missing = CATEGORIES
-    .map((name, i) => ({ name, sortOrder: i }))
-    .filter(({ name }) => !existingNames.has(name));
-  if (missing.length > 0) {
-    await prisma.category.createMany({ data: missing, skipDuplicates: true });
-  }
-}
-
 export async function GET(request: NextRequest) {
-  await ensureSeeded();
   const full = new URL(request.url).searchParams.get('full') === '1';
-  const rows = await prisma.category.findMany({ orderBy: { sortOrder: 'asc' } });
-  if (full) return NextResponse.json({ categories: rows });
-  return NextResponse.json({ categories: rows.map(r => r.name) });
+  if (full) {
+    // Full mode returns { id, name, sortOrder }[] — CategoryManager needs this.
+    // Can't use the string-only cache here, but still seed if needed.
+    await getCategoriesCached(); // ensures seeding has run
+    const rows = await prisma.category.findMany({ orderBy: { sortOrder: 'asc' } });
+    return NextResponse.json({ categories: rows });
+  }
+  const names = await getCategoriesCached();
+  return NextResponse.json({ categories: names });
 }
 
 export async function POST(request: NextRequest) {
@@ -27,12 +22,14 @@ export async function POST(request: NextRequest) {
   if ('error' in parsed) return parsed.error;
   const { name } = parsed.data;
 
-  await ensureSeeded();
+  // Ensure seeded before reading max sort order
+  await getCategoriesCached();
   const maxOrder = await prisma.category.aggregate({ _max: { sortOrder: true } });
   const sortOrder = (maxOrder._max.sortOrder ?? 0) + 1;
 
   try {
     const cat = await prisma.category.create({ data: { name, sortOrder } });
+    revalidateTag('categories', 'max');
     return NextResponse.json(cat, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Category already exists' }, { status: 409 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { useCategories } from '@/components/CategoriesProvider';
 
 interface Keyword {
   id: number;
@@ -12,7 +13,7 @@ interface Keyword {
 
 export function KeywordManager() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const { categories } = useCategories();
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [loading, setLoading] = useState(true);
@@ -36,10 +37,6 @@ export function KeywordManager() {
 
   useEffect(() => {
     fetchKeywords();
-    fetch('/api/categories')
-      .then(r => r.ok ? r.json() : { categories: [] })
-      .then(data => setCategories(data.categories ?? []))
-      .catch(() => {});
   }, []);
 
   const handleAdd = async (e: React.FormEvent) => {

@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { NetWorthCard } from './NetWorthCard';
 import { GuidelinePanel } from './GuidelinePanel';
+import { useCategories } from '@/components/CategoriesProvider';
 import { fmtEUR } from '@/lib/utils';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
@@ -671,6 +672,7 @@ export function DashboardStats() {
     return c === 'yoy' ? 'yoy' : 'prev';
   });
 
+  const { categories: allCategories } = useCategories();
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
@@ -908,7 +910,7 @@ export function DashboardStats() {
           onChange={(e) => setSelectedCategory(e.target.value)}
         >
           <option value="">All categories</option>
-          {unfiltered?.allCategories?.map(c => <option key={c} value={c}>{c}</option>)}
+          {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Compare</span>
