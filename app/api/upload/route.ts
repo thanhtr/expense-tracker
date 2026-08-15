@@ -5,6 +5,7 @@ import { upsertTransactions } from '@/lib/services/transaction-service';
 import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction } from '@/lib/types';
+import { requireToken } from '@/lib/api-auth';
 
 function makeDedupKey(date: string, account: string, merchant: string, cost: string): string {
   return `${date}|${account}|${merchant}|${cost}`;
@@ -50,10 +51,8 @@ async function dryRun(rows: ParsedTransaction[], accountOwner: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.headers.get('x-upload-token');
-  if (!token || token !== process.env.UPLOAD_API_TOKEN) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const unauthorized = requireToken(request);
+  if (unauthorized) return unauthorized;
 
   try {
     const formData = await request.formData();
