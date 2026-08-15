@@ -55,25 +55,42 @@ export async function POST(request: NextRequest) {
   if (unauthorized) return unauthorized;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const accountType = formData.get('account_type') as string;
-    const accountOwner = (formData.get('account_owner') as string) || 'tung';
-    const isDryRun = formData.get('dry_run') === 'true';
+    const url = new URL(request.url);
+    const contentType = request.headers.get('content-type') ?? '';
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    let fileContent: string;
+    let accountType: string;
+    let accountOwner: string;
+    let isDryRun: boolean;
+
+    if (contentType.includes('text/csv') || contentType.includes('text/plain')) {
+      // Raw body mode (used by iOS Shortcut — simpler than multipart form)
+      fileContent = await request.text();
+      accountType = url.searchParams.get('account_type') ?? '';
+      accountOwner = url.searchParams.get('account_owner') ?? 'tung';
+      isDryRun = url.searchParams.get('dry_run') === 'true';
+    } else {
+      // Multipart form mode (used by the web upload UI)
+      const formData = await request.formData();
+      const file = formData.get('file') as File;
+      accountType = formData.get('account_type') as string;
+      accountOwner = (formData.get('account_owner') as string) || 'tung';
+      isDryRun = formData.get('dry_run') === 'true';
+
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      }
+
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          { error: 'File too large. Maximum allowed size is 10 MB.' },
+          { status: 413 }
+        );
+      }
+
+      fileContent = await file.text();
     }
-
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: 'File too large. Maximum allowed size is 10 MB.' },
-        { status: 413 }
-      );
-    }
-
-    const fileContent = await file.text();
 
     let rows;
     switch (accountType) {
