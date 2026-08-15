@@ -12,11 +12,11 @@ export async function POST(request: NextRequest) {
   const origin = request.nextUrl.origin;
   const redirectUrl = `${origin}/api/bank-connections/callback`;
 
-  const connection = await prisma.bankConnection.create({
-    data: { aspspId, aspspName: aspspName ?? aspspId, accountLabel, owner: owner ?? 'tung' },
-  });
+  const { url, session_id } = await startAuth(aspspId, redirectUrl);
 
-  const { url } = await startAuth(aspspId, redirectUrl);
+  const connection = await prisma.bankConnection.create({
+    data: { aspspId, aspspName: aspspName ?? aspspId, accountLabel, owner: owner ?? 'tung', sessionId: session_id },
+  });
 
   return NextResponse.json({ authUrl: url, connectionId: connection.id });
 }

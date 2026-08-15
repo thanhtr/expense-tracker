@@ -1,26 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getSession } from '@/lib/services/enable-banking';
+import { activateSession, getSession } from '@/lib/services/enable-banking';
 
 export async function GET(request: NextRequest) {
-  const allParams = Object.fromEntries(request.nextUrl.searchParams.entries());
-  console.log('Enable Banking callback params:', JSON.stringify(allParams));
-
-  const sessionId = request.nextUrl.searchParams.get('session_id');
+  const code = request.nextUrl.searchParams.get('code');
   const aspspId = request.nextUrl.searchParams.get('state');
 
-  if (!sessionId) {
-    console.error('No session_id in callback. Full URL:', request.nextUrl.toString());
-    return NextResponse.redirect(new URL(`/settings/bank-connections?error=no_session&params=${encodeURIComponent(JSON.stringify(allParams))}`, request.nextUrl.origin));
+  if (!code) {
+    const params = Object.fromEntries(request.nextUrl.searchParams.entries());
+    console.error('No code in callback. Params:', JSON.stringify(params));
+    return NextResponse.redirect(new URL('/settings/bank-connections?error=no_code', request.nextUrl.origin));
   }
 
   try {
-    const session = await getSession(sessionId);
+    const connection = await prisma.bankConnection.findFirst({
+      where: { aspspId: aspspId ?? undefined, status: 'pending' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!connection?.sessionId) {
+      return NextResponse.redirect(new URL('/settings/bank-connections?error=no_pending_connection', request.nextUrl.origin));
+    }
+
+    await activateSession(connection.sessionId, code);
+    const session = await getSession(connection.sessionId);
     const accountId = session.accounts?.[0]?.uid;
 
-    await prisma.bankConnection.updateMany({
-      where: { aspspId: aspspId ?? undefined, status: 'pending' },
-      data: { sessionId, accountId, status: 'active' },
+    await prisma.bankConnection.update({
+      where: { id: connection.id },
+      data: { accountId, status: 'active' },
     });
   } catch (e) {
     console.error('Enable Banking callback error:', e);
