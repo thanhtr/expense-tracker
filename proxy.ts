@@ -11,6 +11,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow API routes that carry their own token auth (e.g. iOS Shortcut)
+  if (pathname.startsWith('/api/') && req.headers.has('x-api-token')) {
+    return NextResponse.next();
+  }
+
   const res = NextResponse.next();
   const session = await getIronSession<SessionData>(req, res, sessionOptions);
 
