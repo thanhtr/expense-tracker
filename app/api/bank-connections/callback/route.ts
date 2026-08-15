@@ -4,17 +4,18 @@ import { activateSession, getSession } from '@/lib/services/enable-banking';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
-  const aspspId = request.nextUrl.searchParams.get('state');
+  const error = request.nextUrl.searchParams.get('error');
 
-  if (!code) {
+  if (error || !code) {
     const params = Object.fromEntries(request.nextUrl.searchParams.entries());
-    console.error('No code in callback. Params:', JSON.stringify(params));
-    return NextResponse.redirect(new URL('/settings/bank-connections?error=no_code', request.nextUrl.origin));
+    console.error('Enable Banking callback error. Params:', JSON.stringify(params));
+    return NextResponse.redirect(new URL(`/settings/bank-connections?error=${error ?? 'no_code'}`, request.nextUrl.origin));
   }
 
   try {
+    // Find the most recent pending connection — session_id was stored at initiate time
     const connection = await prisma.bankConnection.findFirst({
-      where: { aspspId: aspspId ?? undefined, status: 'pending' },
+      where: { status: 'pending' },
       orderBy: { createdAt: 'desc' },
     });
 

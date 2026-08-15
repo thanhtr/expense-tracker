@@ -67,12 +67,12 @@ export async function listInstitutions(country = 'FI'): Promise<Institution[]> {
   return data.aspsps;
 }
 
-export async function startAuth(aspspId: string, redirectUrl: string): Promise<{ url: string; session_id: string }> {
+export async function startAuth(aspspId: string, redirectUrl: string, state: string): Promise<{ url: string; session_id: string }> {
   return request('/auth', {
     method: 'POST',
     body: JSON.stringify({
       aspsp: { name: aspspId, country: 'FI' },
-      state: aspspId,
+      state,
       redirect_url: redirectUrl,
       access: { valid_until: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() },
     }),

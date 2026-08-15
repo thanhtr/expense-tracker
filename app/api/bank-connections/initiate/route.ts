@@ -12,7 +12,8 @@ export async function POST(request: NextRequest) {
   const origin = request.nextUrl.origin;
   const redirectUrl = `${origin}/api/bank-connections/callback`;
 
-  const { url, session_id } = await startAuth(aspspId, redirectUrl);
+  // Call startAuth with a placeholder state; we'll update it to session_id after
+  const { url, session_id } = await startAuth(aspspId, redirectUrl, aspspId);
 
   const connection = await prisma.bankConnection.create({
     data: { aspspId, aspspName: aspspName ?? aspspId, accountLabel, owner: owner ?? 'tung', sessionId: session_id },
