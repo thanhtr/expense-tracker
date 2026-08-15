@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: '/upload', label: 'Upload' },
   { href: '/keywords', label: 'Keywords' },
   { href: '/settings', label: 'Settings' },
+  { href: '/settings/bank-connections', label: 'Bank Sync' },
   { href: '/fire', label: 'FIRE' },
 ];
 
