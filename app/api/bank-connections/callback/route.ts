@@ -3,11 +3,15 @@ import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/services/enable-banking';
 
 export async function GET(request: NextRequest) {
+  const allParams = Object.fromEntries(request.nextUrl.searchParams.entries());
+  console.log('Enable Banking callback params:', JSON.stringify(allParams));
+
   const sessionId = request.nextUrl.searchParams.get('session_id');
   const aspspId = request.nextUrl.searchParams.get('state');
 
   if (!sessionId) {
-    return NextResponse.redirect(new URL('/settings/bank-connections?error=no_session', request.nextUrl.origin));
+    console.error('No session_id in callback. Full URL:', request.nextUrl.toString());
+    return NextResponse.redirect(new URL(`/settings/bank-connections?error=no_session&params=${encodeURIComponent(JSON.stringify(allParams))}`, request.nextUrl.origin));
   }
 
   try {
