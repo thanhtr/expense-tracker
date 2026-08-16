@@ -1,160 +1,245 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { detectBank } from '@/lib/parsers';
+
+interface QueueItem {
+  id: string;
+  file: File;
+  detectedBank: 'op' | 'amex' | 'finnair' | null;
+  owner: 'tung' | 'thuy';
+  status: 'pending' | 'uploading' | 'done' | 'error';
+  result?: { created: number; skipped: number; total: number };
+  error?: string;
+}
 
 interface UploadFormProps {
   onSuccess?: () => void;
 }
 
-interface UploadResult {
-  created: number;
-  skipped: number;
-  total: number;
-  message: string;
+const TRACKED_ACCOUNTS = ['OP Bank', 'Amex', 'Finnair Visa', 'Aktia'];
+
+function daysAgo(dateStr: string): string {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return '1 day ago';
+  return `${diff} days ago`;
 }
 
 export function UploadForm({ onSuccess }: UploadFormProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [accountType, setAccountType] = useState('op');
-  const [accountOwner, setAccountOwner] = useState('tung');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<UploadResult | null>(null);
-  const [error, setError] = useState('');
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [lastImports, setLastImports] = useState<Record<string, string | null>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setError('');
-    }
-  };
+  function refreshLastImports() {
+    fetch('/api/upload/last-import')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setLastImports(data); })
+      .catch(() => {});
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) {
-      setError('Please select a file');
-      return;
-    }
+  useEffect(() => { refreshLastImports(); }, []);
 
-    setLoading(true);
-    setError('');
-    setResult(null);
+  async function addFiles(files: File[]) {
+    const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv');
+    if (csvFiles.length === 0) return;
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('account_type', accountType);
-      formData.append('account_owner', accountOwner);
+    const items = await Promise.all(csvFiles.map(async file => {
+      const header = await file.slice(0, 500).text();
+      return {
+        id: `${file.name}-${Date.now()}-${Math.random()}`,
+        file,
+        detectedBank: detectBank(header),
+        owner: 'tung' as const,
+        status: 'pending' as const,
+      };
+    }));
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData
-      });
+    setQueue(prev => [...prev, ...items]);
+  }
 
-      if (res.ok) {
-        const data = await res.json();
-        setResult(data);
-        setFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        if (onSuccess) {
-          onSuccess();
-        }
-      } else {
-        const errorData = await res.json();
-        setError(errorData.error || 'Upload failed');
+  function updateItem(id: string, patch: Partial<QueueItem>) {
+    setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+  }
+
+  async function uploadAll() {
+    const pending = queue.filter(item => item.status === 'pending');
+    if (pending.length === 0) return;
+    setUploading(true);
+
+    for (const item of pending) {
+      if (!item.detectedBank) {
+        updateItem(item.id, { status: 'error', error: 'Select bank type' });
+        continue;
       }
-    } catch (error) {
-      setError('An error occurred during upload');
-      console.error('Upload error:', error);
-    } finally {
-      setLoading(false);
+      updateItem(item.id, { status: 'uploading' });
+      try {
+        const formData = new FormData();
+        formData.append('file', item.file);
+        formData.append('account_type', item.detectedBank);
+        formData.append('account_owner', item.owner);
+
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok) {
+          updateItem(item.id, { status: 'done', result: data });
+          onSuccess?.();
+        } else {
+          updateItem(item.id, { status: 'error', error: data.error || 'Upload failed' });
+        }
+      } catch {
+        updateItem(item.id, { status: 'error', error: 'Network error' });
+      }
     }
-  };
+
+    setUploading(false);
+    refreshLastImports();
+  }
+
+  const pendingCount = queue.filter(i => i.status === 'pending').length;
+  const allDone = queue.length > 0 && queue.every(i => i.status === 'done' || i.status === 'error');
 
   return (
     <div className="space-y-6">
-      <div className="bg-surface rounded-lg border border-border-soft p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="upload-account-type" className="block text-sm font-medium text-fg-2 mb-2">Account Type</label>
-              <select
-                id="upload-account-type"
-                value={accountType}
-                onChange={(e) => setAccountType(e.target.value)}
-                disabled={loading}
-                className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="op">OP Bank</option>
-                <option value="amex">Amex</option>
-                <option value="finnair">Finnair Visa</option>
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="upload-account-owner" className="block text-sm font-medium text-fg-2 mb-2">Account Owner</label>
-              <select
-                id="upload-account-owner"
-                value={accountOwner}
-                onChange={(e) => setAccountOwner(e.target.value)}
-                disabled={loading}
-                className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="tung">Tung (Me)</option>
-                <option value="thuy">Thuy (Wife)</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="upload-csv-file" className="block text-sm font-medium text-fg-2 mb-2">CSV File</label>
-            <input
-              id="upload-csv-file"
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              disabled={loading}
-              className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm"
-            />
-            {file && <p className="mt-2 text-sm text-fg-2">Selected: {file.name}</p>}
-          </div>
-
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
-              <p className="text-sm text-red-800 dark:text-red-300">{error}</p>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !file}
-            className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Uploading...' : 'Upload CSV'}
-          </button>
-        </form>
+      {/* Last import status */}
+      <div className="bg-surface rounded-lg border border-border-soft p-4">
+        <h3 className="text-xs font-medium text-fg-3 uppercase tracking-wide mb-3">Last imported</h3>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {TRACKED_ACCOUNTS.map(account => {
+            const date = lastImports[account];
+            return (
+              <div key={account}>
+                <p className="text-sm font-medium">{account}</p>
+                {date ? (
+                  <>
+                    <p className="text-xs text-fg-2">{new Date(date).toLocaleDateString('fi-FI')}</p>
+                    <p className="text-xs text-fg-3">{daysAgo(date)}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-fg-3">Never</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {result && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-green-900 dark:text-green-200 mb-4">Upload Result</h3>
-          <div className="space-y-2 text-sm text-green-800 dark:text-green-300">
-            <div>✓ <strong>{result.created}</strong> transaction(s) imported</div>
-            {result.skipped > 0 && (
-              <div>⚠ <strong>{result.skipped}</strong> duplicate(s) skipped</div>
+      {/* Drop zone */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Drop CSV files or click to select"
+        onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
+        onDrop={e => { e.preventDefault(); setIsDragging(false); addFiles(Array.from(e.dataTransfer.files)); }}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+        className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+          isDragging
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+            : 'border-border-soft bg-surface hover:border-blue-400 hover:bg-surface-2'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          multiple
+          onChange={e => { if (e.target.files) addFiles(Array.from(e.target.files)); }}
+          className="hidden"
+        />
+        <p className="text-sm text-fg-2">
+          Drop CSV files here or <span className="text-blue-600 dark:text-blue-400">click to select</span>
+        </p>
+        <p className="text-xs text-fg-3 mt-1">Multiple files supported · bank detected automatically</p>
+      </div>
+
+      {/* Queue */}
+      {queue.length > 0 && (
+        <div className="space-y-3">
+          {queue.map(item => (
+            <div key={item.id} className="bg-surface border border-border-soft rounded-lg px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.file.name}</p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <select
+                      value={item.detectedBank ?? ''}
+                      onChange={e => updateItem(item.id, { detectedBank: (e.target.value as 'op' | 'amex' | 'finnair') || null })}
+                      disabled={item.status !== 'pending'}
+                      className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                    >
+                      <option value="" disabled>Select bank…</option>
+                      <option value="op">OP Bank</option>
+                      <option value="amex">Amex</option>
+                      <option value="finnair">Finnair Visa</option>
+                    </select>
+                    {item.detectedBank && item.status === 'pending' && (
+                      <span className="text-xs text-fg-3">auto-detected</span>
+                    )}
+                    <select
+                      value={item.owner}
+                      onChange={e => updateItem(item.id, { owner: e.target.value as 'tung' | 'thuy' })}
+                      disabled={item.status !== 'pending'}
+                      className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                    >
+                      <option value="tung">Tung</option>
+                      <option value="thuy">Thuy</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                  {item.status === 'pending' && (
+                    <button
+                      onClick={() => setQueue(prev => prev.filter(i => i.id !== item.id))}
+                      className="text-xs text-fg-3 hover:text-red-500"
+                    >
+                      Remove
+                    </button>
+                  )}
+                  {item.status === 'uploading' && <span className="text-xs text-blue-500">Uploading…</span>}
+                  {item.status === 'done' && item.result && (
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      +{item.result.created} new{item.result.skipped > 0 ? `, ${item.result.skipped} skipped` : ''}
+                    </span>
+                  )}
+                  {item.status === 'error' && (
+                    <span className="text-xs text-red-600 dark:text-red-400">{item.error}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={uploadAll}
+              disabled={uploading || pendingCount === 0}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading
+                ? 'Uploading…'
+                : pendingCount > 1
+                  ? `Upload ${pendingCount} files`
+                  : 'Upload'}
+            </button>
+            {!uploading && (
+              <button onClick={() => setQueue([])} className="text-sm text-fg-3 hover:text-foreground">
+                Clear all
+              </button>
             )}
-            <div className="text-fg-2 mt-2">Total processed: {result.total}</div>
           </div>
-          <a
-            href="/transactions"
-            className="inline-block mt-4 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-md hover:bg-green-800"
-          >
-            View transactions →
-          </a>
+
+          {allDone && (
+            <a
+              href="/transactions"
+              className="inline-block px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-md hover:bg-green-800"
+            >
+              View transactions →
+            </a>
+          )}
         </div>
       )}
     </div>
