@@ -17,6 +17,9 @@ test.describe('CSV Upload', () => {
         json: { imported: 2, duplicates: 0, errors: 0, total: 2, created: 2, skipped: 0 },
       });
     });
+    await page.route('**/api/upload/last-import', async (route) => {
+      await route.fulfill({ json: {} });
+    });
   });
 
   test('should navigate to upload page from nav', async ({ page }) => {
@@ -25,34 +28,35 @@ test.describe('CSV Upload', () => {
     await expect(page).toHaveURL(/\/upload/);
   });
 
-  test('should show file input and account selector', async ({ page }) => {
+  test('should show drop zone and file input', async ({ page }) => {
     await page.goto('/upload');
-    await expect(page.locator('input[type="file"]')).toBeVisible();
-    await expect(page.locator('select').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /drop csv files/i })).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toBeAttached();
   });
 
   test('should upload OP Bank CSV and show import results', async ({ page }) => {
     await page.goto('/upload');
-    await page.locator('select').first().selectOption('op');
     await page.locator('input[type="file"]').setInputFiles({
       name: 'op-april.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(OP_CSV),
     });
-    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    // Wait for queue item to appear with auto-detected bank
+    await expect(page.locator('text=op-april.csv')).toBeVisible();
+    await page.locator('button:has-text("Upload")').first().click();
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/2|imported|success/i').first()).toBeVisible();
   });
 
   test('should upload Amex CSV and show import results', async ({ page }) => {
     await page.goto('/upload');
-    await page.locator('select').first().selectOption('amex');
     await page.locator('input[type="file"]').setInputFiles({
       name: 'amex-april.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(AMEX_CSV),
     });
-    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await expect(page.locator('text=amex-april.csv')).toBeVisible();
+    await page.locator('button:has-text("Upload")').first().click();
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/2|imported|success/i').first()).toBeVisible();
   });
@@ -64,23 +68,21 @@ test.describe('CSV Upload', () => {
       });
     });
     await page.goto('/upload');
-    await page.locator('select').first().selectOption('op');
     await page.locator('input[type="file"]').setInputFiles({
       name: 'op-april.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(OP_CSV),
     });
-    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await expect(page.locator('text=op-april.csv')).toBeVisible();
+    await page.locator('button:has-text("Upload")').first().click();
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/duplicate|skipped/i').first()).toBeVisible();
   });
 
   test('should disable Upload button until file is selected', async ({ page }) => {
     await page.goto('/upload');
-    await page.locator('select').first().selectOption('op');
-    const uploadButton = page.locator('button:has-text("Upload"), button:has-text("Import")').first();
-    // Without a file the button should be disabled
-    await expect(uploadButton).toBeDisabled();
+    // No files in queue — Upload button should not be present yet
+    await expect(page.locator('button:has-text("Upload")')).toHaveCount(0);
   });
 
   test('should handle server error during upload', async ({ page }) => {
@@ -88,13 +90,13 @@ test.describe('CSV Upload', () => {
       await route.fulfill({ status: 500, json: { error: 'Internal Server Error' } });
     });
     await page.goto('/upload');
-    await page.locator('select').first().selectOption('op');
     await page.locator('input[type="file"]').setInputFiles({
       name: 'op-april.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(OP_CSV),
     });
-    await page.locator('button:has-text("Upload"), button:has-text("Import")').first().click();
+    await expect(page.locator('text=op-april.csv')).toBeVisible();
+    await page.locator('button:has-text("Upload")').first().click();
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/error|failed/i')).toBeVisible();
   });

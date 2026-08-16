@@ -13,6 +13,14 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     lang: 'en',
     categories: ['finance', 'productivity'],
+    share_target: {
+      action: '/upload/share',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        files: [{ name: 'file', accept: ['text/csv', '.csv'] }],
+      },
+    },
     icons: [
       { src: '/icons/icon-72.png',  sizes: '72x72',   type: 'image/png' },
       { src: '/icons/icon-96.png',  sizes: '96x96',   type: 'image/png' },

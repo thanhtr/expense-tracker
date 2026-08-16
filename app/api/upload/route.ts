@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseOPBank, parseAmex, parseFinnair } from '@/lib/parsers';
+import { parseOPBank, parseAmex, parseFinnair, detectBank } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
 import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction } from '@/lib/types';
-import { requireToken } from '@/lib/api-auth';
 
 function makeDedupKey(date: string, account: string, merchant: string, cost: string): string {
   return `${date}|${account}|${merchant}|${cost}`;
 }
 
-async function dryRun(rows: ParsedTransaction[], accountOwner: string) {
+async function dryRun(rows: ParsedTransaction[], _accountOwner: string) {
   if (rows.length === 0) {
     return { dry_run: true, would_create: 0, would_skip: 0, total: 0, transactions: [] };
   }
@@ -51,8 +50,11 @@ async function dryRun(rows: ParsedTransaction[], accountOwner: string) {
 }
 
 export async function POST(request: NextRequest) {
-  const unauthorized = requireToken(request);
-  if (unauthorized) return unauthorized;
+  // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests
+  const token = request.headers.get('x-api-token');
+  if (token && token !== process.env.API_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   try {
     const url = new URL(request.url);
@@ -92,6 +94,10 @@ export async function POST(request: NextRequest) {
       fileContent = await file.text();
     }
 
+    if (accountType === 'auto' || !accountType) {
+      accountType = detectBank(fileContent) ?? '';
+    }
+
     let rows;
     switch (accountType) {
       case 'op':
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
         rows = await parseFinnair(fileContent);
         break;
       default:
-        return NextResponse.json({ error: 'Invalid account type' }, { status: 400 });
+        return NextResponse.json({ error: 'Could not detect bank type. Please select manually.' }, { status: 400 });
     }
 
     rows = await categorizeWithLearning(rows);
