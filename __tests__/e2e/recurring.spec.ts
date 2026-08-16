@@ -9,6 +9,7 @@ const MOCK_RECURRING = {
   ],
   totalMonthly: 69.94,
   count: 3,
+  exclusions: [],
 };
 
 test.describe('Recurring Charges Page', () => {
@@ -53,7 +54,7 @@ test.describe('Recurring Charges Page', () => {
 
   test('should handle empty recurring list gracefully', async ({ page }) => {
     await page.route('**/api/transactions/recurring*', async (route) => {
-      await route.fulfill({ json: { recurring: [], totalMonthly: 0, count: 0 } });
+      await route.fulfill({ json: { recurring: [], totalMonthly: 0, count: 0, exclusions: [] } });
     });
     await page.goto('/transactions/recurring');
     await expect(page.locator('h1, h2').first()).toBeVisible();

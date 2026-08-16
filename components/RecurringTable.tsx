@@ -68,7 +68,7 @@ export function RecurringTable() {
       <div className="dash-card p-8 text-center text-[13px] text-[var(--fg-3)]">
         No recurring charges detected yet. Upload at least 3 months of transactions to enable detection.
       </div>
-      {data && data.exclusions.length > 0 && (
+      {data && (data.exclusions ?? []).length > 0 && (
         <ExclusionsPanel exclusions={data.exclusions} onRemove={removeExclusion} />
       )}
     </div>
@@ -158,7 +158,7 @@ export function RecurringTable() {
         </table>
       </div>
 
-      {data.exclusions.length > 0 && (
+      {(data.exclusions ?? []).length > 0 && (
         <ExclusionsPanel exclusions={data.exclusions} onRemove={removeExclusion} />
       )}
     </div>
