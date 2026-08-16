@@ -11,6 +11,12 @@ export interface RecurringCharge {
   account: string;
 }
 
+export interface RecurringExclusion {
+  id: number;
+  type: string;
+  value: string;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -24,13 +30,22 @@ export async function GET(): Promise<NextResponse> {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 1);
 
-  // Pull all expenses in the window
-  const rows = await prisma.transaction.findMany({
-    where: { type: 'Expense', date: { gte: since } },
-    select: { merchant: true, amount: true, date: true, category: true, account: true },
-    orderBy: { date: 'asc' },
-    take: 10000,
-  });
+  const [rows, exclusions] = await Promise.all([
+    prisma.transaction.findMany({
+      where: { type: 'Expense', date: { gte: since } },
+      select: { merchant: true, amount: true, date: true, category: true, account: true },
+      orderBy: { date: 'asc' },
+      take: 10000,
+    }),
+    prisma.recurringExclusion.findMany(),
+  ]);
+
+  const excludedCategories = new Set(
+    exclusions.filter(e => e.type === 'category').map(e => e.value)
+  );
+  const excludedMerchants = new Set(
+    exclusions.filter(e => e.type === 'merchant').map(e => e.value)
+  );
 
   // Group by merchant
   const byMerchant = new Map<string, typeof rows>();
@@ -61,10 +76,13 @@ export async function GET(): Promise<NextResponse> {
     const amounts = txs.map(t => Math.abs(t.amount));
     const med = median(amounts);
     const lastTx = txs[txs.length - 1]!;
+    const category = lastTx.category || 'Other';
+
+    if (excludedMerchants.has(merchant) || excludedCategories.has(category)) continue;
 
     recurring.push({
       merchant,
-      category: lastTx.category || 'Other',
+      category,
       medianAmount: med,
       monthlyEstimate: med,
       occurrences: months.size,
@@ -77,5 +95,5 @@ export async function GET(): Promise<NextResponse> {
 
   const totalMonthly = recurring.reduce((s, r) => s + r.monthlyEstimate, 0);
 
-  return NextResponse.json({ recurring, totalMonthly, count: recurring.length });
+  return NextResponse.json({ recurring, totalMonthly, count: recurring.length, exclusions });
 }

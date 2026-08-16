@@ -1,3 +1,9 @@
+export interface RecurringExclusion {
+  id: number;
+  type: 'category' | 'merchant';
+  value: string;
+}
+
 export interface Transaction {
   id: number;
   date: string | Date;
