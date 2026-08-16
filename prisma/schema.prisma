@@ -116,6 +116,15 @@ model AssetSnapshot {
   @@index([assetId])
 }
 
+model RecurringExclusion {
+  id        Int      @id @default(autoincrement())
+  type      String   // 'category' | 'merchant'
+  value     String
+  createdAt DateTime @default(now())
+
+  @@unique([type, value])
+}
+
 model FireConfig {
   id                  Int      @id @default(autoincrement())
   dateOfBirth         String   @default("1990-05-15")
