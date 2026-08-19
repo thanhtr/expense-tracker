@@ -318,7 +318,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                 <td colSpan={9} className="px-4 py-12 text-center text-sm text-fg-3">
                   {Object.values(filters).some(Boolean)
                     ? 'No transactions match your filters'
-                    : 'No transactions yet — upload a CSV to get started'}
+                    : <><span>No transactions yet — </span><a href="/upload" className="underline text-fg-2">upload a CSV to get started →</a></>}
                 </td>
               </tr>
             ) : (

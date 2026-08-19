@@ -142,11 +142,12 @@ function KPI({
 
 // Category horizontal bar list (ranked, with delta vs previous)
 function CategoryBarList({
-  byCategory, byCategoryPrev, total,
+  byCategory, byCategoryPrev, total, onCategoryClick,
 }: {
   byCategory: { category: string; amount: number }[];
   byCategoryPrev: Record<string, number>;
   total: number;
+  onCategoryClick?: (category: string) => void;
 }) {
   const max = Math.max(...byCategory.map(c => c.amount), 1);
   return (
@@ -160,7 +161,12 @@ function CategoryBarList({
         const flat = Math.abs(delta) < 0.5;
         const color = CAT_COLORS[i % CAT_COLORS.length];
         return (
-          <div key={c.category} className="grid grid-cols-[1fr_auto] gap-x-[10px] gap-y-[4px] items-center">
+          <button
+            key={c.category}
+            type="button"
+            className={`grid grid-cols-[1fr_auto] gap-x-[10px] gap-y-[4px] items-center w-full text-left${onCategoryClick ? ' cursor-pointer rounded hover:bg-[var(--surface-2)] -mx-1 px-1' : ' cursor-default'}`}
+            onClick={() => onCategoryClick?.(c.category)}
+          >
             <div className="flex items-center gap-[8px] min-w-0">
               <span className="w-[10px] h-[10px] rounded-[3px] inline-block flex-none" style={{ background: color }} />
               <span className="min-w-0 text-[13px] font-medium text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{c.category}</span>
@@ -177,7 +183,7 @@ function CategoryBarList({
             <div className="col-span-2 cat-bar-track">
               <div className="cat-bar-fill" style={{ width: `${(c.amount / max) * 100}%`, background: color }} />
             </div>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -1002,7 +1008,7 @@ export function DashboardStats() {
           </div>
           <div className="p-[0_20px_20px]">
             {data.byCategory.length === 0 ? (
-              <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period.</div>
+              <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period. <a href="/upload" className="text-[var(--fg-2)] underline">Upload transactions →</a></div>
             ) : chartStyle === 'donut' ? (
               <div className="flex flex-col gap-[18px] pt-[4px]">
                 <div className="flex justify-center">
@@ -1017,18 +1023,23 @@ export function DashboardStats() {
                         outerRadius={90}
                         stroke="none"
                       >
-                        {donutData.map((_, i) => (
-                          <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />
+                        {donutData.map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill={CAT_COLORS[i % CAT_COLORS.length]}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setSelectedCategory(entry.category === selectedCategory ? '' : entry.category)}
+                          />
                         ))}
                       </Pie>
                       <Tooltip formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} />
+                <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={(cat) => setSelectedCategory(cat === selectedCategory ? '' : cat)} />
               </div>
             ) : (
-              <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} />
+              <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={(cat) => setSelectedCategory(cat === selectedCategory ? '' : cat)} />
             )}
           </div>
         </div>
@@ -1119,7 +1130,7 @@ export function DashboardStats() {
           {data.byDay.length > 0 ? (
             <DailyChart data={data.byDay} categories={displayCategories} />
           ) : (
-            <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period.</div>
+            <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period. <a href="/upload" className="text-[var(--fg-2)] underline">Upload transactions →</a></div>
           )}
           {data.byCategory.length > 0 && (
             <div className="flex flex-wrap gap-[10px] mt-[8px] px-[8px] text-[11px] text-[var(--fg-2)]">

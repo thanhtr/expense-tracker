@@ -12,6 +12,39 @@ interface TransactionFiltersProps {
   initialFilters?: TransactionFilterValues;
 }
 
+function isoDate(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+const PRESETS = [
+  {
+    label: 'This month',
+    apply: () => {
+      const now = new Date();
+      return { dateFrom: isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), dateTo: isoDate(now) };
+    },
+  },
+  {
+    label: 'Last month',
+    apply: () => {
+      const now = new Date();
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { dateFrom: isoDate(first), dateTo: isoDate(last) };
+    },
+  },
+  {
+    label: 'Uncategorized',
+    apply: () => ({ uncategorizedOnly: true }),
+  },
+  {
+    label: 'High value',
+    apply: () => ({ amountMin: '100' }),
+  },
+] as const;
+
+type PresetLabel = typeof PRESETS[number]['label'];
+
 export function TransactionFilters({ onFilter, initialFilters }: TransactionFiltersProps) {
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '');
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '');
@@ -24,6 +57,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
   const [amountMax, setAmountMax] = useState(initialFilters?.amountMax ?? '');
   const [tag, setTag] = useState(initialFilters?.tag ?? '');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
+  const [activePreset, setActivePreset] = useState<PresetLabel | null>(null);
   const { categories, loading: categoriesLoading } = useCategories();
 
   // Debounced versions of text/number inputs
@@ -83,13 +117,50 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     setAmountMax('');
     setTag('');
     setUncategorizedOnly(false);
+    setActivePreset(null);
     onFilter({});
+  };
+
+  const applyPreset = (preset: typeof PRESETS[number]) => {
+    if (activePreset === preset.label) {
+      handleReset();
+      return;
+    }
+    // Reset all then apply preset values
+    const vals = preset.apply();
+    setDateFrom('dateFrom' in vals ? vals.dateFrom : '');
+    setDateTo('dateTo' in vals ? vals.dateTo : '');
+    setUncategorizedOnly('uncategorizedOnly' in vals ? vals.uncategorizedOnly : false);
+    setAmountMin('amountMin' in vals ? vals.amountMin : '');
+    setAmountMax('');
+    setAccount('');
+    setCategory('');
+    setMerchant('');
+    setType('');
+    setPaidBy('');
+    setTag('');
+    setActivePreset(preset.label);
   };
 
   const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, tag, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
 
   return (
     <div className="bg-surface rounded-lg border border-border-soft p-4 mb-6 space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {PRESETS.map(preset => (
+          <button
+            key={preset.label}
+            onClick={() => applyPreset(preset)}
+            className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+              activePreset === preset.label
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'border-border-soft text-fg-2 hover:bg-surface-2'
+            }`}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <div>
           <label htmlFor="filter-date-from" className="block text-xs font-medium text-fg-2 mb-1">Date From</label>
