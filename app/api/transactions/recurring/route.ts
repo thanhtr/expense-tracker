@@ -1,21 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import type { RecurringCharge, RecurringExclusion } from '@/lib/types';
 
-export interface RecurringCharge {
-  merchant: string;
-  category: string;
-  monthlyEstimate: number;
-  occurrences: number;
-  medianAmount: number;
-  lastDate: string;
-  account: string;
-}
-
-export interface RecurringExclusion {
-  id: number;
-  type: string;
-  value: string;
-}
+export type { RecurringCharge, RecurringExclusion };
 
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);

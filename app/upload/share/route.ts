@@ -17,10 +17,11 @@ export async function POST(request: NextRequest) {
     }
 
     const fileContent = await file.text();
-    const result = await processUpload(fileContent, 'auto', 'tung');
+    const result = await processUpload(fileContent, 'auto', 'tung', false);
+    const created = 'created' in result ? result.created : 0;
 
     return NextResponse.redirect(
-      new URL(`/upload?imported=${result.created}&account=${result.detectedBank}`, request.url)
+      new URL(`/upload?imported=${created}&account=${result.detectedBank}`, request.url)
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Upload failed';

@@ -1,3 +1,13 @@
+export interface RecurringCharge {
+  merchant: string;
+  category: string;
+  monthlyEstimate: number;
+  occurrences: number;
+  medianAmount: number;
+  lastDate: string;
+  account: string;
+}
+
 export interface RecurringExclusion {
   id: number;
   type: 'category' | 'merchant';
