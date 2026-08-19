@@ -9,6 +9,7 @@ import {
   ComposedChart, Line, CartesianGrid, Legend,
 } from 'recharts';
 import { NetWorthCard } from './NetWorthCard';
+import { NetWorthChart } from './NetWorthChart';
 import { GuidelinePanel } from './GuidelinePanel';
 import { useCategories } from '@/components/CategoriesProvider';
 import { fmtEUR } from '@/lib/utils';
@@ -1200,6 +1201,7 @@ export function DashboardStats() {
 
       {/* Net Worth */}
       <NetWorthCard />
+      <NetWorthChart />
 
       {/* Spending Guidelines */}
       <GuidelinePanel
