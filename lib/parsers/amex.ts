@@ -1,16 +1,6 @@
 import Papa from 'papaparse';
-import { parseFinnishAmount } from './utils';
+import { parseFinnishAmount, findColumn } from './utils';
 import { ParsedTransaction } from '@/lib/types';
-
-function findColumn(row: Record<string, string>, names: string[]): string | undefined {
-  const lowerNames = names.map(n => n.toLowerCase());
-  for (const [key, value] of Object.entries(row)) {
-    if (lowerNames.includes(key.toLowerCase())) {
-      return value;
-    }
-  }
-  return undefined;
-}
 
 export async function parseAmex(fileContent: string): Promise<ParsedTransaction[]> {
   return new Promise((resolve) => {

@@ -1,25 +1,6 @@
 import Papa from 'papaparse';
-import { parseFinnishAmount } from './utils';
+import { parseFinnishAmount, findColumn } from './utils';
 import { ParsedTransaction } from '@/lib/types';
-
-// Helper to find column by name (case-insensitive and with variations)
-function findColumn(row: Record<string, string>, names: string[]): string | undefined {
-  const lowerNames = names.map(n => n.toLowerCase());
-  for (const [key, value] of Object.entries(row)) {
-    const lowerKey = key.toLowerCase();
-    // Exact match
-    if (lowerNames.includes(lowerKey)) {
-      return value;
-    }
-    // Partial match (useful for variations like "Määrä EUROA" matching "Määrä EUR")
-    for (const name of lowerNames) {
-      if (lowerKey.includes(name) || name.includes(lowerKey.split(/\s+/)[0] ?? '')) {
-        return value;
-      }
-    }
-  }
-  return undefined;
-}
 
 export async function parseOPBank(fileContent: string): Promise<ParsedTransaction[]> {
   return new Promise((resolve) => {
