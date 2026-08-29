@@ -128,8 +128,8 @@ export const TransactionRow = memo(function TransactionRow({
     setSaving(true);
     try {
       await onUpdate(transaction.id, newCategory);
-    } catch {
-      toast.error('Failed to update category');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update category');
       setCategory(category);
     } finally {
       setSaving(false);
