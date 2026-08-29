@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise, mockExpense } from '../fixtures/splitwise-mock';
+import { setupSplitwise, mockExpense } from '../fixtures/api-mock';
 
 const MOCK_SELLERS = [
   { merchant: 'Amazon', totalAmount: 150.00, count: 3, categories: [{ category: 'Shopping', count: 3 }], dominantCategory: 'Shopping', isMixed: false },

@@ -162,7 +162,7 @@ export function KeywordManager() {
       <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-foreground mb-2">Seed Rules from History</h2>
         <p className="text-sm text-fg-2 mb-4">
-          Analyze all categorized transactions in Splitwise and learn rules automatically.
+          Analyze all categorized transactions in your history and learn rules automatically.
           This will merge new rules with existing keywords (existing rules take precedence).
         </p>
         <button

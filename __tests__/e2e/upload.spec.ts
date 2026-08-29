@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise } from '../fixtures/splitwise-mock';
+import { setupSplitwise } from '../fixtures/api-mock';
 
 const OP_CSV = `Kirjauspäivä;Arvopäivä;Määrä EUROA;Laji;Selitys;Saaja/Maksaja;Saajan tilinumero ja pankin BIC;Viite;Viesti;Arkistointitunnus
 05.04.2026;05.04.2026;-29,90;720;MAKSUPALVELU;Spotify AB;;

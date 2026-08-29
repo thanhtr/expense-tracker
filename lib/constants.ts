@@ -22,7 +22,7 @@ export const CATEGORIES = [
 
 export type Category = typeof CATEGORIES[number];
 
-export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa", "Splitwise"] as const;
+export const ACCOUNT_NAMES = ["OP Bank", "Amex", "Finnair Visa"] as const;
 
 export const PAID_BY = ['tung', 'thuy', 'other'] as const;
 export type PaidBy = typeof PAID_BY[number];

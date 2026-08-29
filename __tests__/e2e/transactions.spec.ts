@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise-mock';
+import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/api-mock';
 
 test.describe('Transactions Page', () => {
   test('should navigate to transactions page from nav', async ({ page }) => {

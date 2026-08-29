@@ -1,6 +1,6 @@
 /**
  * Mock data factories for E2E tests
- * Mocks the backend API endpoints, not Splitwise directly
+ * Mocks the backend API endpoints.
  */
 
 import type { Page } from '@playwright/test';
