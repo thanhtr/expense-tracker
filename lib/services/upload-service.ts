@@ -81,10 +81,10 @@ export async function processUpload(
   rows = await categorizeWithLearning(rows);
 
   if (isDryRun) {
-    return { ...(await runDryRun(rows)), detectedBank: resolved };
+    return { ...(await runDryRun(rows)), detectedBank: detected };
   }
 
   const result = await upsertTransactions(rows, accountOwner);
   invalidateDashboardCache();
-  return { ...result, detectedBank: resolved };
+  return { ...result, detectedBank: detected };
 }
