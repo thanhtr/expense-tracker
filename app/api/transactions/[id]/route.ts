@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { recordCorrection } from '@/lib/services/learned-rules-service';
-import { CATEGORIES } from '@/lib/constants';
+import { getCategoriesCached } from '@/lib/categories-cache';
 import { updateTransactionSchema, parseBody, parseId } from '@/lib/validation';
 
 export async function PATCH(
@@ -20,7 +20,8 @@ export async function PATCH(
     const updateData: { category?: string; tags?: string[]; note?: string } = {};
 
     if (category !== undefined) {
-      if (!(CATEGORIES as readonly string[]).includes(category)) {
+      const validCategories = await getCategoriesCached();
+      if (!validCategories.includes(category)) {
         return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
       }
       updateData.category = category;

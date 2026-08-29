@@ -190,19 +190,17 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   }, [offset, filters, limit, sortBy, sortOrder]);
 
   const handleUpdate = useCallback(async (id: number, category: string) => {
-    try {
-      const res = await fetch(`/api/transactions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category })
-      });
+    const res = await fetch(`/api/transactions/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category })
+    });
 
-      if (res.ok) {
-        setTransactions(prev => prev.map(t => t.id === id ? { ...t, category } : t));
-      }
-    } catch (error) {
-      console.error('Failed to update transaction:', error);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? 'Failed to update category');
     }
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, category } : t));
   }, []);
 
   const handleDelete = useCallback(async (id: number) => {
