@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processUpload } from '@/lib/services/upload-service';
+import type { ColumnMapping } from '@/lib/parsers';
 
 export async function POST(request: NextRequest) {
   // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     let accountType: string;
     let accountOwner: string;
     let isDryRun: boolean;
+    let columnMapping: ColumnMapping | undefined;
 
     if (contentType.includes('text/csv') || contentType.includes('text/plain')) {
       // Raw body mode (used by iOS Shortcut — simpler than multipart form)
@@ -30,6 +32,14 @@ export async function POST(request: NextRequest) {
       accountType = (formData.get('account_type') as string) || '';
       accountOwner = (formData.get('account_owner') as string) || 'tung';
       isDryRun = formData.get('dry_run') === 'true';
+      const columnMappingStr = formData.get('column_mapping') as string | null;
+      if (columnMappingStr) {
+        try {
+          columnMapping = JSON.parse(columnMappingStr) as ColumnMapping;
+        } catch {
+          return NextResponse.json({ error: 'Invalid column mapping JSON' }, { status: 400 });
+        }
+      }
 
       if (!file) {
         return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -46,7 +56,7 @@ export async function POST(request: NextRequest) {
       fileContent = await file.text();
     }
 
-    const result = await processUpload(fileContent, accountType, accountOwner, isDryRun);
+    const result = await processUpload(fileContent, accountType, accountOwner, isDryRun, columnMapping);
 
     if (isDryRun) {
       return NextResponse.json(result);

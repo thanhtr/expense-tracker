@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { detectBank } from '@/lib/parsers';
+import type { ColumnMapping } from '@/lib/parsers';
 
 interface HouseholdMember {
   id: number;
@@ -12,7 +13,9 @@ interface HouseholdMember {
 interface QueueItem {
   id: string;
   file: File;
-  detectedBank: 'op' | 'amex' | 'finnair' | null;
+  detectedBank: 'op' | 'amex' | 'finnair' | 'generic' | null;
+  columnMapping?: ColumnMapping;
+  detectingColumns?: boolean;
   owner: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   result?: { created: number; skipped: number; total: number };
@@ -56,26 +59,57 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
 
   useEffect(() => { refreshLastImports(); }, []);
 
+  function updateItem(id: string, patch: Partial<QueueItem>) {
+    setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+  }
+
+  const detectColumns = useCallback(async (itemId: string, file: File) => {
+    try {
+      const preview = await file.slice(0, 2000).text();
+      const fd = new FormData();
+      fd.append('content', preview);
+      const res = await fetch('/api/upload/detect-columns', { method: 'POST', body: fd });
+      if (!res.ok) {
+        updateItem(itemId, { detectingColumns: false });
+        return;
+      }
+      const mapping = await res.json() as ColumnMapping;
+      if (mapping.confidence >= 0.5 && mapping.dateColumn && mapping.amountColumn && mapping.merchantColumn) {
+        updateItem(itemId, { detectedBank: 'generic', columnMapping: mapping, detectingColumns: false });
+      } else {
+        updateItem(itemId, { detectingColumns: false });
+      }
+    } catch {
+      updateItem(itemId, { detectingColumns: false });
+    }
+   
+  }, []);
+
   async function addFiles(files: File[]) {
     const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv');
     if (csvFiles.length === 0) return;
 
+    const defaultOwner = members[0]?.slug ?? 'tung';
     const items = await Promise.all(csvFiles.map(async file => {
       const header = await file.slice(0, 500).text();
+      const bank = detectBank(header);
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
-        detectedBank: detectBank(header),
-        owner: members[0]?.slug ?? 'tung',
+        detectedBank: bank,
+        detectingColumns: bank === null,
+        owner: defaultOwner,
         status: 'pending' as const,
       };
     }));
 
     setQueue(prev => [...prev, ...items]);
-  }
 
-  function updateItem(id: string, patch: Partial<QueueItem>) {
-    setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
+    for (const item of items) {
+      if (item.detectedBank === null) {
+        detectColumns(item.id, item.file);
+      }
+    }
   }
 
   async function uploadAll() {
@@ -94,6 +128,9 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         formData.append('file', item.file);
         formData.append('account_type', item.detectedBank);
         formData.append('account_owner', item.owner);
+        if (item.detectedBank === 'generic' && item.columnMapping) {
+          formData.append('column_mapping', JSON.stringify(item.columnMapping));
+        }
 
         const res = await fetch('/api/upload', { method: 'POST', body: formData });
         const data = await res.json();
@@ -179,19 +216,46 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.file.name}</p>
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <select
-                      value={item.detectedBank ?? ''}
-                      onChange={e => updateItem(item.id, { detectedBank: (e.target.value as 'op' | 'amex' | 'finnair') || null })}
-                      disabled={item.status !== 'pending'}
-                      className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-                    >
-                      <option value="" disabled>Select bank…</option>
-                      <option value="op">OP Bank</option>
-                      <option value="amex">Amex</option>
-                      <option value="finnair">Finnair Visa</option>
-                    </select>
-                    {item.detectedBank && item.status === 'pending' && (
-                      <span className="text-xs text-fg-3">auto-detected</span>
+                    {item.detectingColumns ? (
+                      <span className="text-xs text-fg-3 italic">Analyzing format…</span>
+                    ) : item.detectedBank === 'generic' && item.columnMapping ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                          {item.columnMapping.bankLabel}
+                          {item.columnMapping.confidence < 0.75 && ' ⚠'}
+                        </span>
+                        <span className="text-xs text-fg-3">
+                          Date: <span className="font-mono">{item.columnMapping.dateColumn}</span>
+                          {' · '}Amount: <span className="font-mono">{item.columnMapping.amountColumn}</span>
+                          {' · '}Merchant: <span className="font-mono">{item.columnMapping.merchantColumn}</span>
+                        </span>
+                        <button
+                          onClick={() => updateItem(item.id, { detectedBank: null, columnMapping: undefined })}
+                          className="text-xs text-fg-3 hover:text-foreground underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <select
+                          value={item.detectedBank ?? ''}
+                          onChange={e => updateItem(item.id, {
+                            detectedBank: (e.target.value as 'op' | 'amex' | 'finnair') || null,
+                            columnMapping: undefined,
+                          })}
+                          disabled={item.status !== 'pending'}
+                          className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                        >
+                          <option value="" disabled>Select bank…</option>
+                          <option value="op">OP Bank</option>
+                          <option value="amex">Amex</option>
+                          <option value="finnair">Finnair Visa</option>
+                        </select>
+                        {item.detectedBank && item.status === 'pending' && (
+                          <span className="text-xs text-fg-3">auto-detected</span>
+                        )}
+                      </>
                     )}
                     <select
                       value={item.owner}
