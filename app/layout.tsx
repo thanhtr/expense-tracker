@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { CategoriesProvider } from "@/components/CategoriesProvider";
+import { HouseholdMembersProvider } from "@/components/HouseholdMembersProvider";
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -57,9 +58,11 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-background pb-safe">
         <CategoriesProvider>
-          <Navigation />
-          <main className="flex-1">{children}</main>
-          <Toaster richColors closeButton position="bottom-right" />
+          <HouseholdMembersProvider>
+            <Navigation />
+            <main className="flex-1">{children}</main>
+            <Toaster richColors closeButton position="bottom-right" />
+          </HouseholdMembersProvider>
         </CategoriesProvider>
       </body>
     </html>

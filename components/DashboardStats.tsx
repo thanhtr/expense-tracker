@@ -12,6 +12,7 @@ import { NetWorthCard } from './NetWorthCard';
 import { NetWorthChart } from './NetWorthChart';
 import { GuidelinePanel } from './GuidelinePanel';
 import { useCategories } from '@/components/CategoriesProvider';
+import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 import { fmtEUR } from '@/lib/utils';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
@@ -810,6 +811,7 @@ export function DashboardStats() {
   });
 
   const { categories: allCategories } = useCategories();
+  const { nameForSlug } = useHouseholdMembers();
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
@@ -1257,7 +1259,7 @@ export function DashboardStats() {
                 {data.byPerson.map(({ person, amount }) => (
                   <div key={person} className="min-w-0">
                     <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)] overflow-hidden text-ellipsis whitespace-nowrap">
-                      {person === 'tung' ? 'Tung' : person === 'thuy' ? 'Thuy' : 'Other'}
+                      {nameForSlug(person)}
                     </div>
                     <div className="mono text-[15px] font-medium mt-[2px] overflow-hidden text-ellipsis whitespace-nowrap">{fmtEUR(amount, { cents: true })}</div>
                   </div>

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import type { Transaction } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { TAGS, CATEGORIES } from '@/lib/constants';
+import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 
 interface Split {
   id?: number;
@@ -37,6 +38,7 @@ function defaultTagColor(tag: string) {
 export const TransactionRow = memo(function TransactionRow({
   transaction, categories, onUpdate, onDelete, selected, onSelect,
 }: TransactionRowProps) {
+  const { nameForSlug } = useHouseholdMembers();
   const [category, setCategory] = useState(transaction.category);
   const [tags, setTags] = useState<string[]>(transaction.tags ?? []);
   const [saving, setSaving] = useState(false);
@@ -249,9 +251,7 @@ export const TransactionRow = memo(function TransactionRow({
         </select>
       </td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">
-        {transaction.paidBy === 'tung' ? 'Tung'
-          : transaction.paidBy === 'thuy' ? 'Thuy'
-          : '—'}
+        {transaction.paidBy ? nameForSlug(transaction.paidBy) : '—'}
       </td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">
         {editingNote ? (
