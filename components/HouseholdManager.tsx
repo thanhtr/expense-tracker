@@ -14,6 +14,8 @@ export function HouseholdManager() {
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
 
   useEffect(() => {
     fetch('/api/household-members')
@@ -45,6 +47,27 @@ export function HouseholdManager() {
     }
   };
 
+  const startEdit = (m: HouseholdMember) => {
+    setEditingId(m.id);
+    setEditName(m.name);
+  };
+
+  const handleRename = async (id: number) => {
+    if (!editName.trim()) return;
+    const res = await fetch(`/api/household-members/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName.trim() }),
+    });
+    if (res.ok) {
+      const updated = await res.json() as HouseholdMember;
+      setMembers(prev => prev.map(m => m.id === id ? updated : m));
+      setEditingId(null);
+    } else {
+      toast.error('Failed to rename member');
+    }
+  };
+
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Remove ${name} from the household?`)) return;
     const res = await fetch(`/api/household-members/${id}`, { method: 'DELETE' });
@@ -63,17 +86,44 @@ export function HouseholdManager() {
     <div className="space-y-4">
       <ul className="divide-y divide-[var(--border-soft)]">
         {members.map(m => (
-          <li key={m.id} className="flex items-center justify-between py-3">
-            <div>
-              <span className="text-[14px] font-medium">{m.name}</span>
-              <span className="ml-2 text-[11px] text-[var(--fg-3)] font-mono">{m.slug}</span>
-            </div>
-            <button
-              onClick={() => handleDelete(m.id, m.name)}
-              className="text-[12px] text-[var(--fg-3)] hover:text-red-500 px-2 py-1 rounded"
-            >
-              Remove
-            </button>
+          <li key={m.id} className="flex items-center justify-between py-3 gap-3">
+            {editingId === m.id ? (
+              <form
+                onSubmit={e => { e.preventDefault(); handleRename(m.id); }}
+                className="flex items-center gap-2 flex-1"
+              >
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  className="flex-1 px-2 py-1 text-[13px] border border-[var(--border-soft)] rounded bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
+                <span className="text-[11px] text-[var(--fg-3)] font-mono shrink-0">{m.slug}</span>
+                <button type="submit" className="text-[12px] font-medium text-[var(--accent)] px-2 py-1">Save</button>
+                <button type="button" onClick={() => setEditingId(null)} className="text-[12px] text-[var(--fg-3)] px-2 py-1">Cancel</button>
+              </form>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[14px] font-medium">{m.name}</span>
+                  <span className="text-[11px] text-[var(--fg-3)] font-mono">{m.slug}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => startEdit(m)}
+                    className="text-[12px] text-[var(--fg-3)] hover:text-[var(--foreground)] px-2 py-1 rounded"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    onClick={() => handleDelete(m.id, m.name)}
+                    className="text-[12px] text-[var(--fg-3)] hover:text-red-500 px-2 py-1 rounded"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </>
+            )}
           </li>
         ))}
         {members.length === 0 && (
@@ -96,6 +146,9 @@ export function HouseholdManager() {
           {adding ? 'Adding…' : 'Add'}
         </button>
       </form>
+      <p className="text-[11px] text-[var(--fg-3)]">
+        The identifier shown in grey (e.g. <span className="font-mono">tung</span>) is fixed and stored on transactions — only the display name can be changed.
+      </p>
     </div>
   );
 }
