@@ -125,6 +125,27 @@ model RecurringExclusion {
   @@unique([type, value])
 }
 
+model BankConnection {
+  id           Int       @id @default(autoincrement())
+  aspspId      String
+  aspspName    String
+  sessionId    String?   @unique
+  accountId    String?
+  accountLabel String
+  owner        String    @default("tung")
+  status       String    @default("pending")
+  lastSyncAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model HouseholdMember {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  slug      String   @unique  // stored as paidBy on transactions (lowercase, no spaces)
+  createdAt DateTime @default(now())
+}
+
 model FireConfig {
   id                  Int      @id @default(autoincrement())
   dateOfBirth         String   @default("1990-05-15")

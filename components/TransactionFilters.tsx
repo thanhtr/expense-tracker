@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ACCOUNT_NAMES, TAGS, PAID_BY, TRANSACTION_TYPES } from '@/lib/constants';
+import { ACCOUNT_NAMES, TAGS, TRANSACTION_TYPES } from '@/lib/constants';
 import { useCategories } from '@/components/CategoriesProvider';
 import type { TransactionFilterValues } from '@/lib/types';
 
@@ -58,7 +58,15 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
   const [tag, setTag] = useState(initialFilters?.tag ?? '');
   const [uncategorizedOnly, setUncategorizedOnly] = useState(false);
   const [activePreset, setActivePreset] = useState<PresetLabel | null>(null);
+  const [householdMembers, setHouseholdMembers] = useState<{ id: number; name: string; slug: string }[]>([]);
   const { categories, loading: categoriesLoading } = useCategories();
+
+  useEffect(() => {
+    fetch('/api/household-members')
+      .then(r => r.ok ? r.json() : [])
+      .then(setHouseholdMembers)
+      .catch(() => {});
+  }, []);
 
   // Debounced versions of text/number inputs
   const [debouncedMerchant, setDebouncedMerchant] = useState(initialFilters?.merchant ?? '');
@@ -232,8 +240,8 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
             className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All</option>
-            {PAID_BY.filter(p => p !== 'other').map(p => (
-              <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+            {householdMembers.map(m => (
+              <option key={m.id} value={m.slug}>{m.name}</option>
             ))}
           </select>
         </div>
