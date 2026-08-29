@@ -3,7 +3,7 @@ import { parseFinnishAmount, findColumn } from './utils';
 import { ParsedTransaction } from '@/lib/types';
 
 export async function parseOPBank(fileContent: string): Promise<ParsedTransaction[]> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Try with semicolon delimiter first (standard OP Bank format)
     const delimiters = [';', ',', '\t'];
 
@@ -84,12 +84,11 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
           resolve(rows);
         },
         error: (error: Error) => {
-          console.error('❌ CSV parsing error:', error);
           if (delimiterIndex < delimiters.length - 1) {
             tryParse(delimiterIndex + 1);
             return;
           }
-          resolve([]);
+          reject(new Error(`Failed to parse OP Bank CSV: ${error.message}`));
         }
       });
     }
