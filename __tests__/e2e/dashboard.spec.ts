@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/splitwise-mock';
+import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/api-mock';
 
 test.describe('Dashboard', () => {
   test('should load dashboard and display charts', async ({ page }) => {

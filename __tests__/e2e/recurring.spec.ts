@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupSplitwise } from '../fixtures/splitwise-mock';
+import { setupSplitwise } from '../fixtures/api-mock';
 
 const MOCK_RECURRING = {
   recurring: [
