@@ -3,7 +3,7 @@ import { ParsedTransaction } from '@/lib/types';
 import { parseFinnishAmount, findColumn } from './utils';
 
 export async function parseFinnair(fileContent: string): Promise<ParsedTransaction[]> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     Papa.parse<Record<string, string>>(fileContent, {
       header: true,
       skipEmptyLines: true,
@@ -32,6 +32,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             if (isNaN(date.getTime())) {
               continue;
             }
+            if (amount > 0) continue; // skip income — expense tracker only
 
             rows.push({
               date,
@@ -39,7 +40,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
               merchant,
               amount,
               note: '',
-              type: amount > 0 ? 'Income' : 'Expense',
+              type: 'Expense',
             });
           } catch {
             continue;
@@ -49,8 +50,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
         resolve(rows);
       },
       error: (error: Error) => {
-        console.error('❌ Finnair CSV parsing error:', error);
-        resolve([]);
+        reject(new Error(`Failed to parse Finnair CSV: ${error.message}`));
       }
     });
   });

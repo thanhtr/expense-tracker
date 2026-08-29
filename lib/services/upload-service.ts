@@ -57,26 +57,34 @@ export async function processUpload(
   accountOwner: string,
   isDryRun = false,
 ) {
-  const resolved = (accountType === 'auto' || !accountType)
-    ? (detectBank(fileContent) ?? '')
+  const detected = (accountType === 'auto' || !accountType)
+    ? detectBank(fileContent)
     : accountType;
 
+  if (!detected) {
+    throw new Error('Could not detect bank type from CSV header. Please select the bank manually.');
+  }
+
   let rows;
-  switch (resolved) {
+  switch (detected) {
     case 'op':      rows = await parseOPBank(fileContent); break;
     case 'amex':    rows = await parseAmex(fileContent); break;
     case 'finnair': rows = await parseFinnair(fileContent); break;
     default:
-      throw new Error('Could not detect bank type. Please select manually.');
+      throw new Error(`Unknown bank type: ${detected}`);
+  }
+
+  if (rows.length === 0) {
+    throw new Error(`No expense transactions found in ${detected.toUpperCase()} CSV. Verify the file is not empty and contains the expected columns.`);
   }
 
   rows = await categorizeWithLearning(rows);
 
   if (isDryRun) {
-    return { ...(await runDryRun(rows)), detectedBank: resolved };
+    return { ...(await runDryRun(rows)), detectedBank: detected };
   }
 
   const result = await upsertTransactions(rows, accountOwner);
   invalidateDashboardCache();
-  return { ...result, detectedBank: resolved };
+  return { ...result, detectedBank: detected };
 }

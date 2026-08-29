@@ -3,7 +3,7 @@ import { parseFinnishAmount, findColumn } from './utils';
 import { ParsedTransaction } from '@/lib/types';
 
 export async function parseAmex(fileContent: string): Promise<ParsedTransaction[]> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     Papa.parse<Record<string, string>>(fileContent, {
       header: true,
       skipEmptyLines: true,
@@ -50,8 +50,7 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
         resolve(rows);
       },
       error: (error: Error) => {
-        console.error('❌ Amex CSV parsing error:', error);
-        resolve([]);
+        reject(new Error(`Failed to parse Amex CSV: ${error.message}`));
       }
     });
   });
