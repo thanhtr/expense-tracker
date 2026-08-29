@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DashboardAggregation } from '@/lib/types';
 import type { ForecastResult } from '@/lib/services/forecast-service';
@@ -689,6 +689,9 @@ export function DashboardStats() {
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const shouldRefresh = useRef(false);
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
 
@@ -722,22 +725,27 @@ export function DashboardStats() {
     (async () => {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+        if (shouldRefresh.current) params.set('refresh', '1');
         const res = await fetch(`/api/dashboard?${params}`);
         if (res.ok) setUnfiltered(await res.json());
       } catch (e) { console.error(e); }
     })();
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, refreshNonce]);
 
   // Fetch filtered + comparison-period for deltas
   useEffect(() => {
     (async () => {
       setLoading(true);
+      const isRefresh = shouldRefresh.current;
+      if (isRefresh) shouldRefresh.current = false;
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         if (selectedCategory) params.set('category', selectedCategory);
+        if (isRefresh) params.set('refresh', '1');
 
         const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
         if (selectedCategory) prevParams.set('category', selectedCategory);
+        if (isRefresh) prevParams.set('refresh', '1');
 
         const [resCur, resPrev] = await Promise.all([
           fetch(`/api/dashboard?${params}`),
@@ -749,9 +757,10 @@ export function DashboardStats() {
         console.error(e);
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory, compareRange]);
+  }, [dateFrom, dateTo, selectedCategory, compareRange, refreshNonce]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -931,6 +940,19 @@ export function DashboardStats() {
           <button className={compareMode === 'yoy' ? 'active' : ''} onClick={() => setCompareMode('yoy')}>Year ago</button>
         </div>
         <div className="ml-auto flex gap-[6px]">
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={() => {
+              shouldRefresh.current = true;
+              setRefreshing(true);
+              setRefreshNonce(n => n + 1);
+            }}
+            className="btn-ghost print:hidden"
+            title="Force-refresh from database, bypassing the 5-min cache"
+          >
+            {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
+          </button>
           <a href="/api/export" className="btn-ghost print:hidden">Export CSV</a>
           <button
             type="button"

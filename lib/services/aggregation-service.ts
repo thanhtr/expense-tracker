@@ -19,10 +19,11 @@ export async function getDashboardStats(
   category?: string,
   paidBy?: string,
   account?: string,
+  forceRefresh = false,
 ): Promise<DashboardAggregation> {
   const key = cacheKey(dateFrom, dateTo, category, paidBy, account);
   const cached = _cache.get(key);
-  if (cached && Date.now() < cached.expiry) return cached.data;
+  if (!forceRefresh && cached && Date.now() < cached.expiry) return cached.data;
 
   // baseWhere: period + account + person filters, no category
   const baseWhere: Prisma.TransactionWhereInput = {};

@@ -14,6 +14,7 @@ export const dashboardQuerySchema = z.object({
   category: z.string().max(100).optional(),
   paid_by: z.enum(PAID_BY).optional(),
   account: z.string().max(100).optional(),
+  refresh: z.literal('1').optional(),
 });
 
 export const transactionQuerySchema = z.object({
