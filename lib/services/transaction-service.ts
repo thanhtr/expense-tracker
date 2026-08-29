@@ -11,7 +11,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     return { imported: 0, duplicates: 0, errors: 0, total: 0, created: 0, skipped: 0 };
   }
 
-  const paidBy = accountOwner === 'thuy' ? 'thuy' : 'tung';
+  const paidBy = accountOwner || 'tung';
 
   // Build dedupKey for every row (suffix for intra-batch duplicates)
   const seenCount = new Map<string, number>();
@@ -53,7 +53,7 @@ export async function getTransactions(filters: {
   category?: string;
   merchant?: string;
   type?: string;
-  paidBy?: 'tung' | 'thuy' | 'other';
+  paidBy?: string;
   amountMin?: number;
   amountMax?: number;
   tag?: string;

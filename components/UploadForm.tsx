@@ -3,11 +3,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { detectBank } from '@/lib/parsers';
 
+interface HouseholdMember {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 interface QueueItem {
   id: string;
   file: File;
   detectedBank: 'op' | 'amex' | 'finnair' | null;
-  owner: 'tung' | 'thuy';
+  owner: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   result?: { created: number; skipped: number; total: number };
   error?: string;
@@ -31,7 +37,15 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [lastImports, setLastImports] = useState<Record<string, string | null>>({});
+  const [members, setMembers] = useState<HouseholdMember[]>([{ id: 0, name: 'Tung', slug: 'tung' }]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch('/api/household-members')
+      .then(r => r.ok ? r.json() as Promise<HouseholdMember[]> : [])
+      .then(data => { if (data.length) setMembers(data); })
+      .catch(() => {});
+  }, []);
 
   function refreshLastImports() {
     fetch('/api/upload/last-import')
@@ -52,7 +66,7 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
         detectedBank: detectBank(header),
-        owner: 'tung' as const,
+        owner: members[0]?.slug ?? 'tung',
         status: 'pending' as const,
       };
     }));
@@ -181,12 +195,13 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
                     )}
                     <select
                       value={item.owner}
-                      onChange={e => updateItem(item.id, { owner: e.target.value as 'tung' | 'thuy' })}
+                      onChange={e => updateItem(item.id, { owner: e.target.value })}
                       disabled={item.status !== 'pending'}
                       className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
                     >
-                      <option value="tung">Tung</option>
-                      <option value="thuy">Thuy</option>
+                      {members.map(m => (
+                        <option key={m.id} value={m.slug}>{m.name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
