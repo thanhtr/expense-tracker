@@ -27,7 +27,7 @@ interface RawRow {
   account:        string;
   merchant:       string;
   amount:         number;
-  note:           string;
+  note:           string | null;
   type:           string;
   category:       string;
   paidBy:         string;
@@ -84,7 +84,7 @@ function flattenToRows(rawRows: RawRow[], syncedAt: string): BQRow[] {
       merchant:   tx.merchant,
       type:       tx.type,
       paid_by:    tx.paidBy,
-      note:       tx.note,
+      note:       tx.note ?? null,
       tags:       tx.tags ?? [],
       created_at: tx.createdAt.toISOString(),
       updated_at: tx.updatedAt.toISOString(),
@@ -104,7 +104,7 @@ function flattenToRows(rawRows: RawRow[], syncedAt: string): BQRow[] {
         bqRows.push({
           ...base,
           split_id: split.id,
-          amount:   split.amount,
+          amount:   Math.abs(split.amount),
           category: split.category,
           is_split: true,
         });
