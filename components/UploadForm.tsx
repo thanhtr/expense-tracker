@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { detectBank } from '@/lib/parsers';
+import { useState, useRef, useEffect } from 'react';
+import { detectBank, detectColumnMapping } from '@/lib/parsers';
 import type { ColumnMapping } from '@/lib/parsers';
 
 interface HouseholdMember {
@@ -15,7 +15,9 @@ interface QueueItem {
   file: File;
   detectedBank: 'op' | 'amex' | 'finnair' | 'generic' | null;
   columnMapping?: ColumnMapping;
-  detectingColumns?: boolean;
+  headers?: string[];
+  sampleRows?: Record<string, string>[];
+  savedProfile?: boolean;
   owner: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   result?: { created: number; skipped: number; total: number };
@@ -27,12 +29,32 @@ interface UploadFormProps {
 }
 
 const TRACKED_ACCOUNTS = ['OP Bank', 'Amex', 'Finnair Visa', 'Aktia'];
+const PROFILE_KEY_PREFIX = 'bankProfile:';
 
 function daysAgo(dateStr: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   if (diff === 0) return 'today';
   if (diff === 1) return '1 day ago';
   return `${diff} days ago`;
+}
+
+function profileKey(headers: string[]): string {
+  return PROFILE_KEY_PREFIX + [...headers].sort().join('|');
+}
+
+function loadProfile(headers: string[]): ColumnMapping | null {
+  try {
+    const raw = localStorage.getItem(profileKey(headers));
+    return raw ? (JSON.parse(raw) as ColumnMapping) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveProfile(headers: string[], mapping: ColumnMapping) {
+  try {
+    localStorage.setItem(profileKey(headers), JSON.stringify(mapping));
+  } catch { /* quota exceeded, ignore */ }
 }
 
 export function UploadForm({ onSuccess }: UploadFormProps) {
@@ -63,28 +85,6 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
     setQueue(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
   }
 
-  const detectColumns = useCallback(async (itemId: string, file: File) => {
-    try {
-      const preview = await file.slice(0, 2000).text();
-      const fd = new FormData();
-      fd.append('content', preview);
-      const res = await fetch('/api/upload/detect-columns', { method: 'POST', body: fd });
-      if (!res.ok) {
-        updateItem(itemId, { detectingColumns: false });
-        return;
-      }
-      const mapping = await res.json() as ColumnMapping;
-      if (mapping.confidence >= 0.5 && mapping.dateColumn && mapping.amountColumn && mapping.merchantColumn) {
-        updateItem(itemId, { detectedBank: 'generic', columnMapping: mapping, detectingColumns: false });
-      } else {
-        updateItem(itemId, { detectingColumns: false });
-      }
-    } catch {
-      updateItem(itemId, { detectingColumns: false });
-    }
-   
-  }, []);
-
   async function addFiles(files: File[]) {
     const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv');
     if (csvFiles.length === 0) return;
@@ -93,23 +93,39 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
     const items = await Promise.all(csvFiles.map(async file => {
       const header = await file.slice(0, 500).text();
       const bank = detectBank(header);
+
+      if (bank !== null) {
+        return {
+          id: `${file.name}-${Date.now()}-${Math.random()}`,
+          file,
+          detectedBank: bank,
+          owner: defaultOwner,
+          status: 'pending' as const,
+        };
+      }
+
+      // Unknown bank — run heuristic on first 4KB
+      const preview = await file.slice(0, 4096).text();
+      const heuristic = detectColumnMapping(preview);
+
+      // Check localStorage for a saved profile
+      const saved = heuristic.headers.length > 0 ? loadProfile(heuristic.headers) : null;
+      const mapping: ColumnMapping = saved ?? heuristic;
+
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
-        detectedBank: bank,
-        detectingColumns: bank === null,
+        detectedBank: 'generic' as const,
+        columnMapping: mapping,
+        headers: heuristic.headers,
+        sampleRows: heuristic.sampleRows,
+        savedProfile: !!saved,
         owner: defaultOwner,
         status: 'pending' as const,
       };
     }));
 
     setQueue(prev => [...prev, ...items]);
-
-    for (const item of items) {
-      if (item.detectedBank === null) {
-        detectColumns(item.id, item.file);
-      }
-    }
   }
 
   async function uploadAll() {
@@ -122,6 +138,14 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         updateItem(item.id, { status: 'error', error: 'Select bank type' });
         continue;
       }
+      if (item.detectedBank === 'generic') {
+        const m = item.columnMapping;
+        if (!m?.dateColumn || !m?.amountColumn || !m?.merchantColumn) {
+          updateItem(item.id, { status: 'error', error: 'Map all required columns first' });
+          continue;
+        }
+      }
+
       updateItem(item.id, { status: 'uploading' });
       try {
         const formData = new FormData();
@@ -136,6 +160,10 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         const data = await res.json();
         if (res.ok) {
           updateItem(item.id, { status: 'done', result: data });
+          // Save profile to localStorage on success
+          if (item.detectedBank === 'generic' && item.columnMapping && item.headers?.length) {
+            saveProfile(item.headers, item.columnMapping);
+          }
           onSuccess?.();
         } else {
           updateItem(item.id, { status: 'error', error: data.error || 'Upload failed' });
@@ -215,60 +243,50 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.file.name}</p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {item.detectingColumns ? (
-                      <span className="text-xs text-fg-3 italic">Analyzing format…</span>
-                    ) : item.detectedBank === 'generic' && item.columnMapping ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                          {item.columnMapping.bankLabel}
-                          {item.columnMapping.confidence < 0.75 && ' ⚠'}
-                        </span>
-                        <span className="text-xs text-fg-3">
-                          Date: <span className="font-mono">{item.columnMapping.dateColumn}</span>
-                          {' · '}Amount: <span className="font-mono">{item.columnMapping.amountColumn}</span>
-                          {' · '}Merchant: <span className="font-mono">{item.columnMapping.merchantColumn}</span>
-                        </span>
-                        <button
-                          onClick={() => updateItem(item.id, { detectedBank: null, columnMapping: undefined })}
-                          className="text-xs text-fg-3 hover:text-foreground underline"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <select
-                          value={item.detectedBank ?? ''}
-                          onChange={e => updateItem(item.id, {
-                            detectedBank: (e.target.value as 'op' | 'amex' | 'finnair') || null,
-                            columnMapping: undefined,
-                          })}
-                          disabled={item.status !== 'pending'}
-                          className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-                        >
-                          <option value="" disabled>Select bank…</option>
-                          <option value="op">OP Bank</option>
-                          <option value="amex">Amex</option>
-                          <option value="finnair">Finnair Visa</option>
-                        </select>
-                        {item.detectedBank && item.status === 'pending' && (
-                          <span className="text-xs text-fg-3">auto-detected</span>
-                        )}
-                      </>
-                    )}
-                    <select
-                      value={item.owner}
-                      onChange={e => updateItem(item.id, { owner: e.target.value })}
-                      disabled={item.status !== 'pending'}
-                      className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-                    >
-                      {members.map(m => (
-                        <option key={m.id} value={m.slug}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
+
+                  {/* Known bank (OP / Amex / Finnair) */}
+                  {item.detectedBank !== 'generic' && (
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <select
+                        value={item.detectedBank ?? ''}
+                        onChange={e => updateItem(item.id, {
+                          detectedBank: (e.target.value as 'op' | 'amex' | 'finnair') || null,
+                          columnMapping: undefined,
+                          headers: undefined,
+                          sampleRows: undefined,
+                        })}
+                        disabled={item.status !== 'pending'}
+                        className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                      >
+                        <option value="" disabled>Select bank…</option>
+                        <option value="op">OP Bank</option>
+                        <option value="amex">Amex</option>
+                        <option value="finnair">Finnair Visa</option>
+                      </select>
+                      {item.detectedBank && item.status === 'pending' && (
+                        <span className="text-xs text-fg-3">auto-detected</span>
+                      )}
+                      <OwnerSelect item={item} members={members} updateItem={updateItem} />
+                    </div>
+                  )}
+
+                  {/* Generic / unknown bank — mapping editor */}
+                  {item.detectedBank === 'generic' && item.status === 'pending' && (
+                    <GenericMappingEditor
+                      item={item}
+                      members={members}
+                      updateItem={updateItem}
+                    />
+                  )}
+
+                  {/* Generic done/error state — just show owner */}
+                  {item.detectedBank === 'generic' && item.status !== 'pending' && (
+                    <div className="mt-2">
+                      <OwnerSelect item={item} members={members} updateItem={updateItem} />
+                    </div>
+                  )}
                 </div>
+
                 <div className="flex items-center gap-2 shrink-0 pt-0.5">
                   {item.status === 'pending' && (
                     <button
@@ -320,6 +338,152 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
             </a>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function OwnerSelect({ item, members, updateItem }: {
+  item: QueueItem;
+  members: { id: number; name: string; slug: string }[];
+  updateItem: (id: string, patch: Partial<QueueItem>) => void;
+}) {
+  return (
+    <select
+      value={item.owner}
+      onChange={e => updateItem(item.id, { owner: e.target.value })}
+      disabled={item.status !== 'pending'}
+      className="text-xs border border-border-soft rounded px-2 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+    >
+      {members.map(m => (
+        <option key={m.id} value={m.slug}>{m.name}</option>
+      ))}
+    </select>
+  );
+}
+
+function GenericMappingEditor({ item, members, updateItem }: {
+  item: QueueItem;
+  members: { id: number; name: string; slug: string }[];
+  updateItem: (id: string, patch: Partial<QueueItem>) => void;
+}) {
+  const headers = item.headers ?? [];
+  const sampleRows = item.sampleRows ?? [];
+  const mapping = item.columnMapping;
+  const isSaved = item.savedProfile;
+
+  function setMapping(patch: Partial<ColumnMapping>) {
+    updateItem(item.id, {
+      columnMapping: { ...(mapping!), ...patch },
+      savedProfile: false,
+    });
+  }
+
+  const previewCols = [mapping?.dateColumn, mapping?.amountColumn, mapping?.merchantColumn].filter((c): c is string => !!c);
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Profile badge or "map columns" label */}
+      <div className="flex items-center gap-2">
+        {isSaved ? (
+          <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+            Saved: {mapping?.bankLabel ?? 'Unknown Bank'}
+          </span>
+        ) : (
+          <span className="text-xs text-fg-3 font-medium">Map columns</span>
+        )}
+        <OwnerSelect item={item} members={members} updateItem={updateItem} />
+      </div>
+
+      {/* Column mapping dropdowns */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: 'Date *', field: 'dateColumn' as const },
+          { label: 'Amount *', field: 'amountColumn' as const },
+          { label: 'Merchant *', field: 'merchantColumn' as const },
+          { label: 'Note', field: 'noteColumn' as const },
+        ].map(({ label, field }) => (
+          <div key={field}>
+            <label className="block text-[10px] text-fg-3 mb-0.5">{label}</label>
+            <select
+              value={(mapping?.[field] as string | null | undefined) ?? ''}
+              onChange={e => setMapping({ [field]: e.target.value || null })}
+              className="w-full text-xs border border-border-soft rounded px-1.5 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">{field === 'noteColumn' ? '(none)' : 'Select…'}</option>
+              {headers.map(h => (
+                <option key={h} value={h}>{h}</option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      {/* Advanced options row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div>
+          <label htmlFor={`${item.id}-amt-fmt`} className="block text-[10px] text-fg-3 mb-0.5">Amount format</label>
+          <select
+            id={`${item.id}-amt-fmt`}
+            value={mapping?.amountFormat ?? 'standard'}
+            onChange={e => setMapping({ amountFormat: e.target.value as 'standard' | 'finnish' })}
+            className="text-xs border border-border-soft rounded px-1.5 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="standard">1234.56 (dot)</option>
+            <option value="finnish">1 234,56 (comma)</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${item.id}-sign`} className="block text-[10px] text-fg-3 mb-0.5">Expense sign</label>
+          <select
+            id={`${item.id}-sign`}
+            value={mapping?.amountSign ?? 'standard'}
+            onChange={e => setMapping({ amountSign: e.target.value as 'standard' | 'inverted' })}
+            className="text-xs border border-border-soft rounded px-1.5 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="standard">Negative = expense</option>
+            <option value="inverted">Positive = expense</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${item.id}-bank`} className="block text-[10px] text-fg-3 mb-0.5">Bank name</label>
+          <input
+            id={`${item.id}-bank`}
+            type="text"
+            value={mapping?.bankLabel ?? ''}
+            onChange={e => setMapping({ bankLabel: e.target.value })}
+            placeholder="e.g. Nordea"
+            className="text-xs border border-border-soft rounded px-1.5 py-1 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500 w-28"
+          />
+        </div>
+      </div>
+
+      {/* Sample preview table */}
+      {previewCols.length > 0 && sampleRows.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-border-soft">
+                {previewCols.map(col => (
+                  <th key={col} className="text-left py-1 pr-3 text-fg-3 font-medium truncate max-w-[120px]">{col}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sampleRows.map((row, i) => (
+                <tr key={i} className="border-b border-border-soft/50">
+                  {previewCols.map(col => (
+                    <td key={col} className="py-1 pr-3 text-fg-2 truncate max-w-[120px]">{row[col] ?? '—'}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {headers.length === 0 && (
+        <p className="text-xs text-red-500">Could not read columns from this file. Check that it&apos;s a valid CSV.</p>
       )}
     </div>
   );
