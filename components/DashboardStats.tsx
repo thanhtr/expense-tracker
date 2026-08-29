@@ -26,7 +26,7 @@ const CAT_COLORS = [
   'oklch(0.70 0.05 60)',
 ];
 
-const PERIOD_PRESETS = ['Last month', '2 months ago', 'YTD', 'Custom'] as const;
+const PERIOD_PRESETS = ['This month', 'Last month', '2 months ago', 'YTD', 'Custom'] as const;
 type Preset = (typeof PERIOD_PRESETS)[number];
 
 // ----- helpers -----
@@ -36,6 +36,11 @@ function ymd(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pa
 
 function rangeForPreset(p: Preset): { from: string; to: string } {
   const now = new Date();
+  if (p === 'This month') {
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: ymd(from), to: ymd(to) };
+  }
   if (p === 'Last month') {
     const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const to = new Date(now.getFullYear(), now.getMonth(), 0);
@@ -645,7 +650,7 @@ function DashboardSkeleton() {
 
 // ----- main component -----
 
-const DEFAULT_PRESET: Preset = 'Last month';
+const DEFAULT_PRESET: Preset = 'This month';
 
 export function DashboardStats() {
   const searchParams = useSearchParams();
