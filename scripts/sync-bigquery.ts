@@ -49,7 +49,7 @@ interface BQRow {
   type:       string;
   category:   string;
   paid_by:    string;
-  note:       string;
+  note:       string | null;
   tags:       string[];
   is_split:   boolean;
   created_at: string;
