@@ -32,15 +32,13 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             if (isNaN(date.getTime())) {
               continue;
             }
-            if (amount > 0) continue; // skip income — expense tracker only
-
             rows.push({
               date,
               account: 'Finnair Visa',
               merchant,
               amount,
               note: '',
-              type: 'Expense',
+              type: amount > 0 ? 'Income' : 'Expense',
             });
           } catch {
             continue;

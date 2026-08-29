@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 import { prisma } from '@/lib/db';
+import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 import { transactionQuerySchema, bulkDeleteQuerySchema, parseQuery } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
@@ -50,6 +51,7 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
+    invalidateDashboardCache();
     return NextResponse.json({ deleted: result.count, total: result.count, failures: [] });
   } catch (error) {
     console.error('Bulk delete error:', error);
