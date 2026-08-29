@@ -6,7 +6,7 @@ import { DashboardAggregation } from '@/lib/types';
 import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-  ComposedChart, Line, CartesianGrid, Legend, LineChart,
+  ComposedChart, Line, CartesianGrid, Legend, LineChart, ReferenceLine,
 } from 'recharts';
 import { NetWorthCard } from './NetWorthCard';
 import { NetWorthChart } from './NetWorthChart';
@@ -418,6 +418,15 @@ function MonthlyTrendLineChart({
 
   const allSeries = [...categories, 'Income'];
 
+  // Mean of per-month expense totals (categories only, not Income)
+  const avgExpense = useMemo(() => {
+    if (data.length === 0) return 0;
+    const totals = data.map(row =>
+      categories.reduce((sum, cat) => sum + (Number(row[cat]) || 0), 0)
+    );
+    return totals.reduce((a, b) => a + b, 0) / totals.length;
+  }, [data, categories]);
+
   return (
     <ResponsiveContainer width="100%" height={320}>
       <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
@@ -484,6 +493,15 @@ function MonthlyTrendLineChart({
           hide={hidden.has('Income')}
           connectNulls
         />
+        {avgExpense > 0 && (
+          <ReferenceLine
+            y={avgExpense}
+            stroke="var(--fg-3)"
+            strokeDasharray="4 3"
+            strokeWidth={1}
+            label={{ value: `Avg ${fmtY(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
+          />
+        )}
         {/* Render hidden series last so their legend entries still appear */}
         {allSeries.filter(s => hidden.has(s)).map(s => (
           <Line key={`__hidden_${s}`} dataKey={s} stroke="transparent" legendType="none" />
