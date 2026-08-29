@@ -9,7 +9,7 @@ export interface HeuristicResult extends ColumnMapping {
 const DATE_KEYWORDS = ['date', 'datum', 'päivä', 'booking', 'posting', 'value', 'transaction', 'kirjaus', 'arvopäivä'];
 const AMOUNT_KEYWORDS = ['amount', 'sum', 'summa', 'belopp', 'betrag', 'summe', 'charge', 'debit', 'credit', 'kredit', 'debet', 'määrä', 'euro'];
 const MERCHANT_KEYWORDS = ['description', 'merchant', 'payee', 'beneficiary', 'recipient', 'saaja', 'kuvaus', 'selite', 'text', 'narrative', 'memo', 'details', 'maksaja', 'location', 'purchase'];
-const NOTE_KEYWORDS = ['note', 'message', 'viesti', 'reference', 'ref', 'info', 'selitys', 'viite', 'additional'];
+const NOTE_KEYWORDS = ['note', 'memo', 'message', 'viesti', 'reference', 'ref', 'info', 'selitys', 'viite', 'additional'];
 
 function scores(header: string, keywords: string[]): number {
   const h = header.toLowerCase();
