@@ -44,6 +44,7 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               }
 
               const amount = parseFinnishAmount(amountStr);
+              if (amount > 0) continue; // skip income — expense tracker only
               const date = new Date(dateStr.replace(/"/g, ''));
               const recipient = (recipientStr?.trim() || '').replace(/"/g, '');
               const desc = (descStr?.trim() || '').replace(/"/g, '');
@@ -73,7 +74,7 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
                 merchant,
                 amount,
                 note,
-                type: amount > 0 ? 'Income' : 'Expense',
+                type: 'Expense',
               });
             } catch {
               continue;

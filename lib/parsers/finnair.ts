@@ -32,6 +32,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             if (isNaN(date.getTime())) {
               continue;
             }
+            if (amount > 0) continue; // skip income — expense tracker only
 
             rows.push({
               date,
@@ -39,7 +40,7 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
               merchant,
               amount,
               note: '',
-              type: amount > 0 ? 'Income' : 'Expense',
+              type: 'Expense',
             });
           } catch {
             continue;
