@@ -6,7 +6,7 @@ import { DashboardAggregation } from '@/lib/types';
 import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-  ComposedChart, Line, CartesianGrid, Legend,
+  ComposedChart, Line, CartesianGrid, Legend, LineChart,
 } from 'recharts';
 import { NetWorthCard } from './NetWorthCard';
 import { NetWorthChart } from './NetWorthChart';
@@ -382,6 +382,113 @@ function IncomeTrendChart({ trendData }: { trendData: { month: string; expenses:
           activeDot={{ r: 5 }}
         />
       </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+const INCOME_COLOR = 'oklch(0.48 0.12 155)';
+
+function MonthlyTrendLineChart({
+  data,
+  categories,
+}: {
+  data: Array<Record<string, number | string>>;
+  categories: string[];
+}) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const toggleSeries = (key: string) => {
+    setHidden(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const fmtMonth = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  };
+  const fmtLongMonth = (m: string) => {
+    const [y, mo] = m.split('-');
+    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+  const fmtY = (v: number) => Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
+
+  const allSeries = [...categories, 'Income'];
+
+  return (
+    <ResponsiveContainer width="100%" height={320}>
+      <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis
+          dataKey="month"
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={{ stroke: 'var(--border)' }}
+          tickFormatter={fmtMonth}
+        />
+        <YAxis
+          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={fmtY}
+          width={44}
+        />
+        <Tooltip
+          contentStyle={{
+            background: 'oklch(0.22 0.012 260)',
+            border: 'none',
+            borderRadius: 6,
+            color: '#fff',
+            fontSize: 11,
+            padding: '8px 10px',
+          }}
+          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+          itemStyle={{ color: '#fff', fontSize: 11 }}
+          formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name]}
+          labelFormatter={(label) => fmtLongMonth(label as string)}
+        />
+        <Legend
+          wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
+          onClick={(e) => toggleSeries(e.dataKey as string)}
+          formatter={(value, entry) => (
+            <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
+              {value}
+            </span>
+          )}
+        />
+        {categories.map((cat, i) => (
+          <Line
+            key={cat}
+            type="monotone"
+            dataKey={cat}
+            stroke={CAT_COLORS[i % CAT_COLORS.length]}
+            strokeWidth={hidden.has(cat) ? 0 : 1.5}
+            dot={false}
+            activeDot={hidden.has(cat) ? false : { r: 4 }}
+            hide={hidden.has(cat)}
+            connectNulls
+          />
+        ))}
+        <Line
+          key="Income"
+          type="monotone"
+          dataKey="Income"
+          stroke={INCOME_COLOR}
+          strokeWidth={hidden.has('Income') ? 0 : 2}
+          strokeDasharray="5 3"
+          dot={false}
+          activeDot={hidden.has('Income') ? false : { r: 4 }}
+          hide={hidden.has('Income')}
+          connectNulls
+        />
+        {/* Render hidden series last so their legend entries still appear */}
+        {allSeries.filter(s => hidden.has(s)).map(s => (
+          <Line key={`__hidden_${s}`} dataKey={s} stroke="transparent" legendType="none" />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }
@@ -812,6 +919,19 @@ export function DashboardStats() {
       .concat([...seen].filter(c => !current.includes(c)));
   }, [data]);
 
+  // Monthly trend line chart: byCategoryMonth with Income merged in
+  const monthlyTrendData = useMemo(() => {
+    if (!data) return [];
+    const incomeByMonth: Record<string, number> = {};
+    for (const { month, amount } of data.byMonthIncome) {
+      incomeByMonth[month] = amount;
+    }
+    return data.byCategoryMonth.map(row => ({
+      ...row,
+      Income: incomeByMonth[row.month as string] ?? 0,
+    }));
+  }, [data]);
+
   // Income vs expenses trend data: merged per month
   const incomeTrendData = useMemo(() => {
     if (!data) return [];
@@ -1193,6 +1313,21 @@ export function DashboardStats() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Monthly trend — line chart per category + income */}
+      {monthlyTrendData.length > 1 && (
+        <div className="dash-card">
+          <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
+            <div>
+              <h3 className="text-[13px] font-semibold m-0">Monthly trends</h3>
+              <div className="text-[12px] text-[var(--fg-3)]">Expense per category and income — click legend to toggle</div>
+            </div>
+          </div>
+          <div className="p-[0_12px_12px]">
+            <MonthlyTrendLineChart data={monthlyTrendData} categories={trendCategories} />
           </div>
         </div>
       )}
