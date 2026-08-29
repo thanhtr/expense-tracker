@@ -416,8 +416,6 @@ function MonthlyTrendLineChart({
   };
   const fmtY = (v: number) => Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
 
-  const allSeries = [...categories, 'Income'];
-
   // Mean of per-month expense totals (categories only, not Income)
   const avgExpense = useMemo(() => {
     if (data.length === 0) return 0;
@@ -427,87 +425,98 @@ function MonthlyTrendLineChart({
     return totals.reduce((a, b) => a + b, 0) / totals.length;
   }, [data, categories]);
 
+  const avgIncome = useMemo(() => {
+    if (data.length === 0) return 0;
+    const totals = data.map(row => Number(row['Income']) || 0).filter(v => v > 0);
+    return totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
+  }, [data]);
+
   return (
-    <ResponsiveContainer width="100%" height={320}>
-      <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis
-          dataKey="month"
-          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
-          tickLine={false}
-          axisLine={{ stroke: 'var(--border)' }}
-          tickFormatter={fmtMonth}
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={fmtY}
-          width={44}
-        />
-        <Tooltip
-          contentStyle={{
-            background: 'oklch(0.22 0.012 260)',
-            border: 'none',
-            borderRadius: 6,
-            color: '#fff',
-            fontSize: 11,
-            padding: '8px 10px',
-          }}
-          labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
-          itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name]}
-          labelFormatter={(label) => fmtLongMonth(label as string)}
-        />
-        <Legend
-          wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
-          onClick={(e) => toggleSeries(e.dataKey as string)}
-          formatter={(value, entry) => (
-            <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
-              {value}
-            </span>
+    <div>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis
+            dataKey="month"
+            tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+            tickLine={false}
+            axisLine={{ stroke: 'var(--border)' }}
+            tickFormatter={fmtMonth}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={fmtY}
+            width={44}
+          />
+          <Tooltip
+            contentStyle={{
+              background: 'oklch(0.22 0.012 260)',
+              border: 'none',
+              borderRadius: 6,
+              color: '#fff',
+              fontSize: 11,
+              padding: '8px 10px',
+            }}
+            labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+            itemStyle={{ color: '#fff', fontSize: 11 }}
+            formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name]}
+            labelFormatter={(label) => fmtLongMonth(label as string)}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
+            onClick={(e) => toggleSeries(e.dataKey as string)}
+            formatter={(value, entry) => (
+              <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
+                {value}
+              </span>
+            )}
+          />
+          {categories.map((cat, i) => (
+            <Line
+              key={cat}
+              type="monotone"
+              dataKey={cat}
+              stroke={CAT_COLORS[i % CAT_COLORS.length]}
+              strokeWidth={hidden.has(cat) ? 0 : 1.5}
+              dot={false}
+              activeDot={hidden.has(cat) ? false : { r: 4 }}
+              hide={hidden.has(cat)}
+              connectNulls
+            />
+          ))}
+          {avgExpense > 0 && (
+            <ReferenceLine
+              y={avgExpense}
+              stroke="var(--fg-3)"
+              strokeDasharray="4 3"
+              strokeWidth={1}
+              label={{ value: `Avg ${fmtY(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
+            />
           )}
-        />
-        {categories.map((cat, i) => (
-          <Line
-            key={cat}
-            type="monotone"
-            dataKey={cat}
-            stroke={CAT_COLORS[i % CAT_COLORS.length]}
-            strokeWidth={hidden.has(cat) ? 0 : 1.5}
-            dot={false}
-            activeDot={hidden.has(cat) ? false : { r: 4 }}
-            hide={hidden.has(cat)}
-            connectNulls
-          />
-        ))}
-        <Line
-          key="Income"
-          type="monotone"
-          dataKey="Income"
-          stroke={INCOME_COLOR}
-          strokeWidth={hidden.has('Income') ? 0 : 2}
-          strokeDasharray="5 3"
-          dot={false}
-          activeDot={hidden.has('Income') ? false : { r: 4 }}
-          hide={hidden.has('Income')}
-          connectNulls
-        />
-        {avgExpense > 0 && (
-          <ReferenceLine
-            y={avgExpense}
-            stroke="var(--fg-3)"
-            strokeDasharray="4 3"
-            strokeWidth={1}
-            label={{ value: `Avg ${fmtY(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
-          />
-        )}
-        {/* Render hidden series last so their legend entries still appear */}
-        {allSeries.filter(s => hidden.has(s)).map(s => (
-          <Line key={`__hidden_${s}`} dataKey={s} stroke="transparent" legendType="none" />
-        ))}
-      </LineChart>
-    </ResponsiveContainer>
+          {/* Render hidden series last so their legend entries still appear */}
+          {categories.filter(s => hidden.has(s)).map(s => (
+            <Line key={`__hidden_${s}`} dataKey={s} stroke="transparent" legendType="none" />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+      {avgIncome > 0 && (
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 px-2 text-[11px] text-[var(--fg-3)]">
+          <span>
+            <span className="font-medium" style={{ color: INCOME_COLOR }}>Income</span>
+            {data.map(row => (
+              Number(row['Income']) > 0 ? (
+                <span key={row.month as string} className="ml-2">
+                  {fmtMonth(row.month as string)}: <span className="text-[var(--foreground)]">{fmtEUR(Number(row['Income']), { cents: false })}</span>
+                </span>
+              ) : null
+            ))}
+            <span className="ml-3 opacity-60">avg {fmtY(avgIncome)}/mo</span>
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
