@@ -2,7 +2,7 @@ name: Sync to BigQuery
 
 on:
   schedule:
-    - cron: '0 6 1 * *'   # monthly on the 1st at 6am UTC
+    - cron: '0 6 2 * *'   # monthly on the 2nd at 6am UTC
   workflow_dispatch:       # manual trigger from Actions tab
 
 permissions:
