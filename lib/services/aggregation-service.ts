@@ -49,7 +49,9 @@ export async function getDashboardStats(
     ...(category ? {} : { NOT: { category: 'Investments' } }),
   };
 
-  const incomeWhere: Prisma.TransactionWhereInput = { ...where, type: 'Income' };
+  // Income is never filtered by category — the income line on charts should always
+  // reflect total income for the period, regardless of which expense category is selected.
+  const incomeWhere: Prisma.TransactionWhereInput = { ...baseWhere, type: 'Income' };
 
   // Investment total always computed for the period regardless of category filter
   const investmentsWhere: Prisma.TransactionWhereInput = {
