@@ -16,16 +16,18 @@ describe('parseFinnair', () => {
     expect(result[0].account).toBe('Finnair Visa');
   });
 
-  it('should skip positive amounts (income/refunds)', async () => {
+  it('should parse positive amounts (income/refunds) as Income type', async () => {
     const csv = `Payment Date,Location of purchase,Amount
 2026-04-10,Charge,-45.67
 2026-04-11,Refund,100.00`;
 
     const result = await parseFinnair(csv);
 
-    expect(result).toHaveLength(1);
-    expect(result[0].merchant).toBe('Charge');
-    expect(result[0].type).toBe('Expense');
+    expect(result).toHaveLength(2);
+    const expense = result.find(r => r.merchant === 'Charge');
+    const income = result.find(r => r.merchant === 'Refund');
+    expect(expense?.type).toBe('Expense');
+    expect(income?.type).toBe('Income');
   });
 
   it('should handle different column names', async () => {
@@ -47,13 +49,15 @@ describe('parseFinnair', () => {
     expect(result[0].type).toBe('Expense');
   });
 
-  it('should return empty array for refund-only CSV (income skipped)', async () => {
+  it('should parse positive-only CSV as Income type', async () => {
     const csv = `Payment Date,Location of purchase,Amount
 2026-04-10,Store,+100.00`;
 
     const result = await parseFinnair(csv);
 
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('Income');
+    expect(result[0].merchant).toBe('Store');
   });
 
   it('should handle decimal amounts without Finnish locale formatting', async () => {

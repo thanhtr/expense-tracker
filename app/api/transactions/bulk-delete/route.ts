@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { bulkDeleteSchema, parseBody } from '@/lib/validation';
+import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,7 @@ export async function POST(request: NextRequest) {
     const { ids } = parsed.data;
 
     const result = await prisma.transaction.deleteMany({ where: { id: { in: ids } } });
+    invalidateDashboardCache();
     return NextResponse.json({ deleted: result.count });
   } catch (error) {
     console.error('Bulk delete error:', error);
