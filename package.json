@@ -59,6 +59,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.7.0",
     "typescript": "^5",
-    "vitest": "^1.6.1"
+    "vitest": "^1.6.1",
+    "@google-cloud/bigquery": "^9.0.3"
   }
 }
