@@ -2,6 +2,7 @@ import { parseOPBank, parseAmex, parseFinnair, detectBank } from '@/lib/parsers'
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
 import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
+import { getIncomeRules, matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction } from '@/lib/types';
 
@@ -79,6 +80,16 @@ export async function processUpload(
   }
 
   rows = await categorizeWithLearning(rows);
+
+  // Reclassify positive-amount Income transactions that match no income rule as
+  // positive-amount Expense (reimbursement). Income rules are managed in the webapp.
+  const incomeRules = await getIncomeRules();
+  rows = rows.map(tx => {
+    if (tx.type === 'Income' && !matchesAnyIncomeRule(tx, incomeRules)) {
+      return { ...tx, type: 'Expense' as const };
+    }
+    return tx;
+  });
 
   if (isDryRun) {
     return { ...(await runDryRun(rows)), detectedBank: detected };

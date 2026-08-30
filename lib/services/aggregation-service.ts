@@ -49,6 +49,11 @@ export async function getDashboardStats(
     ...(category ? {} : { NOT: { category: 'Investments' } }),
   };
 
+  // Outflows: regular expenses (negative amounts). Used for totals, time-series, topTx.
+  const outflowWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { lt: 0 } };
+  // Reimbursements: positive-amount Expenses (money back against an expense category).
+  const reimbWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { gt: 0 } };
+
   // Income is never filtered by category — the income line on charts should always
   // reflect total income for the period, regardless of which expense category is selected.
   const incomeWhere: Prisma.TransactionWhereInput = { ...baseWhere, type: 'Income' };
@@ -72,36 +77,38 @@ export async function getDashboardStats(
     incomeSourceGroups,
     topTx,
     incomeRows,
+    reimbByCategoryGroups,
+    reimbAggregate,
   ] = await Promise.all([
     prisma.transaction.groupBy({
       by: ['category'],
-      where: expenseWhere,
+      where: outflowWhere,
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ['account'],
-      where: expenseWhere,
+      where: outflowWhere,
       _sum: { amount: true },
     }),
     prisma.transaction.groupBy({
       by: ['paidBy'],
-      where: expenseWhere,
+      where: outflowWhere,
       _sum: { amount: true },
     }),
     // Date is @db.Date so grouping by date gives one row per (day, category)
     prisma.transaction.groupBy({
       by: ['date', 'category'],
-      where: expenseWhere,
+      where: outflowWhere,
       _sum: { amount: true },
       orderBy: { date: 'asc' },
     }),
     prisma.transaction.aggregate({
-      where: expenseWhere,
+      where: outflowWhere,
       _sum: { amount: true },
       _count: { id: true },
     }),
     prisma.transaction.count({
-      where: { ...expenseWhere, category: '' },
+      where: { ...outflowWhere, category: '' },
     }),
     prisma.transaction.aggregate({
       where: incomeWhere,
@@ -119,7 +126,7 @@ export async function getDashboardStats(
       take: 5,
     }),
     prisma.transaction.findFirst({
-      where: expenseWhere,
+      where: outflowWhere,
       select: { merchant: true, amount: true, category: true, date: true },
       orderBy: { amount: 'asc' }, // most negative = largest expense
     }),
@@ -129,11 +136,22 @@ export async function getDashboardStats(
       orderBy: { date: 'asc' },
       take: 10000,
     }),
+    // Reimbursements: positive-amount Expenses grouped by category for netting
+    prisma.transaction.groupBy({
+      by: ['category'],
+      where: reimbWhere,
+      _sum: { amount: true },
+    }),
+    prisma.transaction.aggregate({
+      where: reimbWhere,
+      _sum: { amount: true },
+    }),
   ]);
 
   const totalExpenses = Math.abs(totalAgg._sum.amount ?? 0);
   const totalIncome = incomeAggregate._sum.amount ?? 0;
   const totalInvestments = Math.abs(investmentsAggregate._sum.amount ?? 0);
+  const totalReimbursements = reimbAggregate._sum.amount ?? 0;
   const transactionCount = totalAgg._count.id;
 
   const byIncomeSource = incomeSourceGroups.map(g => ({
@@ -248,6 +266,12 @@ export async function getDashboardStats(
     }
   }
 
+  // Net reimbursements against each category's gross expense total
+  for (const r of reimbByCategoryGroups) {
+    const cat = r.category || '⚠ Uncategorized';
+    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
+  }
+
   const finalByCategoryArray = Object.entries(adjustedByCat)
     .filter(([, amt]) => amt > 0)
     .map(([cat, amt]) => ({ category: cat, amount: amt }))
@@ -285,7 +309,8 @@ export async function getDashboardStats(
     totalExpenses,
     totalIncome,
     totalInvestments,
-    net: totalIncome - totalExpenses,
+    totalReimbursements,
+    net: totalIncome - totalExpenses + totalReimbursements,
     byCategory: finalByCategoryArray,
     byAccount,
     byPerson: byPersonArray,

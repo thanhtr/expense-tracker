@@ -29,8 +29,8 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     date: row.date,
     account: row.account,
     merchant: row.merchant,
-    // Expenses stored as negative, income as positive
-    amount: row.type === 'Income' ? Math.abs(row.amount) : -Math.abs(row.amount),
+    // Income stored as positive; Expense preserves sign (negative = outflow, positive = reimbursement)
+    amount: row.type === 'Income' ? Math.abs(row.amount) : row.amount,
     note: row.note || '',
     type: row.type,
     category: row.category || '',

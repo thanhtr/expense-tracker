@@ -1002,12 +1002,14 @@ export function DashboardStats() {
   const prevTotalExpenses = prevData?.totalExpenses ?? 0;
   const prevTotalIncome = prevData?.totalIncome ?? 0;
   const prevTotalInvestments = prevData?.totalInvestments ?? 0;
+  const prevTotalReimbursements = prevData?.totalReimbursements ?? 0;
   const prevNet = prevData?.net ?? 0;
   const prevTxCount = prevData?.transactionCount ?? 0;
 
   const sparkExpenses = [prevTotalExpenses || data.totalExpenses, data.totalExpenses];
   const sparkIncome = [prevTotalIncome || data.totalIncome, data.totalIncome];
   const sparkInvestments = [prevTotalInvestments || data.totalInvestments, data.totalInvestments];
+  const sparkReimb = [prevTotalReimbursements || data.totalReimbursements, data.totalReimbursements];
   const sparkNet = [prevNet || data.net, data.net];
   const sparkTx = [prevTxCount || data.transactionCount, data.transactionCount];
 
@@ -1136,8 +1138,21 @@ export function DashboardStats() {
           valueColor="oklch(0.38 0.10 160)"
           vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
+        {data.totalReimbursements > 0 && (
+          <KPI
+            label="Reimbursed"
+            value={fmtEUR(data.totalReimbursements, { cents: true })}
+            curr={data.totalReimbursements}
+            prev={prevTotalReimbursements}
+            goodWhenDown={false}
+            sparkData={sparkReimb}
+            sparkColor="oklch(0.55 0.10 175)"
+            valueColor="oklch(0.38 0.10 175)"
+            vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
+          />
+        )}
         <KPI
-          label="Net"
+          label="Net out-of-pocket"
           value={fmtEUR(data.net, { cents: true })}
           curr={data.net}
           prev={prevNet}

@@ -40,6 +40,7 @@ export const TransactionRow = memo(function TransactionRow({
 }: TransactionRowProps) {
   const { nameForSlug } = useHouseholdMembers();
   const [category, setCategory] = useState(transaction.category);
+  const [txType, setTxType] = useState(transaction.type);
   const [tags, setTags] = useState<string[]>(transaction.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
@@ -190,8 +191,32 @@ export const TransactionRow = memo(function TransactionRow({
       style: 'currency', currency: 'EUR', minimumFractionDigits: 2,
     }).format(Math.abs(n));
 
-  const amountColor = transaction.type === 'Expense' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
-  const amountPrefix = transaction.type === 'Expense' ? '−' : '+';
+  const handleTypeChange = async (newType: string) => {
+    if (newType === txType) return;
+    setTxType(newType);
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: newType }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Type changed to ${newType}`);
+    } catch {
+      toast.error('Failed to update type');
+      setTxType(txType);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Positive expense = reimbursement (money back); treat as green
+  const isReimb = txType === 'Expense' && transaction.amount > 0;
+  const amountColor = (txType === 'Expense' && transaction.amount < 0)
+    ? 'text-red-600 dark:text-red-400'
+    : 'text-green-600 dark:text-green-400';
+  const amountPrefix = (txType === 'Expense' && transaction.amount < 0) ? '−' : '+';
 
   const selectCls = [
     'cursor-pointer rounded text-sm border border-transparent px-2 py-1',
@@ -314,8 +339,22 @@ export const TransactionRow = memo(function TransactionRow({
       </td>
       <td className="px-2 py-3 text-sm">
         <div className="flex items-center gap-1">
+          {/* Type selector — visible for Income rows and positive-amount Expense (reimbursement) rows */}
+          {(txType === 'Income' || isReimb) && (
+            <select
+              value={txType}
+              onChange={e => handleTypeChange(e.target.value)}
+              disabled={saving}
+              aria-label="Transaction type"
+              title="Change transaction type"
+              className="cursor-pointer rounded text-[11px] border border-border-soft px-1.5 py-1 bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="Income">Income</option>
+              <option value="Expense">Expense (reimb.)</option>
+            </select>
+          )}
           {/* Split button */}
-          {transaction.type === 'Expense' && (
+          {transaction.type === 'Expense' && transaction.amount < 0 && (
             <button
               type="button"
               onClick={splitOpen ? () => setSplitOpen(false) : openSplitEditor}

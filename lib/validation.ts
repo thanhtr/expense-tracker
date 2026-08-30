@@ -123,6 +123,15 @@ export const updateTransactionSchema = z.object({
   category: z.string().max(100).optional(),
   tags: z.array(z.string().max(50)).optional(),
   note: z.string().max(500).optional(),
+  type: z.enum(TRANSACTION_TYPES).optional(),
+});
+
+export const createIncomeRuleSchema = z.object({
+  label: z.string().max(200).default(''),
+  merchantPattern: z.string().max(200).optional(),
+  category: z.string().max(100).optional(),
+}).refine(d => d.merchantPattern || d.category, {
+  message: 'At least one of merchantPattern or category is required',
 });
 
 export const updateSplitsSchema = z.object({
