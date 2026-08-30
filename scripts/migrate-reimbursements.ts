@@ -19,14 +19,22 @@ const prisma = new PrismaClient();
 const apply = process.argv.includes('--apply');
 
 async function main() {
-  // Seed default rules if the table is empty so the migration has something to match against
-  const seeded = await seedDefaultIncomeRules();
-  if (seeded > 0) {
-    console.log(`Seeded ${seeded} default income rules:`);
-    DEFAULT_INCOME_RULES.forEach(r => console.log(`  - ${r.label} (${r.merchantPattern ?? r.category})`));
+  let rules = await getIncomeRules();
+
+  if (rules.length === 0) {
+    if (!apply) {
+      console.log('No income rules found in DB. Run with --apply to seed defaults and preview reclassification.');
+      return;
+    }
+    // Seed defaults only when actually applying — dry run must stay read-only.
+    const seeded = await seedDefaultIncomeRules();
+    if (seeded > 0) {
+      console.log(`Seeded ${seeded} default income rules:`);
+      DEFAULT_INCOME_RULES.forEach(r => console.log(`  - ${r.label} (${r.merchantPattern ?? r.category})`));
+    }
+    rules = await getIncomeRules();
   }
 
-  const rules = await getIncomeRules();
   console.log(`\nUsing ${rules.length} income rule(s) to classify transactions.`);
 
   const incomeTransactions = await prisma.transaction.findMany({

@@ -17,7 +17,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   const seenCount = new Map<string, number>();
   const candidates = rows.map(row => {
     const dateStr = row.date.toISOString().slice(0, 10);
-    const cost = Math.abs(row.amount).toFixed(2);
+    const cost = row.amount.toFixed(2);
     const baseKey = makeDedupKey(dateStr, row.account, row.merchant, cost);
     const seen = seenCount.get(baseKey) ?? 0;
     seenCount.set(baseKey, seen + 1);

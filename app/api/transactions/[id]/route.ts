@@ -48,6 +48,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     }
 
+    if (updateData.type === 'Income' && tx.amount < 0) {
+      return NextResponse.json(
+        { error: 'Cannot reclassify a negative-amount row to Income' },
+        { status: 422 },
+      );
+    }
+
     if (updateData.category) {
       await recordCorrection(tx.merchant, updateData.category);
     }
