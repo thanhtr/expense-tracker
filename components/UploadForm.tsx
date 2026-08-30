@@ -42,7 +42,7 @@ function profileKey(headers: string[]): string {
   return PROFILE_KEY_PREFIX + [...headers].sort().join('|');
 }
 
-function loadProfile(headers: string[]): ColumnMapping | null {
+function loadProfileLocal(headers: string[]): ColumnMapping | null {
   try {
     const raw = localStorage.getItem(profileKey(headers));
     return raw ? (JSON.parse(raw) as ColumnMapping) : null;
@@ -51,10 +51,18 @@ function loadProfile(headers: string[]): ColumnMapping | null {
   }
 }
 
-function saveProfile(headers: string[], mapping: ColumnMapping) {
+function saveProfileLocal(headers: string[], mapping: ColumnMapping) {
   try {
     localStorage.setItem(profileKey(headers), JSON.stringify(mapping));
   } catch { /* quota exceeded, ignore */ }
+}
+
+function saveProfileDB(fingerprint: string, mapping: ColumnMapping) {
+  fetch('/api/bank-profiles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fingerprint, mapping }),
+  }).catch(() => {});
 }
 
 export function UploadForm({ onSuccess }: UploadFormProps) {
@@ -63,12 +71,22 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
   const [uploading, setUploading] = useState(false);
   const [lastImports, setLastImports] = useState<Record<string, string | null>>({});
   const [members, setMembers] = useState<HouseholdMember[]>([{ id: 0, name: 'Tung', slug: 'tung' }]);
+  const [dbProfiles, setDbProfiles] = useState<Map<string, ColumnMapping>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/household-members')
       .then(r => r.ok ? r.json() as Promise<HouseholdMember[]> : [])
       .then(data => { if (data.length) setMembers(data); })
+      .catch(() => {});
+
+    fetch('/api/bank-profiles')
+      .then(r => r.ok ? r.json() as Promise<{ fingerprint: string; columnMapping: ColumnMapping }[]> : [])
+      .then(profiles => {
+        const map = new Map<string, ColumnMapping>();
+        for (const p of profiles) map.set(p.fingerprint, p.columnMapping);
+        setDbProfiles(map);
+      })
       .catch(() => {});
   }, []);
 
@@ -108,8 +126,11 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
       const preview = await file.slice(0, 4096).text();
       const heuristic = detectColumnMapping(preview);
 
-      // Check localStorage for a saved profile
-      const saved = heuristic.headers.length > 0 ? loadProfile(heuristic.headers) : null;
+      // Check DB (in-memory) then localStorage for a saved profile
+      const key = profileKey(heuristic.headers);
+      const saved = heuristic.headers.length > 0
+        ? (dbProfiles.get(key) ?? loadProfileLocal(heuristic.headers))
+        : null;
       const mapping: ColumnMapping = saved ?? heuristic;
 
       return {
@@ -160,9 +181,10 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
         const data = await res.json();
         if (res.ok) {
           updateItem(item.id, { status: 'done', result: data });
-          // Save profile to localStorage on success
+          // Save profile to localStorage + DB on success
           if (item.detectedBank === 'generic' && item.columnMapping && item.headers?.length) {
-            saveProfile(item.headers, item.columnMapping);
+            saveProfileLocal(item.headers, item.columnMapping);
+            saveProfileDB(profileKey(item.headers), item.columnMapping);
           }
           onSuccess?.();
         } else {
