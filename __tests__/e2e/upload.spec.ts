@@ -199,7 +199,7 @@ test.describe('CSV Upload — unknown bank format', () => {
     await expect(page.locator('text=nordea.csv')).toBeVisible();
 
     // Clear the Date column selection
-    const dateSelect = page.locator('select').first();
+    const dateSelect = page.locator('label:has-text("Date") + select, label:has-text("Date *") + select').first();
     await dateSelect.selectOption('');
 
     // Upload button should still be present (validation happens on click)
