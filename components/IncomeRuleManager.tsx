@@ -26,7 +26,8 @@ export function IncomeRuleManager() {
   const fetchRules = async () => {
     try {
       const res = await fetch('/api/income-rules');
-      if (res.ok) setRules(await res.json());
+      if (!res.ok) throw new Error('Failed to load income rules');
+      setRules(await res.json());
     } catch {
       toast.error('Failed to load income rules');
     } finally {

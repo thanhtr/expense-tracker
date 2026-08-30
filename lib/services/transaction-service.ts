@@ -85,11 +85,17 @@ export async function getTransactions(filters: {
   if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
   if (filters.tag) where.tags = { has: filters.tag };
   if (filters.amountMin !== undefined || filters.amountMax !== undefined) {
-    const amountFilter: Prisma.FloatFilter = {};
-    // Expenses are stored as negative numbers; amountMin/Max are absolute values
-    if (filters.amountMin !== undefined) amountFilter.lte = -filters.amountMin;
-    if (filters.amountMax !== undefined) amountFilter.gte = -filters.amountMax;
-    where.amount = amountFilter;
+    const min = filters.amountMin;
+    const max = filters.amountMax;
+    // Outflows are stored as negative numbers; reimbursements/income as positive.
+    // Match both by OR-ing the two ranges so |amount| falls within [min, max].
+    const negFilter: Prisma.FloatFilter = { lt: 0 };
+    if (min !== undefined) negFilter.lte = -min;
+    if (max !== undefined) negFilter.gte = -max;
+    const posFilter: Prisma.FloatFilter = { gt: 0 };
+    if (min !== undefined) posFilter.gte = min;
+    if (max !== undefined) posFilter.lte = max;
+    where.OR = [{ amount: negFilter }, { amount: posFilter }];
   }
 
   const ALLOWED_SORT_FIELDS = ['date', 'amount', 'merchant', 'category'] as const;

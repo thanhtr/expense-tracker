@@ -63,19 +63,21 @@ function setupMocks(opts: {
     topTx = DEFAULT_TOP_TX,
   } = opts;
 
-  // groupBy called 5 times: category, account, paidBy, date×category, income sources
+  // groupBy called 6 times: category, account, paidBy, date×category, income sources, reimb by category
   vi.mocked(prisma.transaction.groupBy)
     .mockResolvedValueOnce(byCategoryGroups as never)
     .mockResolvedValueOnce(byAccountGroups as never)
     .mockResolvedValueOnce(byPersonGroups as never)
     .mockResolvedValueOnce(byDayCatGroups as never)
-    .mockResolvedValueOnce([] as never); // income sources (empty by default)
+    .mockResolvedValueOnce([] as never) // income sources (empty by default)
+    .mockResolvedValueOnce([] as never); // reimb by category (empty by default)
 
-  // aggregate called three times: expense totals, income, investments
+  // aggregate called four times: outflow totals, income, investments, reimbursements
   vi.mocked(prisma.transaction.aggregate)
     .mockResolvedValueOnce({ _sum: { amount: totalAmount }, _count: { id: totalCount } } as never)
     .mockResolvedValueOnce({ _sum: { amount: incomeAmount } } as never)
-    .mockResolvedValueOnce({ _sum: { amount: 0 } } as never);
+    .mockResolvedValueOnce({ _sum: { amount: 0 } } as never)
+    .mockResolvedValueOnce({ _sum: { amount: 0 } } as never); // reimbursements
 
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
   vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(topTx as never);

@@ -13,7 +13,7 @@ export function matchesAnyIncomeRule(
 ): boolean {
   return rules.some(rule => {
     const mMatch = !rule.merchantPattern || tx.merchant.toUpperCase().includes(rule.merchantPattern.toUpperCase());
-    const cMatch = !rule.category || tx.category === rule.category;
+    const cMatch = !rule.category || (tx.category ?? '') === rule.category;
     return mMatch && cMatch;
   });
 }

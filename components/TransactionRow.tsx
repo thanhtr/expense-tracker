@@ -201,10 +201,13 @@ export const TransactionRow = memo(function TransactionRow({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: newType }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to update type');
+      }
       toast.success(`Type changed to ${newType}`);
-    } catch {
-      toast.error('Failed to update type');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update type');
       setTxType(txType);
     } finally {
       setSaving(false);
