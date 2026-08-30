@@ -371,6 +371,7 @@ function GenericMappingEditor({ item, members, updateItem }: {
   const sampleRows = item.sampleRows ?? [];
   const mapping = item.columnMapping;
   const isSaved = item.savedProfile;
+  const [showEditor, setShowEditor] = useState(!isSaved);
 
   function setMapping(patch: Partial<ColumnMapping>) {
     updateItem(item.id, {
@@ -383,19 +384,36 @@ function GenericMappingEditor({ item, members, updateItem }: {
 
   return (
     <div className="mt-3 space-y-3">
-      {/* Profile badge or "map columns" label */}
-      <div className="flex items-center gap-2">
-        {isSaved ? (
-          <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
-            Saved: {mapping?.bankLabel ?? 'Unknown Bank'}
-          </span>
+      {/* Profile badge row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {isSaved && !showEditor ? (
+          <>
+            <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+              Saved: {mapping?.bankLabel ?? 'Unknown Bank'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowEditor(true)}
+              className="text-xs text-blue-500 hover:text-blue-700 underline"
+            >
+              Edit
+            </button>
+          </>
         ) : (
-          <span className="text-xs text-fg-3 font-medium">Map columns</span>
+          <>
+            {isSaved && (
+              <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+                Saved: {mapping?.bankLabel ?? 'Unknown Bank'}
+              </span>
+            )}
+            {!isSaved && <span className="text-xs text-fg-3 font-medium">Map columns</span>}
+          </>
         )}
         <OwnerSelect item={item} members={members} updateItem={updateItem} />
       </div>
 
-      {/* Column mapping dropdowns */}
+      {/* Column mapping dropdowns — hidden in badge mode */}
+      {showEditor && (<>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           { label: 'Date *', field: 'dateColumn' as const },
@@ -485,6 +503,7 @@ function GenericMappingEditor({ item, members, updateItem }: {
       {headers.length === 0 && (
         <p className="text-xs text-red-500">Could not read columns from this file. Check that it&apos;s a valid CSV.</p>
       )}
+      </>)}
     </div>
   );
 }
