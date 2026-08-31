@@ -1,4 +1,5 @@
-import { parseOPBank, parseAmex, parseFinnair, detectBank } from '@/lib/parsers';
+import { parseOPBank, parseAmex, parseFinnair, parseGeneric, detectBank } from '@/lib/parsers';
+import type { ColumnMapping } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
 import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
@@ -57,6 +58,7 @@ export async function processUpload(
   accountType: string,
   accountOwner: string,
   isDryRun = false,
+  columnMapping?: ColumnMapping,
 ) {
   const detected = (accountType === 'auto' || !accountType)
     ? detectBank(fileContent)
@@ -71,6 +73,10 @@ export async function processUpload(
     case 'op':      rows = await parseOPBank(fileContent); break;
     case 'amex':    rows = await parseAmex(fileContent); break;
     case 'finnair': rows = await parseFinnair(fileContent); break;
+    case 'generic':
+      if (!columnMapping) throw new Error('Column mapping required for generic parser');
+      rows = await parseGeneric(fileContent, columnMapping);
+      break;
     default:
       throw new Error(`Unknown bank type: ${detected}`);
   }
