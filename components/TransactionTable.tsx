@@ -308,7 +308,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
             disabled={!bulkType}
             className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Apply
+            Set
           </button>
           <button
             onClick={handleBulkDelete}
