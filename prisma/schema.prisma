@@ -163,3 +163,15 @@ model FireConfig {
   pensionNetMonthly   Float    @default(1580)
   updatedAt           DateTime @updatedAt
 }
+
+model IncomeRule {
+  id              Int      @id @default(autoincrement())
+  label           String   @default("")
+  merchantPattern String?
+  category        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([merchantPattern])
+  @@index([category])
+}

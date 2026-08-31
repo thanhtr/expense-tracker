@@ -17,7 +17,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   const seenCount = new Map<string, number>();
   const candidates = rows.map(row => {
     const dateStr = row.date.toISOString().slice(0, 10);
-    const cost = Math.abs(row.amount).toFixed(2);
+    const cost = row.amount.toFixed(2);
     const baseKey = makeDedupKey(dateStr, row.account, row.merchant, cost);
     const seen = seenCount.get(baseKey) ?? 0;
     seenCount.set(baseKey, seen + 1);
@@ -29,8 +29,8 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
     date: row.date,
     account: row.account,
     merchant: row.merchant,
-    // Expenses stored as negative, income as positive
-    amount: row.type === 'Income' ? Math.abs(row.amount) : -Math.abs(row.amount),
+    // Income stored as positive; Expense preserves sign (negative = outflow, positive = reimbursement)
+    amount: row.type === 'Income' ? Math.abs(row.amount) : row.amount,
     note: row.note || '',
     type: row.type,
     category: row.category || '',
@@ -85,11 +85,17 @@ export async function getTransactions(filters: {
   if (filters.merchant) where.merchant = { contains: filters.merchant, mode: 'insensitive' };
   if (filters.tag) where.tags = { has: filters.tag };
   if (filters.amountMin !== undefined || filters.amountMax !== undefined) {
-    const amountFilter: Prisma.FloatFilter = {};
-    // Expenses are stored as negative numbers; amountMin/Max are absolute values
-    if (filters.amountMin !== undefined) amountFilter.lte = -filters.amountMin;
-    if (filters.amountMax !== undefined) amountFilter.gte = -filters.amountMax;
-    where.amount = amountFilter;
+    const min = filters.amountMin;
+    const max = filters.amountMax;
+    // Outflows are stored as negative numbers; reimbursements/income as positive.
+    // Match both by OR-ing the two ranges so |amount| falls within [min, max].
+    const negFilter: Prisma.FloatFilter = { lt: 0 };
+    if (min !== undefined) negFilter.lte = -min;
+    if (max !== undefined) negFilter.gte = -max;
+    const posFilter: Prisma.FloatFilter = { gt: 0 };
+    if (min !== undefined) posFilter.gte = min;
+    if (max !== undefined) posFilter.lte = max;
+    where.OR = [{ amount: negFilter }, { amount: posFilter }];
   }
 
   const ALLOWED_SORT_FIELDS = ['date', 'amount', 'merchant', 'category'] as const;

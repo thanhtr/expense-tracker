@@ -15,9 +15,9 @@ export async function PATCH(
 
     const parsed = parseBody(updateTransactionSchema, await request.json());
     if ('error' in parsed) return parsed.error;
-    const { category, tags, note } = parsed.data;
+    const { category, tags, note, type } = parsed.data;
 
-    const updateData: { category?: string; tags?: string[]; note?: string } = {};
+    const updateData: { category?: string; tags?: string[]; note?: string; type?: string } = {};
 
     if (category !== undefined) {
       const validCategories = await getCategoriesCached();
@@ -35,6 +35,10 @@ export async function PATCH(
       updateData.note = note;
     }
 
+    if (type !== undefined) {
+      updateData.type = type;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
@@ -42,6 +46,13 @@ export async function PATCH(
     const tx = await prisma.transaction.findUnique({ where: { id: idResult.id } });
     if (!tx) {
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
+
+    if (updateData.type === 'Income' && tx.amount < 0) {
+      return NextResponse.json(
+        { error: 'Cannot reclassify a negative-amount row to Income' },
+        { status: 422 },
+      );
     }
 
     if (updateData.category) {
