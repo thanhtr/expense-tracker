@@ -39,7 +39,7 @@ function daysAgo(dateStr: string): string {
 }
 
 function profileKey(headers: string[]): string {
-  return PROFILE_KEY_PREFIX + [...headers].sort().join('|');
+  return PROFILE_KEY_PREFIX + JSON.stringify([...headers].sort());
 }
 
 function loadProfileLocal(headers: string[]): ColumnMapping | null {
