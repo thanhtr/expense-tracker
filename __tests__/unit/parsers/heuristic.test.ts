@@ -110,9 +110,18 @@ describe('detectColumnMapping — amount sign detection', () => {
     const result = detectColumnMapping(
       csv('Date,Amount,Description',
         '2024-01-15,3.50,Coffee',
-        '2024-01-16,45.00,Store'),
+        '2024-01-16,45.00,Store',
+        '2024-01-17,12.00,Lunch'),
     );
     expect(result.amountSign).toBe('inverted');
+  });
+
+  it('defaults to standard when fewer than 3 samples are available', () => {
+    const result = detectColumnMapping(
+      csv('Date,Amount,Description',
+        '2024-01-15,3.50,Coffee'),
+    );
+    expect(result.amountSign).toBe('standard');
   });
 });
 
