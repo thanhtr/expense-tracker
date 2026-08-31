@@ -8,6 +8,8 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
 import {
   getIncomeRules,
   matchesAnyIncomeRule,
@@ -15,7 +17,10 @@ import {
   DEFAULT_INCOME_RULES,
 } from '../lib/services/income-rules-service';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) throw new Error('DATABASE_URL is not set');
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 const apply = process.argv.includes('--apply');
 
 async function main() {
