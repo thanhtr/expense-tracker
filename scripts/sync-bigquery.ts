@@ -95,7 +95,7 @@ function flattenToRows(rawRows: RawRow[], syncedAt: string): BQRow[] {
       bqRows.push({
         ...base,
         split_id: null,
-        amount:   Math.abs(tx.amount),
+        amount:   tx.amount,
         category: tx.category,
         is_split: false,
       });
