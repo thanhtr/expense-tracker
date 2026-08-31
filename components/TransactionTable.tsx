@@ -64,6 +64,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const { categories } = useCategories();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkType, setBulkType] = useState('');
   const lastSelectedIndex = useRef<number | null>(null);
   const transactionsRef = useRef<Transaction[]>([]);
   const limit = 50;
@@ -123,6 +124,31 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
       }
     } catch {
       toast.error('Failed to update');
+    }
+  };
+
+  const handleBulkRetype = async () => {
+    if (!bulkType || selectedIds.size === 0) return;
+    try {
+      const res = await fetch('/api/transactions/bulk-retype', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), type: bulkType }),
+      });
+      if (res.ok) {
+        const { updated } = await res.json();
+        setTransactions(prev =>
+          prev.map(t => selectedIds.has(t.id) ? { ...t, type: bulkType } : t)
+        );
+        setSelectedIds(new Set());
+        setBulkType('');
+        toast.success(`Updated ${updated} transaction${updated === 1 ? '' : 's'}`);
+      } else {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(body.error ?? 'Failed to update type');
+      }
+    } catch {
+      toast.error('Failed to update type');
     }
   };
 
@@ -266,6 +292,24 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           >
             Apply
           </button>
+          <span className="border-l border-blue-300 dark:border-blue-700 h-5" />
+          <select
+            aria-label="Bulk type"
+            value={bulkType}
+            onChange={(e) => setBulkType(e.target.value)}
+            className="px-2 py-1 border border-border-soft rounded bg-surface text-foreground text-sm"
+          >
+            <option value="">Set type…</option>
+            <option value="Income">Income</option>
+            <option value="Expense">Expense</option>
+          </select>
+          <button
+            onClick={handleBulkRetype}
+            disabled={!bulkType}
+            className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Apply
+          </button>
           <button
             onClick={handleBulkDelete}
             className="px-3 py-1 bg-red-600 text-white rounded text-sm font-medium hover:bg-red-700"
@@ -273,7 +317,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
             Delete
           </button>
           <button
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => { setSelectedIds(new Set()); setBulkType(''); setBulkCategory(''); }}
             className="px-3 py-1 bg-surface-2 text-fg-2 rounded text-sm font-medium hover:bg-[var(--border)]"
           >
             Deselect all
