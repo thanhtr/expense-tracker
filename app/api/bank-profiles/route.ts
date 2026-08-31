@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllBankProfiles, upsertBankProfile } from '@/lib/services/bank-profile-service';
-import { parseBody } from '@/lib/validation';
+import { parseBody, columnMappingSchema } from '@/lib/validation';
 import { z } from 'zod';
-
-
 
 export async function GET() {
   try {
@@ -15,19 +13,8 @@ export async function GET() {
 }
 
 const upsertSchema = z.object({
-  fingerprint: z.string().min(1),
-  mapping: z.object({
-    bankLabel: z.string(),
-    dateColumn: z.string().min(1),
-    amountColumn: z.string().min(1),
-    merchantColumn: z.string().min(1),
-    noteColumn: z.string().nullable().optional(),
-    delimiter: z.enum([',', ';', '\t']),
-    amountFormat: z.enum(['standard', 'finnish']),
-    dateFormat: z.string(),
-    amountSign: z.enum(['standard', 'inverted']),
-    confidence: z.number(),
-  }),
+  fingerprint: z.string().min(1).max(500),
+  mapping: columnMappingSchema,
 });
 
 export async function POST(request: NextRequest) {

@@ -150,6 +150,19 @@ export const updateGuidelinesSchema = z.object({
   })).length(3),
 });
 
+export const columnMappingSchema = z.object({
+  bankLabel:      z.string().max(200).default('Unknown Bank'),
+  dateColumn:     z.string().min(1).max(200),
+  amountColumn:   z.string().min(1).max(200),
+  merchantColumn: z.string().min(1).max(200),
+  noteColumn:     z.string().max(200).nullable().optional(),
+  delimiter:      z.enum([',', ';', '\t']),
+  amountFormat:   z.enum(['standard', 'finnish']),
+  dateFormat:     z.string().min(1).max(50),
+  amountSign:     z.enum(['standard', 'inverted']),
+  confidence:     z.number().min(0).max(1),
+});
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(100).transform(s => s.trim()),
 });

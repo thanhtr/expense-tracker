@@ -59,7 +59,7 @@ export async function parseGeneric(
             const rawAmount =
               mapping.amountFormat === 'finnish'
                 ? parseFinnishAmount(amountStr)
-                : parseFloat(amountStr.trim().replace(/\s/g, '').replace(',', '.'));
+                : parseFloat(amountStr.trim().replace(/\s/g, '').replace(/,/g, ''));
 
             if (isNaN(rawAmount)) continue;
 

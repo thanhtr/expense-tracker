@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { processUpload } from '@/lib/services/upload-service';
-import type { ColumnMapping } from '@/lib/parsers';
+import { columnMappingSchema } from '@/lib/validation';
 
 export async function POST(request: NextRequest) {
   // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     let accountType: string;
     let accountOwner: string;
     let isDryRun: boolean;
-    let columnMapping: ColumnMapping | undefined;
+    let columnMapping: z.infer<typeof columnMappingSchema> | undefined;
 
     if (contentType.includes('text/csv') || contentType.includes('text/plain')) {
       // Raw body mode (used by iOS Shortcut — simpler than multipart form)
@@ -34,11 +35,18 @@ export async function POST(request: NextRequest) {
       isDryRun = formData.get('dry_run') === 'true';
       const columnMappingStr = formData.get('column_mapping') as string | null;
       if (columnMappingStr) {
+        let parsed: unknown;
         try {
-          columnMapping = JSON.parse(columnMappingStr) as ColumnMapping;
+          parsed = JSON.parse(columnMappingStr);
         } catch {
           return NextResponse.json({ error: 'Invalid column mapping JSON' }, { status: 400 });
         }
+        const result = columnMappingSchema.safeParse(parsed);
+        if (!result.success) {
+          const details = result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`);
+          return NextResponse.json({ error: 'Invalid column mapping', details }, { status: 400 });
+        }
+        columnMapping = result.data;
       }
 
       if (!file) {

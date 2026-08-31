@@ -52,9 +52,11 @@ function detectAmountFormat(samples: string[]): 'finnish' | 'standard' {
 }
 
 function detectAmountSign(samples: string[]): 'standard' | 'inverted' {
-  // If there are negative values we assume standard (negative = expense)
   const hasNegative = samples.some(s => /^-/.test(s.trim().replace(/\s/g, '')));
-  return hasNegative ? 'standard' : 'inverted';
+  if (hasNegative) return 'standard';
+  // Need at least 3 positive samples before guessing inverted — a single salary row
+  // at the top of a statement would otherwise flip sign for the entire file.
+  return samples.length >= 3 ? 'inverted' : 'standard';
 }
 
 function bestColumn(headers: string[], rows: Record<string, string>[], keywords: string[], valuePredicate?: (v: string) => boolean): string {
