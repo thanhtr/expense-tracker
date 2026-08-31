@@ -151,6 +151,11 @@ export const bulkDeleteSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1),
 });
 
+export const bulkRetypeSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1),
+  type: z.enum(TRANSACTION_TYPES),
+});
+
 export const updateGuidelinesSchema = z.object({
   buckets: z.array(z.object({
     bucket: z.enum(['needs', 'wants', 'savings']),
