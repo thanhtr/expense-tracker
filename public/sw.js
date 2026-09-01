@@ -1,7 +1,7 @@
 const STATIC_CACHE = 'static-v1';
-const OFFLINE_URL = '/offline';
+const API_CACHE    = 'api-v1';
+const OFFLINE_URL  = '/offline';
 
-// On install, pre-cache the offline fallback page.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => cache.add(OFFLINE_URL))
@@ -9,11 +9,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// On activate, clean up old caches.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter((k) => k !== STATIC_CACHE && k !== API_CACHE)
+          .map((k) => caches.delete(k))
+      )
     )
   );
   self.clients.claim();
@@ -26,10 +29,7 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin GET requests.
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // API routes: network-only — never serve stale financial data.
-  if (url.pathname.startsWith('/api/')) return;
-
-  // Static assets (_next/static): cache-first, long-lived.
+  // Static assets: cache-first, long-lived.
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
       caches.match(request).then(
@@ -39,6 +39,23 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
       )
+    );
+    return;
+  }
+
+  // API GET routes: network-first, cache fallback for offline read.
+  // Mutating routes (POST/PATCH/DELETE) are excluded by the method guard above.
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(API_CACHE).then((c) => c.put(request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }

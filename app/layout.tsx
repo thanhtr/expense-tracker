@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { CategoriesProvider } from "@/components/CategoriesProvider";
 import { HouseholdMembersProvider } from "@/components/HouseholdMembersProvider";
 import { Toaster } from "sonner";
@@ -59,6 +60,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-background pb-safe">
         <CategoriesProvider>
           <HouseholdMembersProvider>
+            <OfflineBanner />
             <Navigation />
             <main className="flex-1">{children}</main>
             <Toaster richColors closeButton position="bottom-right" />
