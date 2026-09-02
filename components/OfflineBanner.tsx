@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 
 export function OfflineBanner() {
-  const [offline, setOffline] = useState(() =>
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  );
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
+    // Read navigator.onLine after mount only — avoids SSR mismatch and
+    // unreliable values during initial page load on some network configs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOffline(!navigator.onLine);
     const on  = () => setOffline(false);
     const off = () => setOffline(true);
     window.addEventListener('online',  on);
