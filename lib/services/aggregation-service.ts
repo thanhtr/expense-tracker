@@ -60,9 +60,20 @@ export async function getDashboardStats(
   // Reimbursements: positive-amount Expenses (money back against an expense category).
   const reimbWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { gt: 0 } };
 
-  // Income is never filtered by category — the income line on charts should always
-  // reflect total income for the period, regardless of which expense category is selected.
-  const incomeWhere: Prisma.TransactionWhereInput = { ...baseWhere, type: 'Income' };
+  // Income is not filtered by the active spending-category selector, but non-spending
+  // categories (e.g. savings→checking credits tagged "Internal Transfer") must be excluded
+  // so they don't inflate totalIncome. Exception: if the user explicitly filters to one of
+  // those categories, let the income rows through so they can inspect the real data.
+  // NOTE: uses NON_SPENDING_CATEGORIES.includes() rather than `category ?` — incomeWhere
+  // starts from baseWhere (unscoped), so `category ?` would drop the exclusion whenever any
+  // spending category is active, letting capital-movement income credits slip back in.
+  const incomeWhere: Prisma.TransactionWhereInput = {
+    ...baseWhere,
+    type: 'Income',
+    ...(NON_SPENDING_CATEGORIES.includes(category ?? '')
+      ? {}
+      : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
+  };
 
   // Investment total always computed for the period regardless of category filter
   const investmentsWhere: Prisma.TransactionWhereInput = {
