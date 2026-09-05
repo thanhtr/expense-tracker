@@ -89,14 +89,14 @@ function labelForRange(from: string, to: string): string {
 
 // ----- small components -----
 
-function Delta({ curr, prev, goodWhenDown = true, vsLabel = 'prev' }: { curr: number; prev: number; goodWhenDown?: boolean; vsLabel?: string }) {
+function Delta({ curr, prev, goodWhenDown = true, neutral = false, vsLabel = 'prev' }: { curr: number; prev: number; goodWhenDown?: boolean; neutral?: boolean; vsLabel?: string }) {
   if (!prev) {
     return <span className="text-[12px] text-[var(--fg-3)]">—</span>;
   }
   const d = ((curr - prev) / prev) * 100;
   const flat = Math.abs(d) < 0.05;
   const up = d > 0;
-  const cls = flat
+  const cls = (flat || neutral)
     ? 'text-[var(--fg-3)]'
     : up === goodWhenDown
       ? 'text-[oklch(0.38_0.14_25)]'
@@ -128,9 +128,9 @@ function Sparkline({ data, color = 'var(--accent)' }: { data: number[]; color?: 
 }
 
 function KPI({
-  label, value, curr, prev, goodWhenDown, sparkData, sparkColor, valueColor, vsLabel,
+  label, value, curr, prev, goodWhenDown, neutral, sparkData, sparkColor, valueColor, vsLabel,
 }: {
-  label: string; value: string; curr: number; prev: number; goodWhenDown: boolean;
+  label: string; value: string; curr: number; prev: number; goodWhenDown: boolean; neutral?: boolean;
   sparkData: number[]; sparkColor?: string; valueColor?: string; vsLabel?: string;
 }) {
   return (
@@ -140,7 +140,7 @@ function KPI({
         {value}
       </div>
       <div className="flex items-center justify-between gap-[10px] mt-[6px]">
-        <Delta curr={curr} prev={prev} goodWhenDown={goodWhenDown} vsLabel={vsLabel} />
+        <Delta curr={curr} prev={prev} goodWhenDown={goodWhenDown} neutral={neutral} vsLabel={vsLabel} />
         <Sparkline data={sparkData} color={sparkColor} />
       </div>
     </div>
@@ -1002,6 +1002,7 @@ export function DashboardStats() {
   const prevTotalExpenses = prevData?.totalExpenses ?? 0;
   const prevTotalIncome = prevData?.totalIncome ?? 0;
   const prevTotalInvestments = prevData?.totalInvestments ?? 0;
+  const prevTotalInternalTransfers = prevData?.totalInternalTransfers ?? 0;
   const prevTotalReimbursements = prevData?.totalReimbursements ?? 0;
   const prevNet = prevData?.net ?? 0;
   const prevTxCount = prevData?.transactionCount ?? 0;
@@ -1009,6 +1010,7 @@ export function DashboardStats() {
   const sparkExpenses = [prevTotalExpenses || data.totalExpenses, data.totalExpenses];
   const sparkIncome = [prevTotalIncome || data.totalIncome, data.totalIncome];
   const sparkInvestments = [prevTotalInvestments || data.totalInvestments, data.totalInvestments];
+  const sparkTransfers = [prevTotalInternalTransfers || data.totalInternalTransfers, data.totalInternalTransfers];
   const sparkReimb = [prevTotalReimbursements || data.totalReimbursements, data.totalReimbursements];
   const sparkNet = [prevNet || data.net, data.net];
   const sparkTx = [prevTxCount || data.transactionCount, data.transactionCount];
@@ -1173,6 +1175,20 @@ export function DashboardStats() {
           valueColor="oklch(0.38 0.10 225)"
           vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
+        {data.totalInternalTransfers > 0 && (
+          <KPI
+            label="Internal transfers"
+            value={fmtEUR(data.totalInternalTransfers, { cents: true })}
+            curr={data.totalInternalTransfers}
+            prev={prevTotalInternalTransfers}
+            goodWhenDown={false}
+            neutral
+            sparkData={sparkTransfers}
+            sparkColor="oklch(0.55 0.10 280)"
+            valueColor="oklch(0.38 0.10 280)"
+            vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
+          />
+        )}
         <KPI
           label="Transactions"
           value={String(data.transactionCount)}
@@ -1184,6 +1200,27 @@ export function DashboardStats() {
           vsLabel={compareMode === 'yoy' ? 'year ago' : 'prev'}
         />
       </div>
+
+      {/* Capital movements footnote — only visible when investments or transfers exist */}
+      {(data.totalInvestments > 0 || data.totalInternalTransfers > 0) && (
+        <div className="dash-card p-[10px_16px] flex flex-wrap items-center gap-x-[20px] gap-y-[4px] text-[12px] text-[var(--fg-3)]">
+          <span className="font-medium text-[var(--fg-2)]">Capital movements (excluded from totals)</span>
+          {data.totalInvestments > 0 && (
+            <span>Investments deployed: <span className="mono font-medium text-[oklch(0.38_0.10_225)]">{fmtEUR(data.totalInvestments)}</span></span>
+          )}
+          {data.totalInternalTransfers > 0 && (
+            <span>Internal transfers: <span className="mono font-medium text-[oklch(0.38_0.10_280)]">{fmtEUR(data.totalInternalTransfers)}</span></span>
+          )}
+          {data.totalInvestments > 0 && (
+            <span>
+              Activity net (incl. investments):{' '}
+              <span className={`mono font-medium ${data.net - data.totalInvestments >= 0 ? 'text-[oklch(0.38_0.10_160)]' : 'text-[oklch(0.42_0.14_25)]'}`}>
+                {fmtEUR(data.net - data.totalInvestments)}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Categories + Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-[20px]">

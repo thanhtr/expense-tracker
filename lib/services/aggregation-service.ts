@@ -75,11 +75,16 @@ export async function getDashboardStats(
       : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
-  // Investment total always computed for the period regardless of category filter
+  // Capital movement totals always computed for the period regardless of category filter.
+  // These are excluded from income/expense charts but shown in a separate Capital Movements section.
   const investmentsWhere: Prisma.TransactionWhereInput = {
     ...baseWhere,
     type: 'Expense',
     category: 'Investments',
+  };
+  const internalTransferWhere: Prisma.TransactionWhereInput = {
+    ...baseWhere,
+    category: 'Internal Transfer',
   };
 
   const [
@@ -91,6 +96,7 @@ export async function getDashboardStats(
     uncategorizedCount,
     incomeAggregate,
     investmentsAggregate,
+    internalTransferAggregate,
     incomeSourceGroups,
     topTx,
     incomeRows,
@@ -135,6 +141,10 @@ export async function getDashboardStats(
       where: investmentsWhere,
       _sum: { amount: true },
     }),
+    prisma.transaction.aggregate({
+      where: internalTransferWhere,
+      _sum: { amount: true },
+    }),
     prisma.transaction.groupBy({
       by: ['merchant'],
       where: incomeWhere,
@@ -168,6 +178,10 @@ export async function getDashboardStats(
   const totalExpenses = Math.abs(totalAgg._sum.amount ?? 0);
   const totalIncome = incomeAggregate._sum.amount ?? 0;
   const totalInvestments = Math.abs(investmentsAggregate._sum.amount ?? 0);
+  // When both legs are recorded (credit + debit) they cancel in the SUM → 0, which is correct
+  // (net capital movement is zero). When only one leg is tracked (the typical case), Math.abs
+  // gives the magnitude of that single leg.
+  const totalInternalTransfers = Math.abs(internalTransferAggregate._sum.amount ?? 0);
   const totalReimbursements = reimbAggregate._sum.amount ?? 0;
   const transactionCount = totalAgg._count.id;
 
@@ -183,6 +197,7 @@ export async function getDashboardStats(
   const allCategories = [
     ...byCategoryGroups.map(g => g.category).filter(Boolean),
     ...(totalInvestments > 0 && category !== 'Investments' ? ['Investments'] : []),
+    ...(totalInternalTransfers > 0 && category !== 'Internal Transfer' ? ['Internal Transfer'] : []),
   ].sort();
 
   const byAccount = Object.fromEntries(
@@ -326,6 +341,7 @@ export async function getDashboardStats(
     totalExpenses,
     totalIncome,
     totalInvestments,
+    totalInternalTransfers,
     totalReimbursements,
     net: totalIncome - totalExpenses + totalReimbursements,
     byCategory: finalByCategoryArray,
