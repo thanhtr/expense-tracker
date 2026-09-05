@@ -17,6 +17,7 @@ export const CATEGORIES = [
   'Investments',
   'Insurance',
   'Car',
+  'Internal Transfer',
   'Other',
 ] as const;
 
