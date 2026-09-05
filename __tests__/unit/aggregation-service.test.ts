@@ -49,6 +49,8 @@ function setupMocks(opts: {
   totalCount?: number;
   uncategorizedCount?: number;
   incomeAmount?: number;
+  investmentsAmount?: number;
+  internalTransfersAmount?: number;
   topTx?: typeof DEFAULT_TOP_TX | null;
 } = {}) {
   const {
@@ -60,6 +62,8 @@ function setupMocks(opts: {
     totalCount = 3,
     uncategorizedCount = 0,
     incomeAmount = 0,
+    investmentsAmount = 0,
+    internalTransfersAmount = 0,
     topTx = DEFAULT_TOP_TX,
   } = opts;
 
@@ -72,11 +76,12 @@ function setupMocks(opts: {
     .mockResolvedValueOnce([] as never) // income sources (empty by default)
     .mockResolvedValueOnce([] as never); // reimb by category (empty by default)
 
-  // aggregate called four times: outflow totals, income, investments, reimbursements
+  // aggregate called five times: outflow totals, income, investments, internalTransfer, reimbursements
   vi.mocked(prisma.transaction.aggregate)
     .mockResolvedValueOnce({ _sum: { amount: totalAmount }, _count: { id: totalCount } } as never)
     .mockResolvedValueOnce({ _sum: { amount: incomeAmount } } as never)
-    .mockResolvedValueOnce({ _sum: { amount: 0 } } as never)
+    .mockResolvedValueOnce({ _sum: { amount: investmentsAmount } } as never)
+    .mockResolvedValueOnce({ _sum: { amount: internalTransfersAmount } } as never)
     .mockResolvedValueOnce({ _sum: { amount: 0 } } as never); // reimbursements
 
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
