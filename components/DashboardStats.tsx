@@ -279,6 +279,28 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
   const visibleCats = categories.filter(c => !hidden.has(c));
   const topVisibleCat = visibleCats[visibleCats.length - 1];
 
+  const legendContent = useCallback(() => (
+    <ul style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', padding: 0, margin: 0, listStyle: 'none' }}>
+      {categories.map((cat, i) => (
+        <li key={cat} style={{ display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={() => toggleSeries(cat)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+              background: 'none', border: 'none', padding: 0, font: 'inherit',
+            }}
+          >
+            <span style={{
+              display: 'inline-block', width: 10, height: 10, borderRadius: 2, flexShrink: 0,
+              backgroundColor: hidden.has(cat) ? 'var(--fg-3)' : CAT_COLORS[i % CAT_COLORS.length],
+            }} />
+            <span style={{ color: hidden.has(cat) ? 'var(--fg-3)' : 'inherit' }}>{cat}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  ), [categories, hidden]);
+
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
@@ -319,22 +341,13 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
             return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
           }}
         />
-        <Legend
-          wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
-          onClick={(e) => toggleSeries(e.dataKey as string)}
-          formatter={(value, entry) => (
-            <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
-              {value}
-            </span>
-          )}
-        />
-        {categories.map((cat, i) => (
+        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} content={legendContent} />
+        {visibleCats.map(cat => (
           <Bar
             key={cat}
             dataKey={cat}
             stackId="a"
-            fill={CAT_COLORS[i % CAT_COLORS.length]}
-            hide={hidden.has(cat)}
+            fill={CAT_COLORS[categories.indexOf(cat) % CAT_COLORS.length]}
             radius={cat === topVisibleCat ? [3, 3, 0, 0] : [0, 0, 0, 0]}
           />
         ))}
