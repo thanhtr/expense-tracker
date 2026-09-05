@@ -254,6 +254,29 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
 }
 
 function CategoryTrendChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const toggleSeries = (key: string) => {
+    setHidden(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const visibleCats = categories.filter(c => !hidden.has(c));
+
+  // Recompute Y-axis ceiling from visible categories only so the axis rescales
+  // when a dominant category (e.g. Rent) is toggled off.
+  const yMax = useMemo(() => {
+    if (visibleCats.length === 0) return 1;
+    return Math.max(...data.map(row =>
+      visibleCats.reduce((sum, cat) => sum + (Number(row[cat]) || 0), 0)
+    ), 1);
+  }, [data, visibleCats]);
+
+  const topVisibleCat = visibleCats[visibleCats.length - 1];
+
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
@@ -273,6 +296,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           axisLine={false}
           tickFormatter={(v: number) => `€${Math.round(v)}`}
           width={44}
+          domain={[0, yMax]}
         />
         <Tooltip
           cursor={{ fill: 'var(--surface-2)' }}
@@ -293,13 +317,23 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
             return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
           }}
         />
+        <Legend
+          wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
+          onClick={(e) => toggleSeries(e.dataKey as string)}
+          formatter={(value, entry) => (
+            <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
+              {value}
+            </span>
+          )}
+        />
         {categories.map((cat, i) => (
           <Bar
             key={cat}
             dataKey={cat}
             stackId="a"
             fill={CAT_COLORS[i % CAT_COLORS.length]}
-            radius={i === categories.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+            hide={hidden.has(cat)}
+            radius={cat === topVisibleCat ? [3, 3, 0, 0] : [0, 0, 0, 0]}
           />
         ))}
       </BarChart>
