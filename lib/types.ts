@@ -62,6 +62,7 @@ export interface DashboardAggregation {
   totalExpenses: number;
   totalIncome: number;
   totalInvestments: number;
+  totalInternalTransfers: number;
   totalReimbursements: number;
   net: number;
   byCategory: { category: string; amount: number }[];
