@@ -264,20 +264,21 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
     });
   };
 
-  // Recompute Y-axis ceiling from visible categories only so the axis rescales
-  // when a dominant category (e.g. Rent) is toggled off.
-  // visibleCats is derived inside the memo so the dependency is the stable `hidden`
-  // Set reference, not a new array on every render.
-  const yMax = useMemo(() => {
-    const visible = categories.filter(c => !hidden.has(c));
-    if (visible.length === 0) return 1;
-    return Math.max(...data.map(row =>
-      visible.reduce((sum, cat) => sum + (Number(row[cat]) || 0), 0)
-    ), 1);
-  }, [data, categories, hidden]);
-
-  const visibleCats = categories.filter(c => !hidden.has(c));
+  const visibleCats = useMemo(() => categories.filter(c => !hidden.has(c)), [categories, hidden]);
   const topVisibleCat = visibleCats[visibleCats.length - 1];
+
+  // Strip hidden categories from each data row so Recharts' auto-domain computation
+  // only sees visible series. Setting an explicit domain ceiling doesn't work because
+  // Recharts reads all numeric fields in the data object regardless of which <Bar>s
+  // are rendered, and auto-expands the axis to fit them.
+  const chartData = useMemo(() => {
+    if (hidden.size === 0) return data;
+    return data.map(row => {
+      const r: Record<string, string | number> = { month: row.month as string };
+      visibleCats.forEach(cat => { r[cat] = row[cat] as number; });
+      return r;
+    });
+  }, [data, visibleCats, hidden]);
 
   const legendContent = useCallback(() => (
     <ul style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', padding: 0, margin: 0, listStyle: 'none' }}>
@@ -303,7 +304,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+      <BarChart data={chartData} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
         <XAxis
           dataKey="month"
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
@@ -320,7 +321,6 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           axisLine={false}
           tickFormatter={(v: number) => `€${Math.round(v)}`}
           width={44}
-          domain={[0, yMax]}
         />
         <Tooltip
           cursor={{ fill: 'var(--surface-2)' }}
