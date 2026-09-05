@@ -5,6 +5,11 @@ import { DashboardAggregation } from '@/lib/types';
 const _cache = new Map<string, { data: DashboardAggregation; expiry: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+// Categories that aren't real income/expense (moving money between own accounts,
+// not consumption) and so are excluded from totals/charts by default. They still
+// show real numbers when the user explicitly filters to one of them.
+const NON_SPENDING_CATEGORIES = ['Investments', 'Internal Transfer'];
+
 function cacheKey(dateFrom?: Date, dateTo?: Date, category?: string, paidBy?: string, account?: string): string {
   return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', category ?? '', paidBy ?? '', account ?? ''].join('|');
 }
@@ -41,12 +46,13 @@ export async function getDashboardStats(
   const where: Prisma.TransactionWhereInput = { ...baseWhere };
   if (category) where.category = category;
 
-  // Exclude Investments from expense queries so charts/totals reflect living costs only.
-  // Exception: if the user explicitly filtered to Investments, pass through as-is.
+  // Exclude non-spending categories (Investments, Internal Transfer, ...) from expense
+  // queries so charts/totals reflect living costs only.
+  // Exception: if the user explicitly filtered to one of them, pass through as-is.
   const expenseWhere: Prisma.TransactionWhereInput = {
     ...where,
     type: 'Expense',
-    ...(category ? {} : { NOT: { category: 'Investments' } }),
+    ...(category ? {} : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
   // Outflows: regular expenses (negative amounts). Used for totals, time-series, topTx.
