@@ -240,6 +240,27 @@ export async function getDashboardStats(
     splitsByTx.set(s.transactionId, arr);
   }
 
+  // Fetch reimbursement links whose expense falls in the current period/category filter,
+  // so an explicitly linked reimbursement nets precisely against its own expense's category
+  // instead of the blanket "same-category positive-amount Expense" convention below.
+  // Wrapped in try-catch: table may not exist during migration window.
+  let linkRecords: Array<{
+    expenseTransaction: { category: string | null };
+    reimbursementTransaction: { type: string; amount: number };
+  }> = [];
+  try {
+    const raw = await prisma.transactionLink.findMany({
+      where: { expenseTransaction: expenseWhere },
+      select: {
+        expenseTransaction: { select: { category: true } },
+        reimbursementTransaction: { select: { type: true, amount: true } },
+      },
+    });
+    linkRecords = raw.filter(r => r.expenseTransaction !== null) as typeof linkRecords;
+  } catch {
+    // table doesn't exist yet — proceed without link adjustments
+  }
+
   // Derive byMonth, byDay, byCategoryMonth from the single grouped time-series query
   const byMonthMap: Record<string, number> = {};
   const dayMap: Record<string, Record<string, number>> = {};
@@ -304,6 +325,27 @@ export async function getDashboardStats(
     adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
   }
 
+  // Reconcile explicitly linked reimbursements against their own expense's category.
+  // A linked reimbursement that's a positive-amount Expense in the same category was
+  // already netted by the blanket loop above — undo that before applying the precise,
+  // per-expense adjustment here so it isn't subtracted twice. A linked Income-type
+  // reimbursement (the common case: a friend's Mobilepay credit) moves out of
+  // totalIncome and into totalReimbursements instead — net is unchanged since both
+  // terms shift by the same amount, but a repayment no longer inflates "income".
+  let linkedIncomeAdjustment = 0;
+  for (const link of linkRecords) {
+    const { type, amount } = link.reimbursementTransaction;
+    const cat = link.expenseTransaction.category || '⚠ Uncategorized';
+
+    if (type === 'Expense' && amount > 0) {
+      adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) + amount;
+    } else if (type === 'Income') {
+      linkedIncomeAdjustment += amount;
+    }
+
+    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - amount;
+  }
+
   const finalByCategoryArray = Object.entries(adjustedByCat)
     .filter(([, amt]) => amt > 0)
     .map(([cat, amt]) => ({ category: cat, amount: amt }))
@@ -337,13 +379,18 @@ export async function getDashboardStats(
     date: topTx.date.toISOString().slice(0, 10),
   } : null;
 
+  // Linked Income-type reimbursements move from totalIncome into totalReimbursements
+  // (see the linkRecords loop above) — net is unaffected since both terms shift equally.
+  const adjustedTotalIncome = totalIncome - linkedIncomeAdjustment;
+  const adjustedTotalReimbursements = totalReimbursements + linkedIncomeAdjustment;
+
   const result: DashboardAggregation = {
     totalExpenses,
-    totalIncome,
+    totalIncome: adjustedTotalIncome,
     totalInvestments,
     totalInternalTransfers,
-    totalReimbursements,
-    net: totalIncome - totalExpenses + totalReimbursements,
+    totalReimbursements: adjustedTotalReimbursements,
+    net: adjustedTotalIncome - totalExpenses + adjustedTotalReimbursements,
     byCategory: finalByCategoryArray,
     byAccount,
     byPerson: byPersonArray,
