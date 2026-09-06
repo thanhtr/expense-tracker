@@ -54,9 +54,8 @@ export async function getDashboardStats(
     ...(category ? {} : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
-  // Outflows: regular expenses (negative amounts). Used for totals, time-series, topTx.
   const outflowWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { lt: 0 } };
-  // Reimbursements: positive-amount Expenses (money back against an expense category).
+  // Positive-amount Expenses = money returned against a spending category (reimbursements).
   const reimbWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { gt: 0 } };
 
   // Income is not filtered by the active spending-category selector, but non-spending
@@ -74,6 +73,8 @@ export async function getDashboardStats(
       : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
+  // Use baseWhere (not expenseWhere) so capital-movement totals are always full-period
+  // regardless of the active category filter — they feed a separate section, not the charts.
   const investmentsWhere: Prisma.TransactionWhereInput = {
     ...baseWhere,
     type: 'Expense',
@@ -115,7 +116,6 @@ export async function getDashboardStats(
       where: outflowWhere,
       _sum: { amount: true },
     }),
-    // Date is @db.Date so grouping by date gives one row per (day, category)
     prisma.transaction.groupBy({
       by: ['date', 'category'],
       where: outflowWhere,
@@ -160,7 +160,6 @@ export async function getDashboardStats(
       orderBy: { date: 'asc' },
       take: 10000,
     }),
-    // Reimbursements: positive-amount Expenses grouped by category for netting
     prisma.transaction.groupBy({
       by: ['category'],
       where: reimbWhere,
@@ -187,6 +186,9 @@ export async function getDashboardStats(
     amount: g._sum.amount ?? 0,
   }));
 
+  // Force-include NON_SPENDING_CATEGORIES that have activity so they appear in budget
+  // dropdowns even though outflowWhere excludes them from byCategoryGroups.
+  // Skip each when it's the active category filter (already present in byCategoryGroups).
   const allCategories = [
     ...byCategoryGroups.map(g => g.category).filter(Boolean),
     ...(totalInvestments > 0 && category !== 'Investments' ? ['Investments'] : []),

@@ -264,7 +264,8 @@ function fmtLongMonth(m: string) {
   return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 function fmtCompactEuro(v: number) {
-  return Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
+  const sign = v < 0 ? '-' : '';
+  return Math.abs(v) >= 1000 ? `${sign}€${Math.round(Math.abs(v) / 1000)}k` : `${sign}€${Math.round(Math.abs(v))}`;
 }
 
 // Shared toggle-visibility state for chart legend items. Returns a stable `toggle`

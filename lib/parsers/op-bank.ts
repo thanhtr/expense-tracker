@@ -4,7 +4,6 @@ import { ParsedTransaction } from '@/lib/types';
 
 export async function parseOPBank(fileContent: string): Promise<ParsedTransaction[]> {
   return new Promise((resolve, reject) => {
-    // Try with semicolon delimiter first (standard OP Bank format)
     const delimiters = [';', ',', '\t'];
 
     function tryParse(delimiterIndex: number) {
@@ -28,7 +27,6 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
 
           for (const r of results.data) {
             try {
-              // Try to find columns by various name variations (including OP Bank Finnish names)
               const amountStr = findColumn(r, ['Määrä EUROA', 'Amount EUR', 'Määrä EUR', 'Summa', 'Amount']);
               const dateStr = findColumn(r, ['Kirjauspäivä', 'Arvopäivä', 'EntryDate', 'Päivämäärä', 'Date']);
               // Recipient/payer name — intentionally excludes generic description column names
@@ -47,7 +45,6 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
               const date = new Date(dateStr.replace(/"/g, ''));
               const recipient = (recipientStr?.trim() || '').replace(/"/g, '');
               const desc = (descStr?.trim() || '').replace(/"/g, '');
-              // Prefer the actual payee name; fall back to the transaction-type description
               let merchant = recipient || desc || 'Unknown';
               const note = (noteStr?.replace(/"/g, '').trim()) || '';
 

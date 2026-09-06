@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { setupSplitwise, mockExpenses, mockExpense } from '../fixtures/api-mock';
 
 test.describe('Dashboard', () => {
@@ -82,7 +82,7 @@ test.describe('Dashboard', () => {
   });
 
   // Two months of data: Rent dominates (€1200/mo), Shopping is small (€100/mo)
-  const rentShoppingDashboard = {
+  const rentShoppingDashboard = Object.freeze({
     totalExpenses: 2600,
     totalIncome: 0,
     totalInvestments: 0,
@@ -110,9 +110,9 @@ test.describe('Dashboard', () => {
     uncategorizedCount: 0,
     byPerson: [],
     byIncomeSource: [],
-  };
+  });
 
-  async function setupRentShoppingRoutes(page: Parameters<typeof test>[1]['page']) {
+  async function setupRentShoppingRoutes(page: Page) {
     await page.route('**/api/dashboard*', (route) => route.fulfill({ json: rentShoppingDashboard }));
     // recurring must be registered before the broader transactions* pattern
     await page.route('**/api/transactions/recurring*', (route) => route.fulfill({ json: { items: [], totalMonthly: 0 } }));

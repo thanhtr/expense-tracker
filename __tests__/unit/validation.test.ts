@@ -14,7 +14,6 @@ import {
   updateGuidelinesSchema,
 } from '../../lib/validation';
 
-// ── parseId ──────────────────────────────────────────────────────────────────
 
 describe('parseId', () => {
   it('returns id for valid positive integer string', () => {
@@ -44,7 +43,6 @@ describe('parseId', () => {
   });
 });
 
-// ── parseBody ─────────────────────────────────────────────────────────────────
 
 describe('parseBody', () => {
   it('returns data on successful parse', () => {
@@ -70,7 +68,6 @@ describe('parseBody', () => {
   });
 });
 
-// ── createGoalSchema ──────────────────────────────────────────────────────────
 
 describe('createGoalSchema', () => {
   const valid = { name: 'Vacation', targetAmount: 3000, targetDate: '2026-12-31' };
@@ -113,7 +110,6 @@ describe('createGoalSchema', () => {
   });
 });
 
-// ── updateGoalSchema ──────────────────────────────────────────────────────────
 
 describe('updateGoalSchema', () => {
   it('accepts partial updates', () => {
@@ -129,7 +125,6 @@ describe('updateGoalSchema', () => {
   });
 });
 
-// ── createAssetSchema ─────────────────────────────────────────────────────────
 
 describe('createAssetSchema', () => {
   const valid = { name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: '2026-08-01' };
@@ -161,7 +156,6 @@ describe('createAssetSchema', () => {
   });
 });
 
-// ── updateAssetSchema ─────────────────────────────────────────────────────────
 
 describe('updateAssetSchema', () => {
   it('accepts partial updates', () => {
@@ -173,7 +167,6 @@ describe('updateAssetSchema', () => {
   });
 });
 
-// ── createBudgetSchema ────────────────────────────────────────────────────────
 
 describe('createBudgetSchema', () => {
   it('accepts valid input', () => {
@@ -195,7 +188,6 @@ describe('createBudgetSchema', () => {
   });
 });
 
-// ── createKeywordSchema ───────────────────────────────────────────────────────
 
 describe('createKeywordSchema', () => {
   it('accepts valid keyword and category', () => {
@@ -207,7 +199,6 @@ describe('createKeywordSchema', () => {
   });
 });
 
-// ── updateTransactionSchema ───────────────────────────────────────────────────
 
 describe('updateTransactionSchema', () => {
   it('accepts category update', () => {
@@ -227,7 +218,6 @@ describe('updateTransactionSchema', () => {
   });
 });
 
-// ── updateSplitsSchema ────────────────────────────────────────────────────────
 
 describe('updateSplitsSchema', () => {
   const valid = { splits: [{ category: 'Groceries', amount: 30 }, { category: 'Shopping', amount: 20 }] };
@@ -249,7 +239,6 @@ describe('updateSplitsSchema', () => {
   });
 });
 
-// ── bulkCategorizeSchema ──────────────────────────────────────────────────────
 
 describe('bulkCategorizeSchema', () => {
   it('accepts ids array', () => {
@@ -273,7 +262,6 @@ describe('bulkCategorizeSchema', () => {
   });
 });
 
-// ── updateGuidelinesSchema ────────────────────────────────────────────────────
 
 describe('updateGuidelinesSchema', () => {
   const valid = {
