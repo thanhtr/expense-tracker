@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { updateAssetSchema, parseBody, parseId } from '@/lib/validation';
 
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: idStr } = await params;
+    const idResult = parseId(idStr);
+    if ('error' in idResult) return idResult.error;
+
+    const snapshots = await prisma.assetSnapshot.findMany({
+      where: { assetId: idResult.id },
+      orderBy: { recordedAt: 'asc' },
+    });
+
+    return NextResponse.json(snapshots);
+  } catch (error) {
+    console.error('Failed to fetch asset history:', error);
+    return NextResponse.json({ error: 'Failed to fetch asset history' }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

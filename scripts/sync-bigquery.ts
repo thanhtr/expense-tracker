@@ -1,8 +1,10 @@
 /**
- * Syncs all transactions from Neon PostgreSQL → BigQuery (expense_tracker.transactions).
+ * Syncs Neon PostgreSQL → BigQuery (dataset `expense_tracker`):
+ *   - transactions      ← Transaction + TransactionSplit (expanded into one row per split)
+ *   - assets            ← Asset (current balances)
+ *   - asset_snapshots   ← AssetSnapshot (full balance changelog per asset)
  *
- * Transactions with splits are expanded into one row per split (flat model).
- * Full replace (WRITE_TRUNCATE) — safe for our dataset size, simplest to operate.
+ * Full replace (WRITE_TRUNCATE) per table — safe for our dataset size, simplest to operate.
  *
  * Run locally:  GCP_PROJECT_ID=... DATABASE_URL=... npx tsx scripts/sync-bigquery.ts
  * In CI:        triggered by .github/workflows/sync-bigquery.yml
@@ -13,13 +15,12 @@ import path from 'path';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { Client } from 'pg';
-import { BigQuery, Job } from '@google-cloud/bigquery';
-import { TRANSACTIONS_SCHEMA } from './bigquery-schema';
+import { BigQuery, Job, TableField } from '@google-cloud/bigquery';
+import { TRANSACTIONS_SCHEMA, ASSETS_SCHEMA, ASSET_SNAPSHOTS_SCHEMA } from './bigquery-schema';
 
 loadEnvConfig(path.resolve(__dirname, '..'));
 
 const DATASET = 'expense_tracker';
-const TABLE   = 'transactions';
 
 interface RawRow {
   id:             number;
@@ -55,6 +56,48 @@ interface BQRow {
   created_at: string;
   updated_at: string;
   synced_at:  string;
+}
+
+interface RawAssetRow {
+  id:         number;
+  name:       string;
+  type:       string;
+  balance:    number;
+  recordedAt: Date;
+  createdAt:  Date;
+  updatedAt:  Date;
+}
+
+interface BQAssetRow {
+  id:         number;
+  name:       string;
+  type:       string;
+  balance:    number;
+  recorded_at: string;
+  created_at:  string;
+  updated_at:  string;
+  synced_at:   string;
+}
+
+interface RawAssetSnapshotRow {
+  id:         number;
+  assetId:    number;
+  name:       string;
+  type:       string;
+  balance:    number;
+  recordedAt: Date;
+  createdAt:  Date;
+}
+
+interface BQAssetSnapshotRow {
+  id:          number;
+  asset_id:    number;
+  name:        string;
+  type:        string;
+  balance:     number;
+  recorded_at: string;
+  created_at:  string;
+  synced_at:   string;
 }
 
 function flattenToRows(rawRows: RawRow[], syncedAt: string): BQRow[] {
@@ -115,6 +158,77 @@ function flattenToRows(rawRows: RawRow[], syncedAt: string): BQRow[] {
   return bqRows;
 }
 
+function mapAssetRows(rawRows: RawAssetRow[], syncedAt: string): BQAssetRow[] {
+  return rawRows.map(a => ({
+    id:          a.id,
+    name:        a.name,
+    type:        a.type,
+    balance:     a.balance,
+    recorded_at: a.recordedAt.toISOString().slice(0, 10),
+    created_at:  a.createdAt.toISOString(),
+    updated_at:  a.updatedAt.toISOString(),
+    synced_at:   syncedAt,
+  }));
+}
+
+function mapAssetSnapshotRows(rawRows: RawAssetSnapshotRow[], syncedAt: string): BQAssetSnapshotRow[] {
+  return rawRows.map(s => ({
+    id:          s.id,
+    asset_id:    s.assetId,
+    name:        s.name,
+    type:        s.type,
+    balance:     s.balance,
+    recorded_at: s.recordedAt.toISOString().slice(0, 10),
+    created_at:  s.createdAt.toISOString(),
+    synced_at:   syncedAt,
+  }));
+}
+
+async function loadTable<T extends object>(
+  bq: BigQuery,
+  tableName: string,
+  rows: T[],
+  schema: TableField[],
+): Promise<void> {
+  const table = bq.dataset(DATASET).table(tableName);
+
+  // Write NDJSON to a temp file — BigQuery batch load API requires a file path
+  const ndjson  = rows.map(r => JSON.stringify(r)).join('\n');
+  const tmpFile = `${tmpdir()}/bq-sync-${tableName}-${Date.now()}.ndjson`;
+  writeFileSync(tmpFile, ndjson, 'utf-8');
+
+  const loadOptions = {
+    sourceFormat:      'NEWLINE_DELIMITED_JSON',
+    writeDisposition:  'WRITE_TRUNCATE',
+    schema:            { fields: schema },
+    createDisposition: 'CREATE_IF_NEEDED',
+    location:          'EU',
+  };
+
+  // Use callback form to get a properly typed Job, then await completion
+  let job: Job;
+  try {
+    job = await new Promise<Job>((resolve, reject) => {
+      table.createLoadJob(tmpFile, loadOptions, (err, j) => {
+        if (err || !j) reject(err ?? new Error('No job returned'));
+        else resolve(j);
+      });
+    });
+  } finally {
+    unlinkSync(tmpFile);
+  }
+
+  await job.promise();
+
+  const [metadata] = await job.getMetadata();
+  if (metadata.status?.errorResult) {
+    throw new Error(`BigQuery job failed for ${tableName}: ${JSON.stringify(metadata.status.errorResult)}`);
+  }
+
+  const stats = metadata.statistics?.load;
+  console.log(`Sync complete — ${stats?.outputRows ?? rows.length} rows loaded to ${DATASET}.${tableName}`);
+}
+
 async function main() {
   const projectId = process.env.GCP_PROJECT_ID;
   if (!projectId) throw new Error('GCP_PROJECT_ID env var is required');
@@ -151,16 +265,33 @@ async function main() {
     LEFT JOIN "TransactionSplit" s ON s."transactionId" = t.id
     ORDER BY t.id, s.id
   `);
-  await pg.end();
+  console.log(`Fetched ${rows.length} raw transaction rows from Neon`);
 
-  console.log(`Fetched ${rows.length} raw rows from Neon`);
+  console.log('Querying assets...');
+  const { rows: assetRows } = await pg.query<RawAssetRow>(`
+    SELECT id, name, type, balance, "recordedAt", "createdAt", "updatedAt"
+    FROM "Asset"
+    ORDER BY id
+  `);
+  console.log(`Fetched ${assetRows.length} asset rows from Neon`);
+
+  console.log('Querying asset snapshots...');
+  const { rows: assetSnapshotRows } = await pg.query<RawAssetSnapshotRow>(`
+    SELECT id, "assetId", name, type, balance, "recordedAt", "createdAt"
+    FROM "AssetSnapshot"
+    ORDER BY id
+  `);
+  console.log(`Fetched ${assetSnapshotRows.length} asset snapshot rows from Neon`);
+
+  await pg.end();
 
   const syncedAt = new Date().toISOString();
   const bqRows = flattenToRows(rows, syncedAt);
-  console.log(`Flattened to ${bqRows.length} BigQuery rows`);
+  const bqAssetRows = mapAssetRows(assetRows, syncedAt);
+  const bqAssetSnapshotRows = mapAssetSnapshotRows(assetSnapshotRows, syncedAt);
+  console.log(`Flattened to ${bqRows.length} transaction rows, ${bqAssetRows.length} asset rows, ${bqAssetSnapshotRows.length} asset snapshot rows`);
 
-  const bq    = new BigQuery({ projectId });
-  const table = bq.dataset(DATASET).table(TABLE);
+  const bq = new BigQuery({ projectId });
 
   // Ensure dataset exists
   const [datasetExists] = await bq.dataset(DATASET).exists();
@@ -169,41 +300,9 @@ async function main() {
     console.log(`Created dataset ${DATASET}`);
   }
 
-  // Write NDJSON to a temp file — BigQuery batch load API requires a file path
-  const ndjson   = bqRows.map(r => JSON.stringify(r)).join('\n');
-  const tmpFile  = `${tmpdir()}/bq-sync-${Date.now()}.ndjson`;
-  writeFileSync(tmpFile, ndjson, 'utf-8');
-
-  const loadOptions = {
-    sourceFormat:      'NEWLINE_DELIMITED_JSON',
-    writeDisposition:  'WRITE_TRUNCATE',
-    schema:            { fields: TRANSACTIONS_SCHEMA },
-    createDisposition: 'CREATE_IF_NEEDED',
-    location:          'EU',
-  };
-
-  // Use callback form to get a properly typed Job, then await completion
-  let job: Job;
-  try {
-    job = await new Promise<Job>((resolve, reject) => {
-      table.createLoadJob(tmpFile, loadOptions, (err, j) => {
-        if (err || !j) reject(err ?? new Error('No job returned'));
-        else resolve(j);
-      });
-    });
-  } finally {
-    unlinkSync(tmpFile);
-  }
-
-  await job.promise();
-
-  const [metadata] = await job.getMetadata();
-  if (metadata.status?.errorResult) {
-    throw new Error(`BigQuery job failed: ${JSON.stringify(metadata.status.errorResult)}`);
-  }
-
-  const stats = metadata.statistics?.load;
-  console.log(`Sync complete — ${stats?.outputRows ?? bqRows.length} rows loaded to ${DATASET}.${TABLE}`);
+  await loadTable(bq, 'transactions', bqRows, TRANSACTIONS_SCHEMA);
+  await loadTable(bq, 'assets', bqAssetRows, ASSETS_SCHEMA);
+  await loadTable(bq, 'asset_snapshots', bqAssetSnapshotRows, ASSET_SNAPSHOTS_SCHEMA);
 }
 
 main().catch(err => {

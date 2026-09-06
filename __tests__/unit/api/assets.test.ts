@@ -17,7 +17,7 @@ vi.mock('../../../lib/db', () => ({
 }));
 
 import { GET, POST } from '../../../app/api/assets/route';
-import { PATCH, DELETE } from '../../../app/api/assets/[id]/route';
+import { GET as GET_ONE, PATCH, DELETE } from '../../../app/api/assets/[id]/route';
 import { prisma } from '../../../lib/db';
 
 const makeAsset = (overrides = {}) => ({
@@ -87,6 +87,31 @@ describe('POST /api/assets', () => {
 
   it('returns 400 for missing required fields', async () => {
     const res = await POST(makeReq('POST', { name: 'OP Savings' }));
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/assets/[id]', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns asset snapshots ordered by recordedAt asc', async () => {
+    const snapshots = [
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+      { id: 2, assetId: 1, name: 'OP Savings', type: 'bank', balance: 12000, recordedAt: new Date('2026-08-10'), createdAt: new Date() },
+    ];
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce(snapshots);
+    const res = await GET_ONE(makeReq('GET'), { params: params('1') });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toHaveLength(2);
+    expect(prisma.assetSnapshot.findMany).toHaveBeenCalledWith({
+      where: { assetId: 1 },
+      orderBy: { recordedAt: 'asc' },
+    });
+  });
+
+  it('returns 400 for invalid id', async () => {
+    const res = await GET_ONE(makeReq('GET'), { params: params('xyz') });
     expect(res.status).toBe(400);
   });
 });

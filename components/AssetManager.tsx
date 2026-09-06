@@ -15,6 +15,12 @@ interface Asset {
   recordedAt: string;
 }
 
+interface AssetSnapshot {
+  id: number;
+  balance: number;
+  recordedAt: string;
+}
+
 const TYPE_LABELS: Record<AssetType, string> = {
   bank: 'Bank',
   investment: 'Investment',
@@ -35,6 +41,9 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBalance, setEditBalance] = useState('');
+  const [historyOpenId, setHistoryOpenId] = useState<number | null>(null);
+  const [historyByAsset, setHistoryByAsset] = useState<Record<number, AssetSnapshot[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/assets')
@@ -85,6 +94,27 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
       toast.success('Balance updated');
     } else {
       toast.error('Failed to update');
+    }
+  }
+
+  async function handleToggleHistory(asset: Asset) {
+    if (historyOpenId === asset.id) {
+      setHistoryOpenId(null);
+      return;
+    }
+    setHistoryOpenId(asset.id);
+    if (historyByAsset[asset.id]) return;
+    setHistoryLoading(asset.id);
+    try {
+      const res = await fetch(`/api/assets/${asset.id}`);
+      if (res.ok) {
+        const snapshots = await res.json() as AssetSnapshot[];
+        setHistoryByAsset(prev => ({ ...prev, [asset.id]: snapshots }));
+      } else {
+        toast.error('Failed to load history');
+      }
+    } finally {
+      setHistoryLoading(null);
     }
   }
 
@@ -147,43 +177,72 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
               </div>
               <ul className="divide-y divide-[var(--border)]">
                 {items.map(asset => (
-                  <li key={asset.id} className="flex items-center gap-3 px-4 py-[10px]">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-medium truncate">{asset.name}</div>
-                      <div className="text-[11px] text-[var(--fg-3)]">
-                        as of {new Date(asset.recordedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <li key={asset.id} className="px-4 py-[10px]">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-medium truncate">{asset.name}</div>
+                        <div className="text-[11px] text-[var(--fg-3)]">
+                          as of {new Date(asset.recordedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
                       </div>
+
+                      {editingId === asset.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            className="date-input w-[120px] text-right"
+                            value={editBalance}
+                            onChange={e => setEditBalance(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') void handleUpdateBalance(asset); if (e.key === 'Escape') setEditingId(null); }}
+                            autoFocus
+                          />
+                          <button className="btn-ghost text-[12px] py-[3px]" onClick={() => void handleUpdateBalance(asset)}>Save</button>
+                          <button className="btn-ghost text-[12px] py-[3px] text-[var(--fg-3)]" onClick={() => setEditingId(null)}>Cancel</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="mono text-[13px] font-medium hover:text-[var(--accent)] transition-colors"
+                            onClick={() => { setEditingId(asset.id); setEditBalance(String(asset.balance)); }}
+                            title="Click to edit balance"
+                          >
+                            {fmtEUR(asset.balance)}
+                          </button>
+                          <button
+                            className={`text-[11px] transition-colors ${historyOpenId === asset.id ? 'text-[var(--accent)]' : 'text-[var(--fg-3)] hover:text-[var(--fg-2)]'}`}
+                            onClick={() => void handleToggleHistory(asset)}
+                            aria-expanded={historyOpenId === asset.id}
+                            aria-label={`Toggle history for ${asset.name}`}
+                          >
+                            History
+                          </button>
+                          <button
+                            className="text-[var(--fg-3)] hover:text-[var(--neg)] transition-colors text-[12px]"
+                            onClick={() => void handleDelete(asset)}
+                            aria-label={`Delete ${asset.name}`}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    {editingId === asset.id ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          className="date-input w-[120px] text-right"
-                          value={editBalance}
-                          onChange={e => setEditBalance(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') void handleUpdateBalance(asset); if (e.key === 'Escape') setEditingId(null); }}
-                          autoFocus
-                        />
-                        <button className="btn-ghost text-[12px] py-[3px]" onClick={() => void handleUpdateBalance(asset)}>Save</button>
-                        <button className="btn-ghost text-[12px] py-[3px] text-[var(--fg-3)]" onClick={() => setEditingId(null)}>Cancel</button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <button
-                          className="mono text-[13px] font-medium hover:text-[var(--accent)] transition-colors"
-                          onClick={() => { setEditingId(asset.id); setEditBalance(String(asset.balance)); }}
-                          title="Click to edit balance"
-                        >
-                          {fmtEUR(asset.balance)}
-                        </button>
-                        <button
-                          className="text-[var(--fg-3)] hover:text-[var(--neg)] transition-colors text-[12px]"
-                          onClick={() => void handleDelete(asset)}
-                          aria-label={`Delete ${asset.name}`}
-                        >
-                          ✕
-                        </button>
+                    {historyOpenId === asset.id && (
+                      <div className="mt-[8px] pl-1 border-l-2 border-[var(--border)]">
+                        {historyLoading === asset.id ? (
+                          <div className="text-[11px] text-[var(--fg-3)] pl-3 py-1">Loading history…</div>
+                        ) : (historyByAsset[asset.id]?.length ?? 0) === 0 ? (
+                          <div className="text-[11px] text-[var(--fg-3)] pl-3 py-1">No history yet</div>
+                        ) : (
+                          <ul className="space-y-1">
+                            {[...historyByAsset[asset.id]!].reverse().map(snap => (
+                              <li key={snap.id} className="flex items-center justify-between gap-3 pl-3 text-[11px] text-[var(--fg-3)]">
+                                <span>{new Date(snap.recordedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                <span className="mono">{fmtEUR(snap.balance)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )}
                   </li>
