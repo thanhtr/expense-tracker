@@ -55,7 +55,6 @@ async function loadLearnedRules(): Promise<LearnedRulesStore> {
 export async function saveLearnedRules(store: LearnedRulesStore): Promise<void> {
   store.updatedAt = new Date().toISOString();
 
-  // Upsert all rules in the store
   for (const [normalizedKey, rule] of Object.entries(store.rules)) {
     await prisma.learnedRule.upsert({
       where: { normalizedKey },
@@ -140,7 +139,6 @@ export async function bootstrapRulesFromHistory(): Promise<{ learned: number; sk
   const store = await loadLearnedRules();
   if (!store.rules) store.rules = {};
 
-  // Group by normalized merchant, count votes per category
   const merchantMap = new Map<string, Map<string, number>>();
   for (const tx of transactions) {
     if (!tx.category || tx.category === 'General') continue;
@@ -162,7 +160,6 @@ export async function bootstrapRulesFromHistory(): Promise<{ learned: number; sk
       continue;
     }
 
-    // Majority vote
     let winnerCat = '';
     let winnerCount = 0;
     for (const [cat, count] of catVotes) {

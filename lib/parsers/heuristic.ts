@@ -114,20 +114,16 @@ export function detectColumnMapping(csvContent: string): HeuristicResult {
   const dateCol = bestColumn(headers, sampleRows, DATE_KEYWORDS, looksLikeDate);
   const amountCol = bestColumn(headers, sampleRows, AMOUNT_KEYWORDS, looksLikeNumber);
 
-  // Merchant: exclude already-picked columns
   const remaining = headers.filter(h => h !== dateCol && h !== amountCol);
   const merchantCol = bestColumn(remaining, sampleRows, MERCHANT_KEYWORDS);
 
-  // Note: optional, from what's left
   const remaining2 = remaining.filter(h => h !== merchantCol);
   const noteCandidates = remaining2.filter(h => scores(h, NOTE_KEYWORDS) > 0);
   const noteCol = noteCandidates[0] ?? null;
 
-  // Date format from sample values
   const dateSamples = sampleRows.map(r => r[dateCol] ?? '').filter(Boolean);
   const dateFormat = dateSamples.length > 0 ? detectDateFormat(dateSamples[0]!) : 'YYYY-MM-DD';
 
-  // Amount format + sign from sample values
   const amountSamples = sampleRows.map(r => r[amountCol] ?? '').filter(Boolean);
   const amountFormat = detectAmountFormat(amountSamples);
   const amountSign = detectAmountSign(amountSamples);

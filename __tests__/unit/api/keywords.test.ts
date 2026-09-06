@@ -8,12 +8,6 @@ describe('Keywords API', () => {
     vi.clearAllMocks();
   });
 
-  // Note: These tests mock the fs module.
-  // In a real scenario, you would either:
-  // 1. Test against a real temp file
-  // 2. Use a file system mocking library like memfs
-  // 3. Test the route handlers directly with mocked fs
-
   it('should read keywords from CSV', async () => {
     const csvContent = `Keyword,Category
 amazon,Shopping
@@ -22,7 +16,6 @@ lidl,Food & Groceries`;
 
     vi.mocked(fs.readFile).mockResolvedValue(csvContent);
 
-    // Simulating keyword parsing
     const lines = csvContent.split('\n');
     const keywords = [];
     let priority = 0;
@@ -124,10 +117,7 @@ spotify,Subscriptions`;
       { id: 2, keyword: 'netflix', category: 'Entertainment', priority: 2 },
     ];
 
-    // Delete at index 1
     keywords.splice(1, 1);
-
-    // Re-index
     keywords = keywords.map((k, i) => ({
       ...k,
       id: i,
@@ -148,12 +138,9 @@ spotify,Subscriptions`;
       { id: 2, keyword: 'netflix', category: 'Entertainment', priority: 2 },
     ];
 
-    // Swap position 0 and 2
     const item = keywords[0];
     keywords.splice(0, 1);
     keywords.splice(2, 0, item);
-
-    // Re-index
     keywords = keywords.map((k, i) => ({
       ...k,
       id: i,
@@ -225,8 +212,6 @@ describe('Clear Learned Rules (POST /api/keywords/clear)', () => {
       },
     ];
 
-    // This test documents the expected behavior:
-    // After deletion, sentinel should not be in the list
     const hasDeletedSentinel = initialExpenses.some(
       (e) => e.description === '__learned_rules__'
     );

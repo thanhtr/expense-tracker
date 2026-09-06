@@ -13,7 +13,6 @@ function median(values: number[]): number {
 }
 
 export async function GET(): Promise<NextResponse> {
-  // Look back 12 months for pattern detection
   const since = new Date();
   since.setFullYear(since.getFullYear() - 1);
 
@@ -34,7 +33,6 @@ export async function GET(): Promise<NextResponse> {
     exclusions.filter(e => e.type === 'merchant').map(e => e.value)
   );
 
-  // Group by merchant
   const byMerchant = new Map<string, typeof rows>();
   for (const row of rows) {
     const key = row.merchant;
