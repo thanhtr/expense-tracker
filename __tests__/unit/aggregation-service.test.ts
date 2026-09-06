@@ -13,6 +13,9 @@ vi.mock('../../lib/db', () => ({
     transactionSplit: {
       findMany: vi.fn().mockResolvedValue([]),
     },
+    transactionLink: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -52,6 +55,7 @@ function setupMocks(opts: {
   investmentsAmount?: number;
   internalTransfersAmount?: number;
   topTx?: typeof DEFAULT_TOP_TX | null;
+  reimbByCategoryGroups?: { category: string; _sum: { amount: number } }[];
 } = {}) {
   const {
     byCategoryGroups = DEFAULT_BY_CATEGORY,
@@ -65,6 +69,7 @@ function setupMocks(opts: {
     investmentsAmount = 0,
     internalTransfersAmount = 0,
     topTx = DEFAULT_TOP_TX,
+    reimbByCategoryGroups = [],
   } = opts;
 
   // groupBy called 6 times: category, account, paidBy, date×category, income sources, reimb by category
@@ -74,7 +79,7 @@ function setupMocks(opts: {
     .mockResolvedValueOnce(byPersonGroups as never)
     .mockResolvedValueOnce(byDayCatGroups as never)
     .mockResolvedValueOnce([] as never) // income sources (empty by default)
-    .mockResolvedValueOnce([] as never); // reimb by category (empty by default)
+    .mockResolvedValueOnce(reimbByCategoryGroups as never); // reimb by category (empty by default)
 
   // aggregate called five times: outflow totals, income, investments, internalTransfer, reimbursements
   vi.mocked(prisma.transaction.aggregate)
@@ -217,5 +222,50 @@ describe('getDashboardStats', () => {
     expect(stats.allCategories).toContain('Shopping');
     expect(stats.allCategories).toContain('Dining Out');
     expect(stats.allCategories).toContain('Food & Groceries');
+  });
+
+  it('should net a linked Income-type reimbursement against its expense category, moving it from income into reimbursements without changing net', async () => {
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      incomeAmount: 30,
+      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+    });
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      { expenseTransaction: { category: 'Dining Out' }, reimbursementTransaction: { type: 'Income', amount: 30 } },
+    ] as never);
+
+    const statsWithoutLink = { totalIncome: 30, totalReimbursements: 0 };
+    const stats = await getDashboardStats();
+
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30
+    expect(stats.totalIncome).toBe(0);
+    expect(stats.totalReimbursements).toBe(30);
+    // net is invariant to the income/reimbursement reclassification
+    expect(stats.net).toBeCloseTo(statsWithoutLink.totalIncome - 80 + statsWithoutLink.totalReimbursements);
+  });
+
+  it('should not double-net a linked positive-amount Expense reimbursement already covered by the blanket same-category convention', async () => {
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 30 } }],
+    });
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      { expenseTransaction: { category: 'Dining Out' }, reimbursementTransaction: { type: 'Expense', amount: 30 } },
+    ] as never);
+
+    const stats = await getDashboardStats();
+
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30, not 80 - 60
   });
 });
