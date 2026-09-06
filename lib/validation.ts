@@ -141,6 +141,14 @@ export const updateSplitsSchema = z.object({
   })).min(1),
 });
 
+export const createLinkSchema = z.object({
+  reimbursementTransactionId: z.number().int().positive(),
+});
+
+export const deleteLinkSchema = z.object({
+  reimbursementTransactionId: z.number().int().positive(),
+});
+
 export const bulkCategorizeSchema = z.object({
   category: z.string().min(1).max(100),
   ids: z.array(z.number().int().positive()).optional(),

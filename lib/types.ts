@@ -25,6 +25,7 @@ export interface Transaction {
   note: string;
   paidBy: 'tung' | 'thuy' | 'other';
   tags: string[];
+  reimbursedAmount?: number;
 }
 
 export interface TransactionFilterValues {
@@ -56,6 +57,7 @@ export interface TransactionWithId extends ParsedTransaction {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  reimbursedAmount?: number;
 }
 
 export interface DashboardAggregation {
