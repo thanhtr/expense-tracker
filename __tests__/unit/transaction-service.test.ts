@@ -9,6 +9,9 @@ vi.mock('../../lib/db', () => ({
       findUnique: vi.fn(),
       create: vi.fn(),
     },
+    transactionLink: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -107,5 +110,37 @@ describe('getTransactions', () => {
 
     const orderArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.orderBy;
     expect(orderArg).toEqual({ date: 'desc' });
+  });
+
+  it('should attach reimbursedAmount to an expense row with linked reimbursements', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([makeRow({ id: 1, amount: -80 })]);
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      { id: 10, expenseTransactionId: 1, reimbursementTransactionId: 2, reimbursementTransaction: { amount: 30 } },
+      { id: 11, expenseTransactionId: 1, reimbursementTransactionId: 3, reimbursementTransaction: { amount: 15 } },
+    ] as never);
+
+    const result = await getTransactions({});
+
+    expect(result.transactions[0].reimbursedAmount).toBe(45);
+  });
+
+  it('should leave reimbursedAmount unset for a row with no links', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([makeRow({ id: 1, amount: -80 })]);
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([]);
+
+    const result = await getTransactions({});
+
+    expect(result.transactions[0].reimbursedAmount).toBeUndefined();
+  });
+
+  it('should not query links for income/positive rows', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([makeRow({ id: 2, type: 'Income', amount: 30 })]);
+
+    await getTransactions({});
+
+    expect(prisma.transactionLink.findMany).not.toHaveBeenCalled();
   });
 });

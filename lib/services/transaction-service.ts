@@ -119,20 +119,45 @@ export async function getTransactions(filters: {
     }),
   ]);
 
-  const transactions: TransactionWithId[] = rows.map((row) => ({
-    id: row.id,
-    date: row.date,
-    account: row.account,
-    merchant: row.merchant,
-    amount: row.amount,
-    note: row.note,
-    type: row.type as 'Income' | 'Expense',
-    category: row.category,
-    tags: row.tags,
-    paidBy: row.paidBy as 'tung' | 'thuy' | 'other',
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  }));
+  // Batch-fetch linked reimbursement totals for this page's expense rows, so the list
+  // can show a net amount without a per-row round trip. Wrapped in try-catch: table
+  // may not exist during migration window (same defensive pattern as splitRecords in
+  // aggregation-service.ts).
+  const expenseIds = rows.filter(row => row.type === 'Expense' && row.amount < 0).map(row => row.id);
+  const reimbursedByTxId = new Map<number, number>();
+  if (expenseIds.length > 0) {
+    try {
+      const links = await prisma.transactionLink.findMany({
+        where: { expenseTransactionId: { in: expenseIds } },
+        include: { reimbursementTransaction: { select: { amount: true } } },
+      });
+      for (const link of links) {
+        const prev = reimbursedByTxId.get(link.expenseTransactionId) ?? 0;
+        reimbursedByTxId.set(link.expenseTransactionId, prev + link.reimbursementTransaction.amount);
+      }
+    } catch {
+      // table doesn't exist yet — proceed without link adjustments
+    }
+  }
+
+  const transactions: TransactionWithId[] = rows.map((row) => {
+    const reimbursedAmount = reimbursedByTxId.get(row.id);
+    return {
+      id: row.id,
+      date: row.date,
+      account: row.account,
+      merchant: row.merchant,
+      amount: row.amount,
+      note: row.note,
+      type: row.type as 'Income' | 'Expense',
+      category: row.category,
+      tags: row.tags,
+      paidBy: row.paidBy as 'tung' | 'thuy' | 'other',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      ...(reimbursedAmount !== undefined ? { reimbursedAmount } : {}),
+    };
+  });
 
   return { transactions, total, limit, offset };
 }

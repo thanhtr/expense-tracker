@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { Transaction } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -11,6 +11,11 @@ interface Split {
   id?: number;
   category: string;
   amount: string;
+}
+
+interface LinkedReimbursement {
+  id: number;
+  reimbursementTransaction: { id: number; date: string | Date; merchant: string; amount: number };
 }
 
 interface TransactionRowProps {
@@ -57,6 +62,15 @@ export const TransactionRow = memo(function TransactionRow({
   const [splits, setSplits] = useState<Split[]>([]);
   const [splitLoading, setSplitLoading] = useState(false);
   const [hasSplits, setHasSplits] = useState(false);
+
+  // Linked reimbursements state
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [links, setLinks] = useState<LinkedReimbursement[]>([]);
+  const [linksLoading, setLinksLoading] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [linkResults, setLinkResults] = useState<Transaction[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const openSplitEditor = async () => {
     setSplitLoading(true);
@@ -122,6 +136,87 @@ export const TransactionRow = memo(function TransactionRow({
       toast.error('Failed to remove splits');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openLinksEditor = async () => {
+    setLinksLoading(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/links`);
+      const data = res.ok ? await res.json() as { links: LinkedReimbursement[] } : { links: [] };
+      setLinks(data.links);
+      setLinksOpen(true);
+    } finally {
+      setLinksLoading(false);
+    }
+  };
+
+  // Debounced merchant search for reimbursement candidates, scoped to the open editor.
+  useEffect(() => {
+    if (!linksOpen || !linkSearch.trim()) {
+      setLinkResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/transactions?merchant=${encodeURIComponent(linkSearch)}&limit=10`);
+        if (!res.ok) return;
+        const data = await res.json() as { transactions: Transaction[] };
+        const linkedIds = new Set(links.map(l => l.reimbursementTransaction.id));
+        setLinkResults(
+          data.transactions.filter(t =>
+            t.id !== transaction.id &&
+            !linkedIds.has(t.id) &&
+            (t.type === 'Income' || (t.type === 'Expense' && t.amount > 0))
+          )
+        );
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [linkSearch, linksOpen, links, transaction.id]);
+
+  const addLink = async (candidate: Transaction) => {
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reimbursementTransactionId: candidate.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body as { error?: string }).error ?? 'Failed to link transaction');
+      setLinks(prev => [...prev, {
+        id: (body as { id: number }).id,
+        reimbursementTransaction: { id: candidate.id, date: candidate.date, merchant: candidate.merchant, amount: candidate.amount },
+      }]);
+      setLinkResults(prev => prev.filter(t => t.id !== candidate.id));
+      setLinkSearch('');
+      toast.success('Reimbursement linked');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to link transaction');
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const removeLink = async (reimbursementTransactionId: number) => {
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/transactions/${transaction.id}/links`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reimbursementTransactionId }),
+      });
+      if (!res.ok) throw new Error();
+      setLinks(prev => prev.filter(l => l.reimbursementTransaction.id !== reimbursementTransactionId));
+      toast.success('Reimbursement unlinked');
+    } catch {
+      toast.error('Failed to unlink transaction');
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -234,7 +329,7 @@ export const TransactionRow = memo(function TransactionRow({
 
   return (
     <>
-    <tr className={`border-b ${splitOpen ? '' : 'border-border-soft'} hover:bg-surface-2 ${selected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}>
+    <tr className={`border-b ${(splitOpen || linksOpen) ? '' : 'border-border-soft'} hover:bg-surface-2 ${selected ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}>
       {onSelect && (
         <td className="px-3 py-3">
           <input
@@ -263,6 +358,11 @@ export const TransactionRow = memo(function TransactionRow({
       </td>
       <td className={`px-4 py-3 text-sm text-right font-medium ${amountColor}`}>
         {amountPrefix}{formatCurrency(transaction.amount)}
+        {!!transaction.reimbursedAmount && (
+          <div className="text-[10px] font-normal text-fg-3">
+            Net {formatCurrency(totalAmt - transaction.reimbursedAmount)} ({formatCurrency(transaction.reimbursedAmount)} reimbursed)
+          </div>
+        )}
       </td>
       <td className="hidden sm:table-cell px-4 py-3 text-sm">
         <select
@@ -368,6 +468,21 @@ export const TransactionRow = memo(function TransactionRow({
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 12m0 0 4.5-9M3 12h13.5m0 0L12 3m4.5 9-4.5 9" />
+              </svg>
+            </button>
+          )}
+          {/* Link reimbursements button */}
+          {transaction.type === 'Expense' && transaction.amount < 0 && (
+            <button
+              type="button"
+              onClick={linksOpen ? () => setLinksOpen(false) : openLinksEditor}
+              disabled={linksLoading}
+              aria-label="Link reimbursements"
+              title={transaction.reimbursedAmount ? 'Edit linked reimbursements' : 'Link reimbursements'}
+              className={`p-1.5 rounded transition-colors ${linksOpen ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : transaction.reimbursedAmount ? 'text-blue-500 hover:bg-surface-2' : 'text-fg-3 hover:text-foreground hover:bg-surface-2'}`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
               </svg>
             </button>
           )}
@@ -491,6 +606,85 @@ export const TransactionRow = memo(function TransactionRow({
                 disabled={saving}
                 className="px-3 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
               >Save splits</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    )}
+
+    {/* Link reimbursements editor inline row */}
+    {linksOpen && (
+      <tr className="border-b border-border-soft bg-emerald-50/50 dark:bg-emerald-950/10">
+        <td colSpan={9} className="px-4 py-3">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-medium text-[var(--fg-2)]">
+                Linked reimbursements for {formatCurrency(totalAmt)} expense
+              </span>
+              {links.length > 0 && (
+                <span className="text-[12px] mono text-emerald-600 dark:text-emerald-400">
+                  Reimbursed: {formatCurrency(links.reduce((acc, l) => acc + l.reimbursementTransaction.amount, 0))}
+                </span>
+              )}
+            </div>
+            {links.length > 0 && (
+              <ul className="space-y-1">
+                {links.map(l => (
+                  <li key={l.id} className="flex items-center justify-between text-[12px] bg-surface border border-border-soft rounded px-2 py-1">
+                    <span>{formatDate(l.reimbursementTransaction.date)} · {l.reimbursementTransaction.merchant}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="mono text-emerald-600 dark:text-emerald-400">{formatCurrency(l.reimbursementTransaction.amount)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeLink(l.reimbursementTransaction.id)}
+                        disabled={linking}
+                        aria-label="Unlink reimbursement"
+                        title="Unlink"
+                        className="text-fg-3 hover:text-red-500 transition-colors disabled:opacity-50"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="relative">
+              <input
+                type="text"
+                value={linkSearch}
+                onChange={e => setLinkSearch(e.target.value)}
+                placeholder="Search merchant to link a reimbursement…"
+                aria-label="Search reimbursement transactions"
+                className="w-full px-2 py-1 text-[12px] border border-border-soft rounded bg-surface focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              {linkSearch.trim() && (
+                <div className="mt-1 border border-border-soft rounded bg-surface max-h-40 overflow-y-auto">
+                  {searching && <div className="px-2 py-1 text-[11px] text-fg-3">Searching…</div>}
+                  {!searching && linkResults.length === 0 && (
+                    <div className="px-2 py-1 text-[11px] text-fg-3">No matching income/reimbursement transactions</div>
+                  )}
+                  {linkResults.map(candidate => (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      onClick={() => addLink(candidate)}
+                      disabled={linking}
+                      className="w-full flex items-center justify-between px-2 py-1 text-[12px] hover:bg-surface-2 disabled:opacity-50"
+                    >
+                      <span>{formatDate(candidate.date)} · {candidate.merchant}</span>
+                      <span className="mono text-emerald-600 dark:text-emerald-400">{formatCurrency(candidate.amount)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setLinksOpen(false)}
+                className="px-3 py-1 text-[11px] bg-surface-2 text-[var(--fg-2)] rounded hover:bg-[var(--border)]"
+              >Close</button>
             </div>
           </div>
         </td>

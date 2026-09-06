@@ -21,6 +21,8 @@ model Transaction {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   splits    TransactionSplit[]
+  expenseLinks      TransactionLink[] @relation("ExpenseLinks")
+  reimbursementLink TransactionLink?  @relation("ReimbursementLinks")
 
   @@index([date])
   @@index([category])
@@ -42,6 +44,17 @@ model TransactionSplit {
   createdAt     DateTime    @default(now())
 
   @@index([transactionId])
+}
+
+model TransactionLink {
+  id                         Int         @id @default(autoincrement())
+  expenseTransactionId       Int
+  reimbursementTransactionId Int         @unique
+  expenseTransaction         Transaction @relation("ExpenseLinks", fields: [expenseTransactionId], references: [id], onDelete: Cascade)
+  reimbursementTransaction   Transaction @relation("ReimbursementLinks", fields: [reimbursementTransactionId], references: [id], onDelete: Cascade)
+  createdAt                  DateTime    @default(now())
+
+  @@index([expenseTransactionId])
 }
 
 model Budget {
