@@ -80,4 +80,157 @@ test.describe('Dashboard', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('text=/ncategor/i').first()).toBeVisible();
   });
+
+  test('category trend chart Y-axis rescales when dominant category is toggled off', async ({ page }) => {
+    // Two months of data: Rent dominates (€1200/mo), Shopping is small (€100/mo)
+    const dashboardResponse = {
+      totalExpenses: 2600,
+      totalIncome: 0,
+      totalInvestments: 0,
+      totalInternalTransfers: 0,
+      totalReimbursements: 0,
+      net: -2600,
+      byCategory: [
+        { category: 'Rent', amount: 2400 },
+        { category: 'Shopping', amount: 200 },
+      ],
+      byDay: [],
+      byAccount: {},
+      byMonth: [
+        { month: '2026-03', amount: 1300 },
+        { month: '2026-04', amount: 1300 },
+      ],
+      byMonthIncome: [],
+      byCategoryMonth: [
+        { month: '2026-03', Rent: 1200, Shopping: 100 },
+        { month: '2026-04', Rent: 1200, Shopping: 100 },
+      ],
+      topTransaction: null,
+      allCategories: ['Rent', 'Shopping'],
+      transactionCount: 4,
+      uncategorizedCount: 0,
+      byPerson: [],
+      byIncomeSource: [],
+    };
+
+    await page.route('**/api/dashboard*', async (route) => {
+      await route.fulfill({ json: dashboardResponse });
+    });
+    await page.route('**/api/transactions/recurring*', async (route) => {
+      await route.fulfill({ json: { items: [], totalMonthly: 0 } });
+    });
+    await page.route('**/api/transactions*', async (route) => {
+      await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
+    });
+    await page.route('**/api/categories*', async (route) => {
+      await route.fulfill({ json: { categories: ['Rent', 'Shopping'] } });
+    });
+    await page.route('**/api/budgets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/goals*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/assets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/forecast*', async (route) => { await route.fulfill({ json: null }); });
+
+    await page.goto('/');
+
+    // "Category trend" section only renders when byCategoryMonth.length > 1
+    const trendSection = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Category trend' }) });
+    await expect(trendSection).toBeVisible({ timeout: 10000 });
+
+    // Read Y-axis tick values before toggling — max should reflect Rent (€1200+)
+    const yAxisTicks = trendSection.locator('.recharts-cartesian-axis-tick-value');
+    const ticksBefore = await yAxisTicks.allTextContents();
+    const parseEuro = (s: string) => {
+      const n = parseFloat(s.replace('€', '').replace('k', ''));
+      return s.includes('k') ? n * 1000 : n;
+    };
+    const maxBefore = Math.max(...ticksBefore.map(parseEuro).filter(n => !isNaN(n)));
+    expect(maxBefore).toBeGreaterThan(900); // Rent stack pushes axis above €1200
+
+    // Toggle off Rent via the legend button
+    const rentButton = trendSection.locator('button', { hasText: 'Rent' });
+    await expect(rentButton).toBeVisible();
+    await rentButton.click();
+
+    // Y-axis should rescale to fit Shopping only (≤ €200)
+    await expect(async () => {
+      const ticksAfter = await yAxisTicks.allTextContents();
+      const maxAfter = Math.max(...ticksAfter.map(parseEuro).filter(n => !isNaN(n)));
+      expect(maxAfter).toBeLessThan(500);
+    }).toPass({ timeout: 3000 });
+  });
+
+  test('monthly trends line chart Y-axis rescales when dominant category is toggled off', async ({ page }) => {
+    const dashboardResponse = {
+      totalExpenses: 2600,
+      totalIncome: 0,
+      totalInvestments: 0,
+      totalInternalTransfers: 0,
+      totalReimbursements: 0,
+      net: -2600,
+      byCategory: [
+        { category: 'Rent', amount: 2400 },
+        { category: 'Shopping', amount: 200 },
+      ],
+      byDay: [],
+      byAccount: {},
+      byMonth: [
+        { month: '2026-03', amount: 1300 },
+        { month: '2026-04', amount: 1300 },
+      ],
+      byMonthIncome: [],
+      byCategoryMonth: [
+        { month: '2026-03', Rent: 1200, Shopping: 100 },
+        { month: '2026-04', Rent: 1200, Shopping: 100 },
+      ],
+      topTransaction: null,
+      allCategories: ['Rent', 'Shopping'],
+      transactionCount: 4,
+      uncategorizedCount: 0,
+      byPerson: [],
+      byIncomeSource: [],
+    };
+
+    await page.route('**/api/dashboard*', async (route) => {
+      await route.fulfill({ json: dashboardResponse });
+    });
+    await page.route('**/api/transactions/recurring*', async (route) => {
+      await route.fulfill({ json: { items: [], totalMonthly: 0 } });
+    });
+    await page.route('**/api/transactions*', async (route) => {
+      await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
+    });
+    await page.route('**/api/categories*', async (route) => {
+      await route.fulfill({ json: { categories: ['Rent', 'Shopping'] } });
+    });
+    await page.route('**/api/budgets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/goals*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/assets*', async (route) => { await route.fulfill({ json: [] }); });
+    await page.route('**/api/forecast*', async (route) => { await route.fulfill({ json: null }); });
+
+    await page.goto('/');
+
+    // "Monthly trends" section hosts the line chart
+    const trendSection = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Monthly trends' }) });
+    await expect(trendSection).toBeVisible({ timeout: 10000 });
+
+    const parseVal = (s: string) => {
+      const n = parseFloat(s.replace('€', '').replace('k', ''));
+      return s.includes('k') ? n * 1000 : n;
+    };
+
+    const yAxisTicks = trendSection.locator('.recharts-cartesian-axis-tick-value');
+    const ticksBefore = await yAxisTicks.allTextContents();
+    const maxBefore = Math.max(...ticksBefore.map(parseVal).filter(n => !isNaN(n)));
+    expect(maxBefore).toBeGreaterThan(900);
+
+    const rentButton = trendSection.locator('button', { hasText: 'Rent' });
+    await expect(rentButton).toBeVisible();
+    await rentButton.click();
+
+    await expect(async () => {
+      const ticksAfter = await yAxisTicks.allTextContents();
+      const maxAfter = Math.max(...ticksAfter.map(parseVal).filter(n => !isNaN(n)));
+      expect(maxAfter).toBeLessThan(500);
+    }).toPass({ timeout: 3000 });
+  });
 });
