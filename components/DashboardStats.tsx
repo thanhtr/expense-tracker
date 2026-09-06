@@ -466,14 +466,30 @@ function MonthlyTrendLineChart({
   };
   const fmtY = (v: number) => Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
 
-  // Mean of per-month expense totals (categories only, not Income)
+  const visibleCats = useMemo(() => categories.filter(c => !hidden.has(c)), [categories, hidden]);
+
+  // Strip hidden category keys from each data row so Recharts' auto-domain
+  // only sees visible series. Non-category keys (month, Income) are always kept.
+  const chartData = useMemo(() => {
+    if (hidden.size === 0) return data;
+    const catSet = new Set(categories);
+    return data.map(row => {
+      const r: Record<string, string | number> = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (!catSet.has(k) || !hidden.has(k)) r[k] = v as string | number;
+      }
+      return r;
+    });
+  }, [data, categories, hidden]);
+
+  // Mean of visible expense totals — updates when a category is toggled off.
   const avgExpense = useMemo(() => {
     if (data.length === 0) return 0;
     const totals = data.map(row =>
-      categories.reduce((sum, cat) => sum + (Number(row[cat]) || 0), 0)
+      visibleCats.reduce((sum, cat) => sum + (Number(row[cat]) || 0), 0)
     );
     return totals.reduce((a, b) => a + b, 0) / totals.length;
-  }, [data, categories]);
+  }, [data, visibleCats]);
 
   const avgIncome = useMemo(() => {
     if (data.length === 0) return 0;
@@ -481,10 +497,32 @@ function MonthlyTrendLineChart({
     return totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : 0;
   }, [data]);
 
+  const legendContent = useCallback(() => (
+    <ul style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', padding: 0, margin: 0, listStyle: 'none' }}>
+      {categories.map((cat, i) => (
+        <li key={cat} style={{ display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={() => toggleSeries(cat)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+              background: 'none', border: 'none', padding: 0, font: 'inherit',
+            }}
+          >
+            <span style={{
+              display: 'inline-block', width: 24, height: 2, flexShrink: 0,
+              backgroundColor: hidden.has(cat) ? 'var(--fg-3)' : CAT_COLORS[i % CAT_COLORS.length],
+            }} />
+            <span style={{ color: hidden.has(cat) ? 'var(--fg-3)' : 'inherit' }}>{cat}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  ), [categories, hidden]);
+
   return (
     <div>
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+        <LineChart data={chartData} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis
             dataKey="month"
@@ -514,25 +552,16 @@ function MonthlyTrendLineChart({
             formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name]}
             labelFormatter={(label) => fmtLongMonth(label as string)}
           />
-          <Legend
-            wrapperStyle={{ fontSize: 11, paddingTop: 8, cursor: 'pointer' }}
-            onClick={(e) => toggleSeries(e.dataKey as string)}
-            formatter={(value, entry) => (
-              <span style={{ color: hidden.has(entry.dataKey as string) ? 'var(--fg-3)' : 'inherit' }}>
-                {value}
-              </span>
-            )}
-          />
-          {categories.map((cat, i) => (
+          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} content={legendContent} />
+          {visibleCats.map((cat, i) => (
             <Line
               key={cat}
               type="monotone"
               dataKey={cat}
-              stroke={CAT_COLORS[i % CAT_COLORS.length]}
-              strokeWidth={hidden.has(cat) ? 0 : 1.5}
+              stroke={CAT_COLORS[categories.indexOf(cat) % CAT_COLORS.length]}
+              strokeWidth={1.5}
               dot={false}
-              activeDot={hidden.has(cat) ? false : { r: 4 }}
-              hide={hidden.has(cat)}
+              activeDot={{ r: 4 }}
               connectNulls
             />
           ))}
@@ -545,10 +574,6 @@ function MonthlyTrendLineChart({
               label={{ value: `Avg ${fmtY(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
             />
           )}
-          {/* Render hidden series last so their legend entries still appear */}
-          {categories.filter(s => hidden.has(s)).map(s => (
-            <Line key={`__hidden_${s}`} dataKey={s} stroke="transparent" legendType="none" />
-          ))}
         </LineChart>
       </ResponsiveContainer>
       {avgIncome > 0 && (
