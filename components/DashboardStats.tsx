@@ -253,32 +253,50 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
   );
 }
 
-function CategoryTrendChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+// ----- shared chart helpers -----
 
-  const toggleSeries = (key: string) => {
+function fmtMonth(m: string) {
+  const [y, mo] = m.split('-');
+  return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
+function fmtLongMonth(m: string) {
+  const [y, mo] = m.split('-');
+  return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+function fmtCompactEuro(v: number) {
+  return Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
+}
+
+// Shared toggle-visibility state for chart legend items. Returns a stable `toggle`
+// callback so downstream useCallbacks that depend on it don't re-fire on every render.
+function useSeriesToggle(categories: string[]) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const toggle = useCallback((key: string) => {
     setHidden(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
-  };
-
+  }, []);
   const visibleCats = useMemo(() => categories.filter(c => !hidden.has(c)), [categories, hidden]);
+  return { hidden, toggle, visibleCats };
+}
+
+function CategoryTrendChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
+  const { hidden, toggle: toggleSeries, visibleCats } = useSeriesToggle(categories);
   const topVisibleCat = visibleCats[visibleCats.length - 1];
 
-  // Strip hidden categories from each data row so Recharts' auto-domain computation
-  // only sees visible series. Setting an explicit domain ceiling doesn't work because
-  // Recharts reads all numeric fields in the data object regardless of which <Bar>s
-  // are rendered, and auto-expands the axis to fit them.
+  // Recharts reads all numeric fields in the data object to auto-expand the axis domain,
+  // even for unregistered series. Strip hidden categories from each row so the axis
+  // only sees what's visible.
   const chartData = useMemo(() => {
-    if (hidden.size === 0) return data;
+    if (visibleCats.length === categories.length) return data;
     return data.map(row => {
       const r: Record<string, string | number> = { month: row.month as string };
       visibleCats.forEach(cat => { r[cat] = row[cat] as number; });
       return r;
     });
-  }, [data, visibleCats, hidden]);
+  }, [data, categories, visibleCats]);
 
   const legendContent = useCallback(() => (
     <ul style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', padding: 0, margin: 0, listStyle: 'none' }}>
@@ -300,7 +318,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
         </li>
       ))}
     </ul>
-  ), [categories, hidden]);
+  ), [categories, hidden, toggleSeries]);
 
   return (
     <ResponsiveContainer width="100%" height={280}>
@@ -310,10 +328,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
           tickLine={false}
           axisLine={{ stroke: 'var(--border)' }}
-          tickFormatter={(m: string) => {
-            const [y, mo] = m.split('-');
-            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-          }}
+          tickFormatter={fmtMonth}
         />
         <YAxis
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
@@ -335,11 +350,7 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
           formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
-          labelFormatter={(label) => {
-            const m = label as string;
-            const [y, mo] = m.split('-');
-            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-          }}
+          labelFormatter={(label) => fmtLongMonth(label as string)}
         />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} content={legendContent} />
         {visibleCats.map(cat => (
@@ -357,19 +368,6 @@ function CategoryTrendChart({ data, categories }: { data: Array<Record<string, n
 }
 
 function IncomeTrendChart({ trendData }: { trendData: { month: string; expenses: number; income: number; net: number }[] }) {
-  const fmtMonth = (m: string) => {
-    const [y, mo] = m.split('-');
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-  };
-  const fmtLongMonth = (m: string) => {
-    const [y, mo] = m.split('-');
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-  const fmtY = (v: number) => {
-    if (Math.abs(v) >= 1000) return `€${Math.round(v / 1000)}k`;
-    return `€${Math.round(v)}`;
-  };
-
   return (
     <ResponsiveContainer width="100%" height={280}>
       <ComposedChart data={trendData} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
@@ -385,7 +383,7 @@ function IncomeTrendChart({ trendData }: { trendData: { month: string; expenses:
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
           tickLine={false}
           axisLine={false}
-          tickFormatter={fmtY}
+          tickFormatter={fmtCompactEuro}
           width={44}
         />
         <Tooltip
@@ -445,42 +443,21 @@ function MonthlyTrendLineChart({
   data: Array<Record<string, number | string>>;
   categories: string[];
 }) {
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-
-  const toggleSeries = (key: string) => {
-    setHidden(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const fmtMonth = (m: string) => {
-    const [y, mo] = m.split('-');
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-  };
-  const fmtLongMonth = (m: string) => {
-    const [y, mo] = m.split('-');
-    return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  };
-  const fmtY = (v: number) => Math.abs(v) >= 1000 ? `€${Math.round(v / 1000)}k` : `€${Math.round(v)}`;
-
-  const visibleCats = useMemo(() => categories.filter(c => !hidden.has(c)), [categories, hidden]);
+  const { hidden, toggle: toggleSeries, visibleCats } = useSeriesToggle(categories);
 
   // Strip hidden category keys from each data row so Recharts' auto-domain
   // only sees visible series. Non-category keys (month, Income) are always kept.
   const chartData = useMemo(() => {
-    if (hidden.size === 0) return data;
+    if (visibleCats.length === categories.length) return data;
     const catSet = new Set(categories);
     return data.map(row => {
       const r: Record<string, string | number> = {};
       for (const [k, v] of Object.entries(row)) {
-        if (!catSet.has(k) || !hidden.has(k)) r[k] = v as string | number;
+        if (!catSet.has(k) || visibleCats.includes(k)) r[k] = v as string | number;
       }
       return r;
     });
-  }, [data, categories, hidden]);
+  }, [data, categories, visibleCats]);
 
   // Mean of visible expense totals — updates when a category is toggled off.
   const avgExpense = useMemo(() => {
@@ -517,7 +494,7 @@ function MonthlyTrendLineChart({
         </li>
       ))}
     </ul>
-  ), [categories, hidden]);
+  ), [categories, hidden, toggleSeries]);
 
   return (
     <div>
@@ -535,7 +512,7 @@ function MonthlyTrendLineChart({
             tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
             tickLine={false}
             axisLine={false}
-            tickFormatter={fmtY}
+            tickFormatter={fmtCompactEuro}
             width={44}
           />
           <Tooltip
@@ -553,7 +530,7 @@ function MonthlyTrendLineChart({
             labelFormatter={(label) => fmtLongMonth(label as string)}
           />
           <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} content={legendContent} />
-          {visibleCats.map((cat, i) => (
+          {visibleCats.map((cat) => (
             <Line
               key={cat}
               type="monotone"
@@ -571,7 +548,7 @@ function MonthlyTrendLineChart({
               stroke="var(--fg-3)"
               strokeDasharray="4 3"
               strokeWidth={1}
-              label={{ value: `Avg ${fmtY(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
+              label={{ value: `Avg ${fmtCompactEuro(avgExpense)}`, position: 'insideTopRight', fill: 'var(--fg-3)', fontSize: 10 }}
             />
           )}
         </LineChart>
@@ -587,7 +564,7 @@ function MonthlyTrendLineChart({
                 </span>
               ) : null
             ))}
-            <span className="ml-3 opacity-60">avg {fmtY(avgIncome)}/mo</span>
+            <span className="ml-3 opacity-60">avg {fmtCompactEuro(avgIncome)}/mo</span>
           </span>
         </div>
       )}
@@ -604,10 +581,7 @@ function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
           tickLine={false}
           axisLine={{ stroke: 'var(--border)' }}
-          tickFormatter={(m: string) => {
-            const [y, mo] = m.split('-');
-            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-          }}
+          tickFormatter={fmtMonth}
         />
         <YAxis
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
@@ -629,11 +603,7 @@ function MonthlyChart({ data }: { data: { month: string; amount: number }[] }) {
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
           formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
-          labelFormatter={(label) => {
-            const m = label as string;
-            const [y, mo] = m.split('-');
-            return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-          }}
+          labelFormatter={(label) => fmtLongMonth(label as string)}
         />
         <Bar dataKey="amount" fill={CAT_COLORS[3]} radius={[3, 3, 0, 0]} />
       </BarChart>

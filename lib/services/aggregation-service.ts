@@ -30,7 +30,6 @@ export async function getDashboardStats(
   const cached = _cache.get(key);
   if (!forceRefresh && cached && Date.now() < cached.expiry) return cached.data;
 
-  // baseWhere: period + account + person filters, no category
   const baseWhere: Prisma.TransactionWhereInput = {};
 
   if (dateFrom || dateTo) {
@@ -75,8 +74,6 @@ export async function getDashboardStats(
       : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
-  // Capital movement totals always computed for the period regardless of category filter.
-  // These are excluded from income/expense charts but shown in a separate Capital Movements section.
   const investmentsWhere: Prisma.TransactionWhereInput = {
     ...baseWhere,
     type: 'Expense',
@@ -190,10 +187,6 @@ export async function getDashboardStats(
     amount: g._sum.amount ?? 0,
   }));
 
-  // Re-include Investments in the category list even though it's excluded from charts,
-  // so it still appears in budget/guideline category dropdowns
-  // Always include Investments in the category list for dropdowns unless it's
-  // already present in byCategoryGroups (which happens when category='Investments' is filtered).
   const allCategories = [
     ...byCategoryGroups.map(g => g.category).filter(Boolean),
     ...(totalInvestments > 0 && category !== 'Investments' ? ['Investments'] : []),
@@ -209,8 +202,7 @@ export async function getDashboardStats(
     .map(g => ({ person: g.paidBy, amount: Math.abs(g._sum.amount ?? 0) }))
     .sort((a, b) => b.amount - a.amount);
 
-  // Fetch splits for expense transactions in this period to adjust category attribution
-  // Wrapped in try-catch: table may not exist during migration window
+  // try-catch: TransactionSplit table may not exist during migration window
   let splitRecords: Array<{
     transactionId: number;
     category: string;
@@ -232,7 +224,6 @@ export async function getDashboardStats(
     // table doesn't exist yet — proceed without split adjustments
   }
 
-  // Build a map of transactionId → splits
   const splitsByTx = new Map<number, typeof splitRecords>();
   for (const s of splitRecords) {
     const arr = splitsByTx.get(s.transactionId) ?? [];
@@ -240,13 +231,9 @@ export async function getDashboardStats(
     splitsByTx.set(s.transactionId, arr);
   }
 
-  // Derive byMonth, byDay, byCategoryMonth from the single grouped time-series query
   const byMonthMap: Record<string, number> = {};
   const dayMap: Record<string, Record<string, number>> = {};
   const monthMap: Record<string, Record<string, number>> = {};
-
-  // Track which (day, category) amounts need adjustment because of splits
-  // We process byDayCatGroups first, then apply split adjustments
   const adjustedByCat: Record<string, number> = {};
 
   for (const g of byDayCatGroups) {
@@ -266,7 +253,6 @@ export async function getDashboardStats(
     adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) + amt;
   }
 
-  // Apply split adjustments: for transactions with splits, redistribute their category amount
   if (splitRecords.length > 0) {
     const processedTxIds = new Set<number>();
     for (const s of splitRecords) {
@@ -279,13 +265,11 @@ export async function getDashboardStats(
       const day = s.transaction.date.toISOString().slice(0, 10);
       const month = day.slice(0, 7);
 
-      // Remove original transaction's contribution
       adjustedByCat[originalCat] = (adjustedByCat[originalCat] ?? 0) - originalAmt;
       byMonthMap[month] = (byMonthMap[month] ?? 0) - originalAmt;
       if (dayMap[day]) dayMap[day][originalCat] = (dayMap[day][originalCat] ?? 0) - originalAmt;
       if (monthMap[month]) monthMap[month][originalCat] = (monthMap[month][originalCat] ?? 0) - originalAmt;
 
-      // Add each split's contribution
       for (const split of txSplits) {
         const splitCat = split.category;
         adjustedByCat[splitCat] = (adjustedByCat[splitCat] ?? 0) + split.amount;
@@ -298,7 +282,6 @@ export async function getDashboardStats(
     }
   }
 
-  // Net reimbursements against each category's gross expense total
   for (const r of reimbByCategoryGroups) {
     const cat = r.category || '⚠ Uncategorized';
     adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
