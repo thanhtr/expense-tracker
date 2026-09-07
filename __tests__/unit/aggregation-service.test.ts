@@ -236,7 +236,10 @@ describe('getDashboardStats', () => {
       topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
-      { expenseTransaction: { category: 'Dining Out' }, reimbursementTransaction: { type: 'Income', amount: 30 } },
+      {
+        expenseTransaction: { category: 'Dining Out' },
+        reimbursementTransaction: { type: 'Income', amount: 30, category: '', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
+      },
     ] as never);
 
     const statsWithoutLink = { totalIncome: 30, totalReimbursements: 0 };
@@ -249,7 +252,11 @@ describe('getDashboardStats', () => {
     expect(stats.net).toBeCloseTo(statsWithoutLink.totalIncome - 80 + statsWithoutLink.totalReimbursements);
   });
 
-  it('should not double-net a linked positive-amount Expense reimbursement already covered by the blanket same-category convention', async () => {
+  it('should net a linked reimbursement against its expense category even when the reimbursement is categorized differently', async () => {
+    // Regression test: the reconciliation loop used to key its "undo" step off the
+    // expense's category while reimbByCategoryGroups was actually grouped by the
+    // reimbursement's OWN category — a mismatch here used to silently no-op the netting
+    // and leak the €30 into a negative, filtered-out "Uncategorized" bucket instead.
     setupMocks({
       byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
       byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
@@ -258,14 +265,76 @@ describe('getDashboardStats', () => {
       totalAmount: -80,
       totalCount: 1,
       topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
-      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 30 } }],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
-      { expenseTransaction: { category: 'Dining Out' }, reimbursementTransaction: { type: 'Expense', amount: 30 } },
+      {
+        expenseTransaction: { category: 'Dining Out' },
+        // reimbursement's own category deliberately differs from the expense's
+        reimbursementTransaction: { type: 'Expense', amount: 30, category: '', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
+      },
+    ] as never);
+
+    const stats = await getDashboardStats();
+
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30
+    expect(stats.byCategory.find(c => c.category === '⚠ Uncategorized')).toBeUndefined();
+  });
+
+  it('should not double-net a linked reimbursement already excluded from the blanket bucket at the query level', async () => {
+    // reimbWhere excludes linked reimbursements (reimbursementLink: null) at the DB layer,
+    // so reimbByCategoryGroups never includes them in the first place — simulated here by
+    // leaving it empty. The link-based netting should still apply exactly once.
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      reimbByCategoryGroups: [],
+    });
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      {
+        expenseTransaction: { category: 'Dining Out' },
+        reimbursementTransaction: { type: 'Expense', amount: 30, category: 'Dining Out', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
+      },
     ] as never);
 
     const stats = await getDashboardStats();
 
     expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30, not 80 - 60
+  });
+
+  it('should not adjust totalIncome for a linked Income reimbursement dated outside the filtered period', async () => {
+    // Regression test: the linkRecords query only filters on the EXPENSE's period, so a
+    // reimbursement dated after the filtered range could previously get subtracted from
+    // totalIncome even though it was never counted in totalIncome for this view.
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-03-28'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      incomeAmount: 0, // the April reimbursement is outside March, so March's real income total is 0
+      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-28') },
+    });
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      {
+        expenseTransaction: { category: 'Dining Out' },
+        // dated in April, outside the March filter applied below
+        reimbursementTransaction: { type: 'Income', amount: 30, category: '', date: new Date('2026-04-03'), account: 'OP Bank', paidBy: 'tung' },
+      },
+    ] as never);
+
+    const stats = await getDashboardStats(new Date('2026-03-01'), new Date('2026-03-31'));
+
+    // totalIncome must not go negative/be reduced by income that was never counted for March
+    expect(stats.totalIncome).toBe(0);
+    expect(stats.totalReimbursements).toBe(0);
+    // the category-level netting against the expense still applies regardless of the
+    // reimbursement's own date, since it's netting a specific expense's true cost
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50);
   });
 });

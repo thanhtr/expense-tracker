@@ -58,7 +58,10 @@ export async function getDashboardStats(
   // Outflows: regular expenses (negative amounts). Used for totals, time-series, topTx.
   const outflowWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { lt: 0 } };
   // Reimbursements: positive-amount Expenses (money back against an expense category).
-  const reimbWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { gt: 0 } };
+  // Excludes transactions explicitly linked to an expense (TransactionLink) — those are
+  // netted precisely against their own expense's category below instead, so a linked
+  // reimbursement is never counted by both mechanisms at once.
+  const reimbWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { gt: 0 }, reimbursementLink: null };
 
   // Income is not filtered by the active spending-category selector, but non-spending
   // categories (e.g. savings→checking credits tagged "Internal Transfer") must be excluded
@@ -209,28 +212,63 @@ export async function getDashboardStats(
     .map(g => ({ person: g.paidBy, amount: Math.abs(g._sum.amount ?? 0) }))
     .sort((a, b) => b.amount - a.amount);
 
-  // Fetch splits for expense transactions in this period to adjust category attribution
-  // Wrapped in try-catch: table may not exist during migration window
-  let splitRecords: Array<{
+  // Fetch splits and reimbursement links for expense transactions in this period.
+  // Each is wrapped in its own try-catch (table may not exist during migration window)
+  // and run concurrently since they're independent queries.
+  type SplitRecord = {
     transactionId: number;
     category: string;
     amount: number;
     transaction: { date: Date; amount: number; category: string | null };
-  }> = [];
-  try {
-    const raw = await prisma.transactionSplit.findMany({
-      where: { transaction: expenseWhere },
-      select: {
-        transactionId: true,
-        category: true,
-        amount: true,
-        transaction: { select: { date: true, amount: true, category: true } },
-      },
-    });
-    splitRecords = raw.filter(s => s.transaction !== null) as typeof splitRecords;
-  } catch {
-    // table doesn't exist yet — proceed without split adjustments
-  }
+  };
+  type LinkRecord = {
+    expenseTransaction: { category: string | null };
+    reimbursementTransaction: {
+      type: string;
+      amount: number;
+      category: string | null;
+      date: Date;
+      account: string;
+      paidBy: string;
+    };
+  };
+
+  const [splitRecords, linkRecords] = await Promise.all([
+    (async (): Promise<SplitRecord[]> => {
+      try {
+        const raw = await prisma.transactionSplit.findMany({
+          where: { transaction: expenseWhere },
+          select: {
+            transactionId: true,
+            category: true,
+            amount: true,
+            transaction: { select: { date: true, amount: true, category: true } },
+          },
+        });
+        return raw.filter(s => s.transaction !== null) as SplitRecord[];
+      } catch {
+        // table doesn't exist yet — proceed without split adjustments
+        return [];
+      }
+    })(),
+    (async (): Promise<LinkRecord[]> => {
+      try {
+        const raw = await prisma.transactionLink.findMany({
+          where: { expenseTransaction: expenseWhere },
+          select: {
+            expenseTransaction: { select: { category: true } },
+            reimbursementTransaction: {
+              select: { type: true, amount: true, category: true, date: true, account: true, paidBy: true },
+            },
+          },
+        });
+        return raw.filter(r => r.expenseTransaction !== null) as LinkRecord[];
+      } catch {
+        // table doesn't exist yet — proceed without link adjustments
+        return [];
+      }
+    })(),
+  ]);
 
   // Build a map of transactionId → splits
   const splitsByTx = new Map<number, typeof splitRecords>();
@@ -238,27 +276,6 @@ export async function getDashboardStats(
     const arr = splitsByTx.get(s.transactionId) ?? [];
     arr.push(s);
     splitsByTx.set(s.transactionId, arr);
-  }
-
-  // Fetch reimbursement links whose expense falls in the current period/category filter,
-  // so an explicitly linked reimbursement nets precisely against its own expense's category
-  // instead of the blanket "same-category positive-amount Expense" convention below.
-  // Wrapped in try-catch: table may not exist during migration window.
-  let linkRecords: Array<{
-    expenseTransaction: { category: string | null };
-    reimbursementTransaction: { type: string; amount: number };
-  }> = [];
-  try {
-    const raw = await prisma.transactionLink.findMany({
-      where: { expenseTransaction: expenseWhere },
-      select: {
-        expenseTransaction: { select: { category: true } },
-        reimbursementTransaction: { select: { type: true, amount: true } },
-      },
-    });
-    linkRecords = raw.filter(r => r.expenseTransaction !== null) as typeof linkRecords;
-  } catch {
-    // table doesn't exist yet — proceed without link adjustments
   }
 
   // Derive byMonth, byDay, byCategoryMonth from the single grouped time-series query
@@ -319,31 +336,44 @@ export async function getDashboardStats(
     }
   }
 
-  // Net reimbursements against each category's gross expense total
+  // Net reimbursements against each category's gross expense total. reimbWhere already
+  // excludes explicitly-linked reimbursements (see its definition above), so this can't
+  // double-count against the precise per-expense netting below.
   for (const r of reimbByCategoryGroups) {
     const cat = r.category || '⚠ Uncategorized';
     adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
   }
 
-  // Reconcile explicitly linked reimbursements against their own expense's category.
-  // A linked reimbursement that's a positive-amount Expense in the same category was
-  // already netted by the blanket loop above — undo that before applying the precise,
-  // per-expense adjustment here so it isn't subtracted twice. A linked Income-type
-  // reimbursement (the common case: a friend's Mobilepay credit) moves out of
-  // totalIncome and into totalReimbursements instead — net is unchanged since both
-  // terms shift by the same amount, but a repayment no longer inflates "income".
+  // Net each explicitly linked reimbursement against its own expense's category — this
+  // is what lets a fronted expense's true net cost show correctly even when the
+  // repayment has a different category or merchant than the expense itself. A linked
+  // Income-type reimbursement (the common case: a friend's Mobilepay credit) also moves
+  // out of totalIncome and into totalReimbursements — net is unaffected since both terms
+  // shift by the same amount — but only when the reimbursement's own row would actually
+  // have been counted in totalIncome for this view (matching the same period/account/
+  // paidBy/non-spending-category rules as incomeWhere above); otherwise its own date
+  // falls outside the current view and was never in totalIncome to begin with.
+  const matchesIncomeWhere = (r: { date: Date; account: string; paidBy: string; category: string | null }) => {
+    if (dateFrom && r.date < dateFrom) return false;
+    if (dateTo && r.date > dateTo) return false;
+    if (paidBy && r.paidBy !== paidBy) return false;
+    if (account && r.account !== account) return false;
+    const isNonSpending = NON_SPENDING_CATEGORIES.includes(r.category ?? '');
+    const categoryFilterIsNonSpending = NON_SPENDING_CATEGORIES.includes(category ?? '');
+    if (isNonSpending && !categoryFilterIsNonSpending) return false;
+    return true;
+  };
+
   let linkedIncomeAdjustment = 0;
   for (const link of linkRecords) {
     const { type, amount } = link.reimbursementTransaction;
-    const cat = link.expenseTransaction.category || '⚠ Uncategorized';
+    const expenseCat = link.expenseTransaction.category || '⚠ Uncategorized';
 
-    if (type === 'Expense' && amount > 0) {
-      adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) + amount;
-    } else if (type === 'Income') {
+    if (type === 'Income' && matchesIncomeWhere(link.reimbursementTransaction)) {
       linkedIncomeAdjustment += amount;
     }
 
-    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - amount;
+    adjustedByCat[expenseCat] = (adjustedByCat[expenseCat] ?? 0) - amount;
   }
 
   const finalByCategoryArray = Object.entries(adjustedByCat)

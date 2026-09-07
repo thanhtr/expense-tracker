@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 export interface SellerCategory {
   category: string;
@@ -23,17 +24,26 @@ export interface SellersResponse {
 
 export async function GET(): Promise<NextResponse> {
   try {
+    // Exclude explicitly-linked reimbursements from both merchant queries — they're
+    // netted precisely against the merchant of the expense they repay below instead, so
+    // a linked reimbursement can't be counted twice (e.g. when it happens to share its
+    // expense's merchant name, which would otherwise double-subtract it).
+    const notLinkedAsReimbursement: Prisma.TransactionWhereInput = {
+      type: 'Expense',
+      reimbursementLink: null,
+    };
+
     const [merchantGroups, categoryGroups, links] = await Promise.all([
       prisma.transaction.groupBy({
         by: ['merchant'],
-        where: { type: 'Expense' },
+        where: notLinkedAsReimbursement,
         _count: { id: true },
         _sum: { amount: true },
         orderBy: { _count: { id: 'desc' } },
       }),
       prisma.transaction.groupBy({
         by: ['merchant', 'category'],
-        where: { type: 'Expense' },
+        where: notLinkedAsReimbursement,
         _count: { id: true },
       }),
       // Linked reimbursements, so a fronted group expense (dinner paid in full, repaid

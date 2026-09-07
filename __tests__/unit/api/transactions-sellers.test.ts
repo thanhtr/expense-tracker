@@ -58,6 +58,26 @@ describe('GET /api/transactions/sellers', () => {
     expect(grocery.reimbursedAmount).toBeUndefined();
   });
 
+  it('excludes linked reimbursement transactions from the merchant queries themselves', async () => {
+    // Regression test: previously merchantGroups summed ALL Expense-type rows per
+    // merchant, so a linked reimbursement sharing its expense's merchant name would
+    // already be netted by the DB sum, and then netted a second time by
+    // reimbursedByMerchant — silently understating that merchant's true total.
+    vi.mocked(prisma.transaction.groupBy)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([] as never);
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([] as never);
+
+    await GET();
+
+    expect(vi.mocked(prisma.transaction.groupBy).mock.calls[0][0]).toMatchObject({
+      where: { type: 'Expense', reimbursementLink: null },
+    });
+    expect(vi.mocked(prisma.transaction.groupBy).mock.calls[1][0]).toMatchObject({
+      where: { type: 'Expense', reimbursementLink: null },
+    });
+  });
+
   it('does not let reimbursements push totalAmount below zero', async () => {
     vi.mocked(prisma.transaction.groupBy)
       .mockResolvedValueOnce([
