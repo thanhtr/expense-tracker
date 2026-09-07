@@ -70,10 +70,13 @@ export async function getDashboardStats(
   // NOTE: uses NON_SPENDING_CATEGORIES.includes() rather than `category ?` — incomeWhere
   // starts from baseWhere (unscoped), so `category ?` would drop the exclusion whenever any
   // spending category is active, letting capital-movement income credits slip back in.
+  // categoryFilterIsNonSpending is also reused by matchesIncomeWhere() below, which
+  // re-checks these same conditions against a single row — keep the two in sync.
+  const categoryFilterIsNonSpending = NON_SPENDING_CATEGORIES.includes(category ?? '');
   const incomeWhere: Prisma.TransactionWhereInput = {
     ...baseWhere,
     type: 'Income',
-    ...(NON_SPENDING_CATEGORIES.includes(category ?? '')
+    ...(categoryFilterIsNonSpending
       ? {}
       : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
@@ -359,7 +362,6 @@ export async function getDashboardStats(
     if (paidBy && r.paidBy !== paidBy) return false;
     if (account && r.account !== account) return false;
     const isNonSpending = NON_SPENDING_CATEGORIES.includes(r.category ?? '');
-    const categoryFilterIsNonSpending = NON_SPENDING_CATEGORIES.includes(category ?? '');
     if (isNonSpending && !categoryFilterIsNonSpending) return false;
     return true;
   };
