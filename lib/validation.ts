@@ -67,8 +67,6 @@ export const exportQuerySchema = z.object({
   paid_by: z.enum(PAID_BY).optional(),
 });
 
-// ── Body schemas ──────────────────────────────────────────────────────────────
-
 const dateField = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
@@ -226,8 +224,6 @@ export const fireConfigSchema = z.object({
     }
   }
 });
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function parseQuery<T>(
   schema: z.ZodType<T>,

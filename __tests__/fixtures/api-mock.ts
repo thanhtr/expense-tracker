@@ -1,8 +1,3 @@
-/**
- * Mock data factories for E2E tests
- * Mocks the backend API endpoints.
- */
-
 import type { Page } from '@playwright/test';
 
 export interface ParsedTransaction {
@@ -86,7 +81,6 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
   const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
   const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
 
-  // Calculate by category
   const byCategory = Array.from(
     expenses.reduce((map, t) => {
       const current = map.get(t.category) || 0;
@@ -97,7 +91,6 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 
-  // Calculate by day
   const byDayMap = new Map<string, Record<string, number>>();
   expenses.forEach((t) => {
     const day = t.date;
@@ -112,7 +105,6 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     .map(([day, data]) => ({ day, ...data }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
-  // Calculate by account
   const byAccount = expenses.reduce(
     (acc, t) => {
       acc[t.account || 'Unknown'] = (acc[t.account || 'Unknown'] || 0) + t.amount;
@@ -124,7 +116,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
   // Calculate by month
   const byMonthMap = new Map<string, number>();
   expenses.forEach((t) => {
-    const month = t.date.substring(0, 7); // YYYY-MM
+    const month = t.date.substring(0, 7);
     byMonthMap.set(month, (byMonthMap.get(month) || 0) + t.amount);
   });
 
@@ -193,15 +185,10 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
   };
 }
 
-/**
- * Mock backend API endpoints
- * Usage: await setupSplitwise(page, mockExpenses(5))
- */
 export async function setupSplitwise(page: Page, transactions?: ParsedTransaction[]) {
   const mockData = transactions || mockExpenses(5);
   const dashboard = createDashboardAggregation(mockData);
 
-  // Mock /api/dashboard
   await page.route('**/api/dashboard*', async (route) => {
     await route.fulfill({
       json: dashboard,
@@ -213,7 +200,6 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     await route.fulfill({ json: { items: [], totalMonthly: 0 } });
   });
 
-  // Mock /api/transactions
   await page.route('**/api/transactions*', async (route) => {
     const url = new URL(route.request().url());
     const offset = parseInt(url.searchParams.get('offset') || '0');
@@ -233,7 +219,6 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     });
   });
 
-  // Mock /api/categories
   await page.route('**/api/categories*', async (route) => {
     const categories = Array.from(new Set(mockData.map((t) => t.category)));
     await route.fulfill({
@@ -241,7 +226,6 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     });
   });
 
-  // Mock /api/export
   await page.route('**/api/export*', async (route) => {
     const csv = ['date,merchant,amount,category\n', ...mockData.map((t) => `${t.date},${t.merchant},${t.amount},${t.category}`)].join('');
     await route.fulfill({
@@ -250,7 +234,6 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     });
   });
 
-  // Mock supporting dashboard endpoints (budgets, goals, assets, forecast, recurring)
   await page.route('**/api/budgets*', async (route) => {
     await route.fulfill({ json: [] });
   });

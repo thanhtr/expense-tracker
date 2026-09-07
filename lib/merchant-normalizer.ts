@@ -1,13 +1,8 @@
-/**
- * Normalize merchant names for consistent matching in learned rules
- * Removes legal suffixes (OY, AB, LTD, etc.) and converts to lowercase
- */
 export function normalizeMerchant(merchant: string): string {
   if (!merchant) return '';
 
   let normalized = merchant.toLowerCase().trim();
 
-  // Remove common legal suffixes
   const suffixes = [
     /\s+o\.?y\.?$/i,      // OY (Finnish)
     /\s+a\.?b\.?$/i,      // AB (Swedish)
@@ -40,7 +35,6 @@ export function normalizeMerchant(merchant: string): string {
   const candidateBranch = normalized.replace(/\s+\d{1,3}$/, '').trim();
   if (candidateBranch.length > 3) normalized = candidateBranch;
 
-  // Remove extra whitespace
   normalized = normalized.replace(/\s+/g, ' ').trim();
 
   return normalized;

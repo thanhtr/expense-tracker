@@ -61,14 +61,11 @@ export function GoalsCard() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // form state
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
   const [newCurrent, setNewCurrent] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newLinkedCategory, setNewLinkedCategory] = useState('');
-
-  // edit state
   const [editCurrent, setEditCurrent] = useState('');
 
   useEffect(() => {
