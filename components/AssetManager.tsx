@@ -122,7 +122,16 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
   async function handleSaveBulkEdit() {
     const entries = Object.entries(bulkBalances)
       .map(([id, value]) => ({ id: Number(id), balance: parseFloat(value) }))
-      .filter(e => !isNaN(e.balance));
+      .filter(e => {
+        if (isNaN(e.balance)) return false;
+        const original = assets.find(a => a.id === e.id);
+        return original !== undefined && e.balance !== original.balance;
+      });
+
+    if (entries.length === 0) {
+      setBulkEditing(false);
+      return;
+    }
 
     setBulkSaving(true);
     try {
@@ -249,7 +258,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
                   onChange={e => setBulkDate(e.target.value)}
                 />
               </label>
-              <button className="btn-ghost text-[12px] py-[3px]" disabled={bulkSaving} onClick={() => void handleSaveBulkEdit()}>
+              <button className="btn-ghost text-[12px] py-[3px]" disabled={bulkSaving || !bulkDate} onClick={() => void handleSaveBulkEdit()}>
                 {bulkSaving ? 'Saving…' : 'Save all'}
               </button>
               <button className="btn-ghost text-[12px] py-[3px] text-[var(--fg-3)]" disabled={bulkSaving} onClick={handleCancelBulkEdit}>
