@@ -35,6 +35,7 @@ export const transactionQuerySchema = z.object({
     .regex(/^-?\d+(\.\d+)?$/, 'must be a number')
     .transform(Number)
     .optional(),
+  positive_only: z.literal('1').optional(),
   tag: z.string().max(100).optional(),
   sort_by: z.enum(['date', 'amount', 'merchant', 'category']).default('date'),
   order: z.enum(['asc', 'desc']).default('desc'),
@@ -138,6 +139,12 @@ export const updateSplitsSchema = z.object({
     amount: z.number().positive().finite(),
   })).min(1),
 });
+
+export const createLinkSchema = z.object({
+  reimbursementTransactionId: z.number().int().positive(),
+});
+
+export const deleteLinkSchema = createLinkSchema;
 
 export const bulkCategorizeSchema = z.object({
   category: z.string().min(1).max(100),
