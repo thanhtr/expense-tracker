@@ -300,9 +300,12 @@ async function main() {
     console.log(`Created dataset ${DATASET}`);
   }
 
-  await loadTable(bq, 'transactions', bqRows, TRANSACTIONS_SCHEMA);
-  await loadTable(bq, 'assets', bqAssetRows, ASSETS_SCHEMA);
-  await loadTable(bq, 'asset_snapshots', bqAssetSnapshotRows, ASSET_SNAPSHOTS_SCHEMA);
+  // Independent tables with independent temp files — load concurrently.
+  await Promise.all([
+    loadTable(bq, 'transactions', bqRows, TRANSACTIONS_SCHEMA),
+    loadTable(bq, 'assets', bqAssetRows, ASSETS_SCHEMA),
+    loadTable(bq, 'asset_snapshots', bqAssetSnapshotRows, ASSET_SNAPSHOTS_SCHEMA),
+  ]);
 }
 
 main().catch(err => {
