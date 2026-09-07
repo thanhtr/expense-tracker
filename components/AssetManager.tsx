@@ -44,6 +44,10 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
   const [historyOpenId, setHistoryOpenId] = useState<number | null>(null);
   const [historyByAsset, setHistoryByAsset] = useState<Record<number, AssetSnapshot[]>>({});
   const [historyLoadingIds, setHistoryLoadingIds] = useState<Set<number>>(new Set());
+  const [bulkEditing, setBulkEditing] = useState(false);
+  const [bulkDate, setBulkDate] = useState(todayISO());
+  const [bulkBalances, setBulkBalances] = useState<Record<number, string>>({});
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   useEffect(() => {
     fetch('/api/assets')
@@ -102,6 +106,63 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
       toast.success('Balance updated');
     } else {
       toast.error('Failed to update');
+    }
+  }
+
+  function handleEnterBulkEdit() {
+    setBulkDate(todayISO());
+    setBulkBalances(Object.fromEntries(assets.map(a => [a.id, String(a.balance)])));
+    setBulkEditing(true);
+  }
+
+  function handleCancelBulkEdit() {
+    setBulkEditing(false);
+  }
+
+  async function handleSaveBulkEdit() {
+    const entries = Object.entries(bulkBalances)
+      .map(([id, value]) => ({ id: Number(id), balance: parseFloat(value) }))
+      .filter(e => !isNaN(e.balance));
+
+    setBulkSaving(true);
+    try {
+      const results = await Promise.allSettled(
+        entries.map(async ({ id, balance }) => {
+          const res = await fetch(`/api/assets/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ balance, recordedAt: bulkDate }),
+          });
+          if (!res.ok) throw new Error(`Failed to update asset ${id}`);
+          return res.json() as Promise<Asset>;
+        })
+      );
+
+      const updated = results
+        .filter((r): r is PromiseFulfilledResult<Asset> => r.status === 'fulfilled')
+        .map(r => r.value);
+      const failedCount = results.length - updated.length;
+
+      if (updated.length > 0) {
+        setAssets(prev => prev.map(a => updated.find(u => u.id === a.id) ?? a));
+        onMutate?.();
+        // Each updated asset has a new snapshot server-side — drop just those
+        // cached entries so the next toggle refetches instead of showing stale data.
+        setHistoryByAsset(prev => {
+          const next = { ...prev };
+          for (const u of updated) delete next[u.id];
+          return next;
+        });
+      }
+
+      if (failedCount === 0) {
+        toast.success(`Updated ${updated.length} ${updated.length === 1 ? 'balance' : 'balances'}`);
+        setBulkEditing(false);
+      } else {
+        toast.error(`Updated ${updated.length}, failed to update ${failedCount}`);
+      }
+    } finally {
+      setBulkSaving(false);
     }
   }
 
@@ -174,6 +235,35 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
         </div>
       )}
 
+      {/* Bulk edit toolbar */}
+      {!loading && assets.length > 0 && (
+        <div className="flex items-center justify-end gap-2">
+          {bulkEditing ? (
+            <>
+              <label className="flex items-center gap-[6px] text-[11px] text-[var(--fg-2)]">
+                As of
+                <input
+                  type="date"
+                  className="date-input"
+                  value={bulkDate}
+                  onChange={e => setBulkDate(e.target.value)}
+                />
+              </label>
+              <button className="btn-ghost text-[12px] py-[3px]" disabled={bulkSaving} onClick={() => void handleSaveBulkEdit()}>
+                {bulkSaving ? 'Saving…' : 'Save all'}
+              </button>
+              <button className="btn-ghost text-[12px] py-[3px] text-[var(--fg-3)]" disabled={bulkSaving} onClick={handleCancelBulkEdit}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button className="btn-ghost text-[12px]" onClick={handleEnterBulkEdit}>
+              Update all balances
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Asset list */}
       {loading ? (
         <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="dash-card h-[48px] animate-pulse bg-[var(--surface-2)]" />)}</div>
@@ -198,7 +288,16 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
                         </div>
                       </div>
 
-                      {editingId === asset.id ? (
+                      {bulkEditing ? (
+                        <input
+                          type="number"
+                          aria-label={`Balance for ${asset.name}`}
+                          className="date-input w-[120px] text-right"
+                          value={bulkBalances[asset.id] ?? ''}
+                          onChange={e => setBulkBalances(prev => ({ ...prev, [asset.id]: e.target.value }))}
+                          disabled={bulkSaving}
+                        />
+                      ) : editingId === asset.id ? (
                         <div className="flex items-center gap-2">
                           <input
                             type="number"
