@@ -364,11 +364,17 @@ export async function getDashboardStats(
     return true;
   };
 
+  // linkedReimbursementTotal tracks every linked reimbursement (Income or positive-amount
+  // Expense) so totalReimbursements/net stay consistent with the per-category netting above —
+  // reimbWhere excludes linked rows entirely, so without this a linked Expense-type
+  // reimbursement would reduce a category's total but never reach totalReimbursements/net.
   let linkedIncomeAdjustment = 0;
+  let linkedReimbursementTotal = 0;
   for (const link of linkRecords) {
     const { type, amount } = link.reimbursementTransaction;
     const expenseCat = link.expenseTransaction.category || '⚠ Uncategorized';
 
+    linkedReimbursementTotal += amount;
     if (type === 'Income' && matchesIncomeWhere(link.reimbursementTransaction)) {
       linkedIncomeAdjustment += amount;
     }
@@ -411,8 +417,10 @@ export async function getDashboardStats(
 
   // Linked Income-type reimbursements move from totalIncome into totalReimbursements
   // (see the linkRecords loop above) — net is unaffected since both terms shift equally.
+  // Linked Expense-type reimbursements were never part of any prior total (reimbWhere
+  // excludes them), so they're added to totalReimbursements outright.
   const adjustedTotalIncome = totalIncome - linkedIncomeAdjustment;
-  const adjustedTotalReimbursements = totalReimbursements + linkedIncomeAdjustment;
+  const adjustedTotalReimbursements = totalReimbursements + linkedReimbursementTotal;
 
   const result: DashboardAggregation = {
     totalExpenses,
