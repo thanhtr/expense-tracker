@@ -14,8 +14,13 @@ vi.mock('../../../lib/db', () => ({
   },
 }));
 
+vi.mock('../../../lib/services/aggregation-service', () => ({
+  invalidateDashboardCache: vi.fn(),
+}));
+
 import { GET, POST, DELETE } from '../../../app/api/transactions/[id]/links/route';
 import { prisma } from '../../../lib/db';
+import { invalidateDashboardCache } from '../../../lib/services/aggregation-service';
 
 const makeTx = (overrides = {}) => ({
   id: 1,
@@ -85,6 +90,7 @@ describe('POST /api/transactions/[id]/links', () => {
     const body = await res.json();
     expect(body.expenseTransactionId).toBe(1);
     expect(body.reimbursementTransactionId).toBe(2);
+    expect(invalidateDashboardCache).toHaveBeenCalled();
   });
 
   it('rejects linking a transaction to itself', async () => {
@@ -104,6 +110,24 @@ describe('POST /api/transactions/[id]/links', () => {
       .mockResolvedValueOnce(makeTx({ id: 2, type: 'Expense', amount: -20 }));
     const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects when the "expense" side is an Income transaction', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce(makeTx({ id: 1, type: 'Income', amount: 100 }))
+      .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
+    expect(res.status).toBe(400);
+    expect(prisma.transactionLink.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the "expense" side is a positive-amount Expense', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: 30 }))
+      .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
+    expect(res.status).toBe(400);
+    expect(prisma.transactionLink.create).not.toHaveBeenCalled();
   });
 
   it('returns 409 when the reimbursement is already linked elsewhere', async () => {
@@ -128,6 +152,7 @@ describe('DELETE /api/transactions/[id]/links', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+    expect(invalidateDashboardCache).toHaveBeenCalled();
   });
 
   it('returns 404 when no matching link exists', async () => {

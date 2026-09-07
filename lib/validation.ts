@@ -145,9 +145,7 @@ export const createLinkSchema = z.object({
   reimbursementTransactionId: z.number().int().positive(),
 });
 
-export const deleteLinkSchema = z.object({
-  reimbursementTransactionId: z.number().int().positive(),
-});
+export const deleteLinkSchema = createLinkSchema;
 
 export const bulkCategorizeSchema = z.object({
   category: z.string().min(1).max(100),
