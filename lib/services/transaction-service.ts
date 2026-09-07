@@ -56,6 +56,7 @@ export async function getTransactions(filters: {
   paidBy?: string;
   amountMin?: number;
   amountMax?: number;
+  positiveOnly?: boolean;
   tag?: string;
   sortBy?: string;
   order?: string;
@@ -97,6 +98,7 @@ export async function getTransactions(filters: {
     if (max !== undefined) posFilter.lte = max;
     where.OR = [{ amount: negFilter }, { amount: posFilter }];
   }
+  if (filters.positiveOnly) where.amount = { gt: 0 };
 
   const ALLOWED_SORT_FIELDS = ['date', 'amount', 'merchant', 'category'] as const;
   type AllowedSortField = typeof ALLOWED_SORT_FIELDS[number];

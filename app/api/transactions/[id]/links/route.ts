@@ -22,14 +22,11 @@ export async function GET(
       orderBy: { id: 'asc' },
     });
 
-    const totalReimbursed = links.reduce((sum, l) => sum + l.reimbursementTransaction.amount, 0);
-
     return NextResponse.json({
       links: links.map(l => ({
         id: l.id,
         reimbursementTransaction: l.reimbursementTransaction,
       })),
-      totalReimbursed,
     });
   } catch (error) {
     console.error('Failed to fetch links:', error);
@@ -78,6 +75,21 @@ export async function POST(
       );
     }
 
+    const existingLinks = await prisma.transactionLink.findMany({
+      where: { expenseTransactionId: idResult.id },
+      include: { reimbursementTransaction: { select: { amount: true } } },
+    });
+    const alreadyReimbursed = existingLinks.reduce((sum, l) => sum + l.reimbursementTransaction.amount, 0);
+    const expenseAmount = Math.abs(expenseTx.amount);
+    if (alreadyReimbursed + reimbTx.amount > expenseAmount + 0.01) {
+      return NextResponse.json(
+        {
+          error: `Linking this reimbursement would exceed the expense amount (€${(alreadyReimbursed + reimbTx.amount).toFixed(2)} of €${expenseAmount.toFixed(2)})`,
+        },
+        { status: 400 },
+      );
+    }
+
     try {
       const link = await prisma.transactionLink.create({
         data: {
@@ -89,7 +101,11 @@ export async function POST(
       return NextResponse.json(link, { status: 201 });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-        return NextResponse.json({ error: 'Already linked to another expense' }, { status: 409 });
+        const existing = await prisma.transactionLink.findUnique({ where: { reimbursementTransactionId } });
+        const message = existing?.expenseTransactionId === idResult.id
+          ? 'Already linked to this expense'
+          : 'Already linked to another expense';
+        return NextResponse.json({ error: message }, { status: 409 });
       }
       throw error;
     }

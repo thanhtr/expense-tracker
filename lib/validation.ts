@@ -35,6 +35,7 @@ export const transactionQuerySchema = z.object({
     .regex(/^-?\d+(\.\d+)?$/, 'must be a number')
     .transform(Number)
     .optional(),
+  positive_only: z.literal('1').optional(),
   tag: z.string().max(100).optional(),
   sort_by: z.enum(['date', 'amount', 'merchant', 'category']).default('date'),
   order: z.enum(['asc', 'desc']).default('desc'),

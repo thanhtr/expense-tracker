@@ -8,6 +8,7 @@ vi.mock('../../../lib/db', () => ({
     },
     transactionLink: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       create: vi.fn(),
       deleteMany: vi.fn(),
     },
@@ -51,7 +52,7 @@ const params = (id: string) => Promise.resolve({ id });
 describe('GET /api/transactions/[id]/links', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('lists linked reimbursements with total', async () => {
+  it('lists linked reimbursements', async () => {
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
         id: 10,
@@ -65,7 +66,7 @@ describe('GET /api/transactions/[id]/links', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.links).toHaveLength(1);
-    expect(body.totalReimbursed).toBe(30);
+    expect(body.links[0].reimbursementTransaction.amount).toBe(30);
   });
 
   it('returns 400 for invalid id', async () => {
@@ -81,6 +82,7 @@ describe('POST /api/transactions/[id]/links', () => {
     vi.mocked(prisma.transaction.findUnique)
       .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: -80 }))
       .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([]);
     vi.mocked(prisma.transactionLink.create).mockResolvedValueOnce({
       id: 10, expenseTransactionId: 1, reimbursementTransactionId: 2, createdAt: new Date(),
     } as never);
@@ -91,6 +93,32 @@ describe('POST /api/transactions/[id]/links', () => {
     expect(body.expenseTransactionId).toBe(1);
     expect(body.reimbursementTransactionId).toBe(2);
     expect(invalidateDashboardCache).toHaveBeenCalled();
+  });
+
+  it('rejects a reimbursement that would exceed the expense amount', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: -50 }))
+      .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 80 }));
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([]);
+
+    const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/exceed the expense amount/i);
+    expect(prisma.transactionLink.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects when already-linked reimbursements plus the new one would exceed the expense amount', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: -50 }))
+      .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
+      { reimbursementTransaction: { amount: 25 } } as never,
+    ]);
+
+    const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
+    expect(res.status).toBe(400);
+    expect(prisma.transactionLink.create).not.toHaveBeenCalled();
   });
 
   it('rejects linking a transaction to itself', async () => {
@@ -134,12 +162,32 @@ describe('POST /api/transactions/[id]/links', () => {
     vi.mocked(prisma.transaction.findUnique)
       .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: -80 }))
       .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([]);
     vi.mocked(prisma.transactionLink.create).mockRejectedValueOnce({ code: 'P2002' });
+    vi.mocked(prisma.transactionLink.findUnique).mockResolvedValueOnce({
+      id: 99, expenseTransactionId: 5, reimbursementTransactionId: 2, createdAt: new Date(),
+    } as never);
 
     const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
     expect(res.status).toBe(409);
     const body = await res.json();
-    expect(body.error).toMatch(/already linked/i);
+    expect(body.error).toBe('Already linked to another expense');
+  });
+
+  it('returns 409 with a same-expense message when the P2002 conflict is a duplicate of this link', async () => {
+    vi.mocked(prisma.transaction.findUnique)
+      .mockResolvedValueOnce(makeTx({ id: 1, type: 'Expense', amount: -80 }))
+      .mockResolvedValueOnce(makeTx({ id: 2, type: 'Income', amount: 30 }));
+    vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([]);
+    vi.mocked(prisma.transactionLink.create).mockRejectedValueOnce({ code: 'P2002' });
+    vi.mocked(prisma.transactionLink.findUnique).mockResolvedValueOnce({
+      id: 99, expenseTransactionId: 1, reimbursementTransactionId: 2, createdAt: new Date(),
+    } as never);
+
+    const res = await POST(makeReq('POST', { reimbursementTransactionId: 2 }), { params: params('1') });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toBe('Already linked to this expense');
   });
 });
 

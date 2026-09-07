@@ -152,30 +152,29 @@ export const TransactionRow = memo(function TransactionRow({
   };
 
   // Debounced merchant search for reimbursement candidates, scoped to the open editor.
+  // `cancelled` guards against a stale slower response overwriting a newer one.
   useEffect(() => {
     if (!linksOpen || !linkSearch.trim()) {
       setLinkResults([]);
       return;
     }
+    let cancelled = false;
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/transactions?merchant=${encodeURIComponent(linkSearch)}&limit=10`);
-        if (!res.ok) return;
+        const res = await fetch(`/api/transactions?merchant=${encodeURIComponent(linkSearch)}&positive_only=1&limit=10`);
+        if (cancelled || !res.ok) return;
         const data = await res.json() as { transactions: Transaction[] };
+        if (cancelled) return;
         const linkedIds = new Set(links.map(l => l.reimbursementTransaction.id));
         setLinkResults(
-          data.transactions.filter(t =>
-            t.id !== transaction.id &&
-            !linkedIds.has(t.id) &&
-            (t.type === 'Income' || (t.type === 'Expense' && t.amount > 0))
-          )
+          data.transactions.filter(t => t.id !== transaction.id && !linkedIds.has(t.id))
         );
       } finally {
-        setSearching(false);
+        if (!cancelled) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [linkSearch, linksOpen, links, transaction.id]);
 
   const addLink = async (candidate: Transaction) => {
@@ -326,6 +325,7 @@ export const TransactionRow = memo(function TransactionRow({
   const totalAmt = Math.abs(transaction.amount);
   const splitTotal = splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0);
   const splitRemaining = Math.max(0, totalAmt - splitTotal);
+  const netAmount = totalAmt - (transaction.reimbursedAmount ?? 0);
 
   return (
     <>
@@ -359,8 +359,8 @@ export const TransactionRow = memo(function TransactionRow({
       <td className={`px-4 py-3 text-sm text-right font-medium ${amountColor}`}>
         {amountPrefix}{formatCurrency(transaction.amount)}
         {!!transaction.reimbursedAmount && (
-          <div className="text-[10px] font-normal text-fg-3">
-            Net {formatCurrency(totalAmt - transaction.reimbursedAmount)} ({formatCurrency(transaction.reimbursedAmount)} reimbursed)
+          <div className={`text-[10px] font-normal ${netAmount < 0 ? 'text-amber-600 dark:text-amber-400' : 'text-fg-3'}`}>
+            Net {netAmount < 0 ? '−' : ''}{formatCurrency(netAmount)} ({formatCurrency(transaction.reimbursedAmount)} reimbursed{netAmount < 0 ? ', over-reimbursed' : ''})
           </div>
         )}
       </td>

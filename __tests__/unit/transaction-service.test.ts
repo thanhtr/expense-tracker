@@ -135,6 +135,16 @@ describe('getTransactions', () => {
     expect(result.transactions[0].reimbursedAmount).toBeUndefined();
   });
 
+  it('should filter to positive-amount transactions when positiveOnly is set', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(0);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([]);
+
+    await getTransactions({ positiveOnly: true });
+
+    const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
+    expect(whereArg?.amount).toEqual({ gt: 0 });
+  });
+
   it('should not query links for income/positive rows', async () => {
     vi.mocked(prisma.transaction.count).mockResolvedValueOnce(1);
     vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([makeRow({ id: 2, type: 'Income', amount: 30 })]);
