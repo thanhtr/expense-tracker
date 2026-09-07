@@ -264,8 +264,12 @@ function fmtLongMonth(m: string) {
   return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 function fmtCompactEuro(v: number) {
-  const sign = v < 0 ? '-' : '';
-  return Math.abs(v) >= 1000 ? `${sign}€${Math.round(Math.abs(v) / 1000)}k` : `${sign}€${Math.round(Math.abs(v))}`;
+  if (Math.abs(v) >= 1000) {
+    const rounded = Math.round(v / 1000);
+    return `${rounded < 0 ? '-' : ''}€${Math.abs(rounded)}k`;
+  }
+  const rounded = Math.round(v);
+  return `${rounded < 0 ? '-' : ''}€${Math.abs(rounded)}`;
 }
 
 // Shared toggle-visibility state for chart legend items. Returns a stable `toggle`
@@ -454,11 +458,11 @@ function MonthlyTrendLineChart({
     return data.map(row => {
       const r: Record<string, string | number> = {};
       for (const [k, v] of Object.entries(row)) {
-        if (!catSet.has(k) || visibleCats.includes(k)) r[k] = v as string | number;
+        if (!catSet.has(k) || !hidden.has(k)) r[k] = v as string | number;
       }
       return r;
     });
-  }, [data, categories, visibleCats]);
+  }, [data, categories, visibleCats, hidden]);
 
   // Mean of visible expense totals — updates when a category is toggled off.
   const avgExpense = useMemo(() => {
