@@ -13,7 +13,6 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
 
   const paidBy = accountOwner || 'tung';
 
-  // Build dedupKey for every row (suffix for intra-batch duplicates)
   const seenCount = new Map<string, number>();
   const candidates = rows.map(row => {
     const dateStr = row.date.toISOString().slice(0, 10);

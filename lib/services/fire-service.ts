@@ -187,10 +187,8 @@ export function simulateProjection(
   const currentYear = new Date().getFullYear();
   const points: ProjectionPoint[] = [];
 
-  // Record starting point
   points.push({ age: currentAge, year: currentYear, portfolio: currentPortfolio });
 
-  // Accumulation phase
   const accRate = monthlyRate(accumulationReturn);
   let portfolio = currentPortfolio;
   let lastRecordedAge = currentAge;
@@ -205,13 +203,11 @@ export function simulateProjection(
       lastRecordedAge = intAge;
     }
   }
-  // Ensure retirementAge is recorded
   if (lastRecordedAge < retirementAge) {
     points.push({ age: retirementAge, year: currentYear + Math.round(retirementAge - currentAge), portfolio });
     lastRecordedAge = retirementAge;
   }
 
-  // Drawdown phase
   const drawRate = monthlyRate(drawdownReturn);
   const drawdownMonths = (lifeExpectancy - retirementAge) * 12;
 
@@ -237,7 +233,6 @@ export function simulateProjection(
     }
   }
 
-  // Ensure lifeExpectancy is recorded
   if (lastRecordedAge < lifeExpectancy) {
     points.push({ age: lifeExpectancy, year: currentYear + Math.round(lifeExpectancy - currentAge), portfolio });
   }

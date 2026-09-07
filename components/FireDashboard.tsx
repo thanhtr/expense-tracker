@@ -21,8 +21,6 @@ function pctFmt(n: number): string {
   return `${Math.min(100, n).toFixed(1)}%`;
 }
 
-// ── KPI card ─────────────────────────────────────────────────────────────────
-
 function KPI({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
     <div className="dash-card p-[14px_18px_12px] flex flex-col gap-[2px]">
@@ -32,8 +30,6 @@ function KPI({ label, value, sub, accent }: { label: string; value: string; sub?
     </div>
   );
 }
-
-// ── Progress bar ──────────────────────────────────────────────────────────────
 
 function ProgressBar({ pct }: { pct: number }) {
   const clamped = Math.min(100, Math.max(0, pct));
@@ -51,8 +47,6 @@ function ProgressBar({ pct }: { pct: number }) {
     </div>
   );
 }
-
-// ── Model explainer ───────────────────────────────────────────────────────────
 
 function ModelExplainer() {
   const [open, setOpen] = useState(false);
@@ -168,8 +162,6 @@ function ModelExplainer() {
   );
 }
 
-// ── Projection chart ──────────────────────────────────────────────────────────
-
 type ChartPoint = { age: number; pure?: number | null; barista33?: number | null; barista50?: number | null };
 
 function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retirementAge }: {
@@ -224,21 +216,18 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : 'Barista 50%'}
             wrapperStyle={{ fontSize: 12 }}
           />
-          {/* FIRE target line */}
           <ReferenceLine
             y={fireTarget}
             stroke="oklch(0.75 0.15 75)"
             strokeDasharray="5 3"
             label={{ value: 'FIRE target', position: 'insideTopRight', fontSize: 10, fill: 'oklch(0.75 0.15 75)' }}
           />
-          {/* Retirement age line */}
           <ReferenceLine
             x={retirementAge}
             stroke="var(--fg-3)"
             strokeDasharray="3 3"
             label={{ value: `Retire ${retirementAge}`, position: 'insideTopLeft', fontSize: 10, fill: 'var(--fg-3)' }}
           />
-          {/* You are here */}
           <ReferenceDot
             x={currentAge}
             y={currentPortfolio}
@@ -256,8 +245,6 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
     </div>
   );
 }
-
-// ── Phase cards ───────────────────────────────────────────────────────────────
 
 function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
   const colors = ['var(--accent)', 'oklch(0.60 0.09 155)', 'oklch(0.55 0.10 225)'];
@@ -302,8 +289,6 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
   );
 }
 
-// ── Info tooltip ──────────────────────────────────────────────────────────────
-
 function InfoTip({ text, align = 'left' }: { text: string; align?: 'left' | 'right' }) {
   const [open, setOpen] = useState(false);
   const pos = align === 'right' ? 'right-0' : 'left-0';
@@ -326,8 +311,6 @@ function InfoTip({ text, align = 'left' }: { text: string; align?: 'left' | 'rig
     </span>
   );
 }
-
-// ── Barista comparison table ──────────────────────────────────────────────────
 
 function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
   return (
@@ -427,7 +410,6 @@ function ConfigPanel({ config, onSave, saving }: {
   }
 
   function handleSave() {
-    // Convert pct fields back from percent to decimal
     const toSave: Partial<FireConfig> = { ...draft };
     for (const group of CONFIG_FIELDS) {
       for (const f of group.fields) {
@@ -459,7 +441,6 @@ function ConfigPanel({ config, onSave, saving }: {
 
       {open && (
         <div className="border-t border-[var(--border)] p-5 space-y-6">
-          {/* Date of birth — special string field, determines fractional current age */}
           <div>
             <div className="tool-label text-[var(--fg-3)] mb-3">Your age</div>
             <label className="flex flex-col gap-[4px] max-w-[200px]">
@@ -522,8 +503,6 @@ function ConfigPanel({ config, onSave, saving }: {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
-
 export function FireDashboard() {
   const [data, setData] = useState<FireApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -583,7 +562,6 @@ export function FireDashboard() {
 
   return (
     <div className="space-y-4">
-      {/* Status row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KPI label="FIRE Number" value={fmt(fireTarget)} sub="at retirement age" />
         <KPI
@@ -600,10 +578,7 @@ export function FireDashboard() {
         />
       </div>
 
-      {/* Model explainer */}
       <ModelExplainer />
-
-      {/* Projection chart */}
       <ProjectionChart
         data={data}
         fireTarget={fireTarget}
@@ -612,16 +587,9 @@ export function FireDashboard() {
         retirementAge={config.retirementAge}
       />
 
-      {/* Phase breakdown */}
       <PhaseCards phases={phases} />
-
-      {/* Scenario comparison */}
       <BaristaTable variants={[pureFire, barista33, barista50]} />
-
-      {/* Config panel */}
       <ConfigPanel config={config} onSave={handleSave} saving={saving} />
-
-      {/* Investment assets */}
       <div>
         <div className="text-[13px] font-semibold mb-3">Investment Assets</div>
         <AssetManager onMutate={load} />

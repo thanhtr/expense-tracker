@@ -67,7 +67,7 @@ function setupMocks(opts: {
     topTx = DEFAULT_TOP_TX,
   } = opts;
 
-  // groupBy called 6 times: category, account, paidBy, date×category, income sources, reimb by category
+  // Mocks match getDashboardStats Promise.all order
   vi.mocked(prisma.transaction.groupBy)
     .mockResolvedValueOnce(byCategoryGroups as never)
     .mockResolvedValueOnce(byAccountGroups as never)
@@ -76,7 +76,6 @@ function setupMocks(opts: {
     .mockResolvedValueOnce([] as never) // income sources (empty by default)
     .mockResolvedValueOnce([] as never); // reimb by category (empty by default)
 
-  // aggregate called five times: outflow totals, income, investments, internalTransfer, reimbursements
   vi.mocked(prisma.transaction.aggregate)
     .mockResolvedValueOnce({ _sum: { amount: totalAmount }, _count: { id: totalCount } } as never)
     .mockResolvedValueOnce({ _sum: { amount: incomeAmount } } as never)

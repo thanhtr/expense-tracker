@@ -123,7 +123,6 @@ describe('simulateProjection', () => {
   });
 
   it('over-funded portfolio stays positive throughout', () => {
-    // Starting with 3× FIRE target leaves a large surplus at lifeExpectancy
     const target = computeFireTarget(FIRE_DEFAULTS, 0);
     const pts = simulateProjection(FIRE_DEFAULTS, target * 3);
     const atEnd = pts[pts.length - 1]!;
