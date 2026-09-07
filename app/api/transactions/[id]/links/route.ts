@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createLinkSchema, deleteLinkSchema, parseBody, parseId } from '@/lib/validation';
+import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
 
 export async function GET(
   _request: NextRequest,
@@ -61,6 +62,13 @@ export async function POST(
     if (!expenseTx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     if (!reimbTx) return NextResponse.json({ error: 'Reimbursement transaction not found' }, { status: 404 });
 
+    if (!(expenseTx.type === 'Expense' && expenseTx.amount < 0)) {
+      return NextResponse.json(
+        { error: 'Only a negative-amount Expense transaction can have reimbursements linked to it' },
+        { status: 400 },
+      );
+    }
+
     const isPlausibleReimbursement =
       reimbTx.type === 'Income' || (reimbTx.type === 'Expense' && reimbTx.amount > 0);
     if (!isPlausibleReimbursement) {
@@ -77,6 +85,7 @@ export async function POST(
           reimbursementTransactionId,
         },
       });
+      invalidateDashboardCache();
       return NextResponse.json(link, { status: 201 });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
@@ -111,6 +120,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Link not found' }, { status: 404 });
     }
 
+    invalidateDashboardCache();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete link:', error);
