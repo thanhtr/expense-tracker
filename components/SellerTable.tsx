@@ -202,7 +202,14 @@ export function SellerTable() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-right mono text-fg-2">{seller.count}</td>
-                    <td className="px-4 py-3 text-sm text-right mono text-fg-2">{fmtEUR(seller.totalAmount)}</td>
+                    <td className="px-4 py-3 text-sm text-right mono text-fg-2">
+                      {fmtEUR(seller.totalAmount)}
+                      {!!seller.reimbursedAmount && (
+                        <div className="text-[10px] font-normal text-fg-3">
+                          {fmtEUR(seller.reimbursedAmount)} reimbursed
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <CategoryPills categories={seller.categories} dominant={seller.dominantCategory} />
                     </td>
