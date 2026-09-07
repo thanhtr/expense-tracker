@@ -43,7 +43,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
   const [editBalance, setEditBalance] = useState('');
   const [historyOpenId, setHistoryOpenId] = useState<number | null>(null);
   const [historyByAsset, setHistoryByAsset] = useState<Record<number, AssetSnapshot[]>>({});
-  const [historyLoading, setHistoryLoading] = useState<number | null>(null);
+  const [historyLoadingIds, setHistoryLoadingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetch('/api/assets')
@@ -90,6 +90,14 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
       const updated = await res.json() as Asset;
       setAssets(prev => prev.map(a => a.id === updated.id ? updated : a));
       setEditingId(null);
+      // A new balance update creates a new snapshot server-side — drop the cached
+      // history so the next toggle refetches instead of showing stale data.
+      setHistoryByAsset(prev => {
+        if (!(asset.id in prev)) return prev;
+        const next = { ...prev };
+        delete next[asset.id];
+        return next;
+      });
       onMutate?.();
       toast.success('Balance updated');
     } else {
@@ -104,7 +112,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
     }
     setHistoryOpenId(asset.id);
     if (historyByAsset[asset.id]) return;
-    setHistoryLoading(asset.id);
+    setHistoryLoadingIds(prev => new Set(prev).add(asset.id));
     try {
       const res = await fetch(`/api/assets/${asset.id}`);
       if (res.ok) {
@@ -114,7 +122,11 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
         toast.error('Failed to load history');
       }
     } finally {
-      setHistoryLoading(null);
+      setHistoryLoadingIds(prev => {
+        const next = new Set(prev);
+        next.delete(asset.id);
+        return next;
+      });
     }
   }
 
@@ -229,7 +241,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
 
                     {historyOpenId === asset.id && (
                       <div className="mt-[8px] pl-1 border-l-2 border-[var(--border)]">
-                        {historyLoading === asset.id ? (
+                        {historyLoadingIds.has(asset.id) ? (
                           <div className="text-[11px] text-[var(--fg-3)] pl-3 py-1">Loading history…</div>
                         ) : (historyByAsset[asset.id]?.length ?? 0) === 0 ? (
                           <div className="text-[11px] text-[var(--fg-3)] pl-3 py-1">No history yet</div>
