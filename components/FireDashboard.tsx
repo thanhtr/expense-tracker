@@ -5,6 +5,7 @@ import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
+import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
 import { FIRE_DEFAULTS, computeCurrentAge, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
 
@@ -590,9 +591,9 @@ export function FireDashboard() {
       <BaristaTable variants={[pureFire, barista33, barista50]} />
       <ConfigPanel config={config} onSave={handleSave} saving={saving} />
       <div className="text-right">
-        <a href="/settings?tab=assets" className="text-[12px] text-[var(--fg-3)] hover:text-[var(--fg-2)]">
+        <Link href="/settings?tab=assets" className="text-[12px] text-[var(--fg-3)] hover:text-[var(--fg-2)]">
           Manage assets in Settings →
-        </a>
+        </Link>
       </div>
     </div>
   );
