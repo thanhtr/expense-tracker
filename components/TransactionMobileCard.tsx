@@ -318,7 +318,7 @@ export const TransactionMobileCard = memo(function TransactionMobileCard({
             {/* Merchant + amount */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="font-medium text-sm truncate">{transaction.merchant}</div>
+                <div className="font-medium text-sm line-clamp-2">{transaction.merchant}</div>
                 <div className="text-xs text-fg-3 mt-0.5">
                   {formatDate(transaction.date)}
                   {transaction.paidBy && <span className="ml-2">· {nameForSlug(transaction.paidBy)}</span>}
@@ -350,7 +350,7 @@ export const TransactionMobileCard = memo(function TransactionMobileCard({
 
             {/* Note preview (collapsed only) */}
             {!expanded && note && (
-              <div className="text-xs text-fg-3 mt-1 truncate italic">{note}</div>
+              <div className="text-xs text-fg-3 mt-1 line-clamp-2 italic">{note}</div>
             )}
 
             {/* Category + expand toggle */}
