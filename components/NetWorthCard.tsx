@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { fmtEUR, today } from '@/lib/utils';
+import Link from 'next/link';
+import { fmtEUR } from '@/lib/utils';
 import { ASSET_TYPES } from '@/lib/constants';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -34,20 +35,8 @@ const TYPE_COLORS: Record<AssetType, string> = {
 export function NetWorthCard() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [expanded, setExpanded] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<{ month: string; netWorth: number }[]>([]);
-
-  // Form state
-  const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<AssetType>('bank');
-  const [newBalance, setNewBalance] = useState('');
-  const [newDate, setNewDate] = useState(today());
-
-  // Edit state
-  const [editBalance, setEditBalance] = useState('');
 
   useEffect(() => {
     fetch('/api/assets')
@@ -67,59 +56,6 @@ export function NetWorthCard() {
   const totalAssets = assets.filter(a => a.type !== 'liability').reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = assets.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.balance), 0);
   const netWorth = totalAssets - totalLiabilities;
-
-  const handleAdd = async () => {
-    if (!newName.trim() || !newBalance || !newDate) return;
-    setSaving(true);
-    try {
-      const res = await fetch('/api/assets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-          type: newType,
-          balance: parseFloat(newBalance),
-          recordedAt: newDate,
-        }),
-      });
-      if (res.ok) {
-        const a = await res.json() as Asset;
-        setAssets(prev => [...prev, a].sort((x, y) => x.type.localeCompare(y.type) || x.name.localeCompare(y.name)));
-        setAdding(false);
-        setNewName(''); setNewBalance(''); setNewDate(today()); setNewType('bank');
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdateBalance = async (id: number) => {
-    const balance = parseFloat(editBalance);
-    if (isNaN(balance)) return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/assets/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ balance, recordedAt: today() }),
-      });
-      if (res.ok) {
-        const a = await res.json() as Asset;
-        setAssets(prev => prev.map(x => x.id === id ? a : x));
-        setEditingId(null);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Remove this asset?')) return;
-    try {
-      const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' });
-      if (res.ok) setAssets(prev => prev.filter(x => x.id !== id));
-    } catch { /* leave unchanged */ }
-  };
 
   return (
     <div className="dash-card">
@@ -164,74 +100,41 @@ export function NetWorthCard() {
 
       {expanded && (
         <div className="p-[0_20px_20px] space-y-[14px]">
-          {assets.length === 0 && !adding && (
+          {assets.length === 0 ? (
             <div className="text-[13px] text-[var(--fg-3)] py-2">
-              No assets recorded. Click &quot;+ Add asset&quot; to track your net worth.
+              No assets recorded yet.{' '}
+              <Link href="/settings?tab=assets" className="underline hover:text-[var(--fg-2)]">
+                Add assets in Settings
+              </Link>{' '}
+              to track your net worth.
             </div>
-          )}
-
-          {assets.map(a => {
-            const typeKey = a.type as AssetType;
-            const isEditing = editingId === a.id;
-            return (
-              <div key={a.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-[6px] flex-1 min-w-0">
-                  <span className={`text-[10px] px-[5px] py-[1px] rounded-full font-medium shrink-0 ${TYPE_COLORS[typeKey] ?? ''}`}>
-                    {TYPE_LABELS[typeKey] ?? a.type}
+          ) : (
+            assets.map(a => {
+              const typeKey = a.type as AssetType;
+              return (
+                <div key={a.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="flex items-center gap-[6px] flex-1 min-w-0">
+                    <span className={`text-[10px] px-[5px] py-[1px] rounded-full font-medium shrink-0 ${TYPE_COLORS[typeKey] ?? ''}`}>
+                      {TYPE_LABELS[typeKey] ?? a.type}
+                    </span>
+                    <span className="min-w-0 text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
+                  </div>
+                  <span className={`mono text-[13px] ${a.type === 'liability' ? 'text-red-600 dark:text-red-400' : 'text-[var(--fg-2)]'}`}>
+                    {a.type === 'liability' ? '−' : ''}{fmtEUR(Math.abs(a.balance))}
                   </span>
-                  <span className="min-w-0 text-[13px] font-medium overflow-hidden text-ellipsis whitespace-nowrap">{a.name}</span>
                 </div>
-                <div className="flex items-center gap-[8px] flex-wrap sm:flex-nowrap sm:flex-shrink-0">
-                  {isEditing ? (
-                    <>
-                      <input
-                        type="number"
-                        step="1"
-                        aria-label="Asset balance"
-                        value={editBalance}
-                        onChange={e => setEditBalance(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleUpdateBalance(a.id);
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                        className="w-[100px] px-[6px] py-[2px] border border-blue-400 rounded text-[12px] text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        autoFocus
-                      />
-                      <button onClick={() => handleUpdateBalance(a.id)} disabled={saving}
-                        className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium">Save</button>
-                      <button onClick={() => setEditingId(null)}
-                        className="text-[11px] text-[var(--fg-3)] hover:text-[var(--foreground)]">Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => { setEditingId(a.id); setEditBalance(String(a.balance)); }}
-                        title="Click to update balance"
-                        className={`mono text-[13px] hover:underline cursor-pointer ${a.type === 'liability' ? 'text-red-600 dark:text-red-400' : 'text-[var(--fg-2)]'}`}
-                      >
-                        {a.type === 'liability' ? '−' : ''}{fmtEUR(Math.abs(a.balance))}
-                      </button>
-                      <button onClick={() => handleDelete(a.id)}
-                        className="text-[var(--fg-3)] hover:text-red-500 transition-colors"
-                        title="Remove asset"
-                        aria-label={`Remove asset ${a.name}`}>
-                        <svg className="w-[13px] h-[13px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
 
           {showHistory && (
             <div className="pt-[8px] border-t border-border-soft">
               <div className="text-[12px] font-medium text-[var(--fg-2)] mb-[8px]">Net worth over time</div>
               {history.length < 2 ? (
                 <div className="text-[12px] text-[var(--fg-3)] py-2">
-                  Not enough history yet — update asset balances to build a trend
+                  Not enough history yet — update asset balances in{' '}
+                  <Link href="/settings?tab=assets" className="underline hover:text-[var(--fg-2)]">Settings</Link>{' '}
+                  to build a trend.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={140}>
@@ -269,58 +172,11 @@ export function NetWorthCard() {
             </div>
           )}
 
-          {adding ? (
-            <div className="space-y-[8px] pt-[4px]">
-              <div className="flex items-center gap-[8px] flex-wrap">
-                <select
-                  value={newType}
-                  onChange={e => setNewType(e.target.value as AssetType)}
-                  aria-label="Asset type"
-                  className="px-[8px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {ASSET_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Name"
-                  aria-label="Asset name"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  className="flex-1 min-w-[120px] px-[8px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="number"
-                  step="1"
-                  placeholder="Balance €"
-                  aria-label="Balance"
-                  value={newBalance}
-                  onChange={e => setNewBalance(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') setAdding(false); }}
-                  className="w-[100px] px-[6px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="date"
-                  aria-label="As of date"
-                  value={newDate}
-                  onChange={e => setNewDate(e.target.value)}
-                  className="px-[8px] py-[4px] border border-border-soft rounded bg-surface text-foreground text-[12px] focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex gap-[8px]">
-                <button
-                  onClick={handleAdd}
-                  disabled={saving || !newName.trim() || !newBalance}
-                  className="px-[10px] py-[4px] bg-blue-600 text-white text-[12px] font-medium rounded hover:bg-blue-700 disabled:opacity-50"
-                >Add</button>
-                <button
-                  onClick={() => { setAdding(false); setNewName(''); setNewBalance(''); setNewDate(today()); setNewType('bank'); }}
-                  className="px-[10px] py-[4px] bg-surface-2 text-[var(--fg-2)] text-[12px] font-medium rounded hover:bg-[var(--border)]"
-                >Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setAdding(true)} className="btn-ghost text-[12px]">+ Add asset</button>
-          )}
+          <div className="pt-1 border-t border-border-soft">
+            <Link href="/settings?tab=assets" className="text-[12px] text-[var(--fg-3)] hover:text-[var(--fg-2)]">
+              Manage assets in Settings →
+            </Link>
+          </div>
         </div>
       )}
     </div>

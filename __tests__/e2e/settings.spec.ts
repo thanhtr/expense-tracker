@@ -42,7 +42,7 @@ test.describe('Settings / Categories Page', () => {
   });
 
   test('should display existing categories', async ({ page }) => {
-    await page.goto('/settings');
+    await page.goto('/settings?tab=categories');
     await expect(page.locator('text=Dining Out')).toBeVisible();
     await expect(page.locator('text=Food & Groceries')).toBeVisible();
     await expect(page.locator('text=Shopping')).toBeVisible();
@@ -64,7 +64,7 @@ test.describe('Settings / Categories Page', () => {
         }
       }
     });
-    await page.goto('/settings');
+    await page.goto('/settings?tab=categories');
     await expect(page.locator('text=Dining Out')).toBeVisible();
     const nameInput = page.locator('input[placeholder*="category"], input[placeholder*="Category"], input[placeholder*="name"]').first();
     if (await nameInput.count() > 0) {
@@ -83,7 +83,7 @@ test.describe('Settings / Categories Page', () => {
         await route.fulfill({ json: { success: true } });
       }
     });
-    await page.goto('/settings');
+    await page.goto('/settings?tab=categories');
     await expect(page.locator('text=Shopping')).toBeVisible();
     const deleteBtn = page.locator('button[aria-label="Delete Shopping"]').first();
     if (await deleteBtn.count() > 0) {
@@ -101,7 +101,7 @@ test.describe('Settings / Categories Page', () => {
         await route.fulfill({ json: { id: 3, ...patchedData } });
       }
     });
-    await page.goto('/settings');
+    await page.goto('/settings?tab=categories');
     await expect(page.locator('text=Shopping')).toBeVisible();
     // Clicking the category name opens an inline edit input inside the <ul>
     // (distinct from the "New category name" form input which is outside <ul>)

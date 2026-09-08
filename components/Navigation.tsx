@@ -13,8 +13,6 @@ const NAV_LINKS = [
   { href: '/transactions/recurring', label: 'Recurring' },
   { href: '/trends', label: 'Trends' },
   { href: '/upload', label: 'Upload' },
-  { href: '/keywords', label: 'Keywords' },
-  { href: '/income-rules', label: 'Income Rules' },
   { href: '/settings', label: 'Settings' },
   { href: '/fire', label: 'FIRE' },
 ];

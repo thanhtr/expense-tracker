@@ -5,9 +5,9 @@ import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
+import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
 import { FIRE_DEFAULTS, computeCurrentAge, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
-import { AssetManager } from '@/components/AssetManager';
 
 type FireApiResponse = FireCalculationResult & { config: FireConfig };
 
@@ -590,9 +590,10 @@ export function FireDashboard() {
       <PhaseCards phases={phases} />
       <BaristaTable variants={[pureFire, barista33, barista50]} />
       <ConfigPanel config={config} onSave={handleSave} saving={saving} />
-      <div>
-        <div className="text-[13px] font-semibold mb-3">Investment Assets</div>
-        <AssetManager onMutate={load} />
+      <div className="text-right">
+        <Link href="/settings?tab=assets" className="text-[12px] text-[var(--fg-3)] hover:text-[var(--fg-2)]">
+          Manage assets in Settings →
+        </Link>
       </div>
     </div>
   );

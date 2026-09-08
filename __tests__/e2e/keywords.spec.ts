@@ -33,26 +33,28 @@ test.describe('Keywords Page', () => {
     });
   });
 
-  test('should navigate to keywords page from nav', async ({ page }) => {
+  test('should navigate to keywords tab from settings nav', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: 'Keywords', exact: true }).click();
-    await expect(page).toHaveURL(/\/keywords/);
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Keywords', exact: true }).click();
+    await expect(page).toHaveURL(/\/settings\?tab=keywords/);
   });
 
-  test('should load keywords page and show heading', async ({ page }) => {
-    await page.goto('/keywords');
-    await expect(page.locator('h1:has-text("Keyword Rules")')).toBeVisible();
+  test('should load keywords tab and show settings heading', async ({ page }) => {
+    await page.goto('/settings?tab=keywords');
+    await expect(page.locator('h1:has-text("Settings")')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Keywords' })).toBeVisible();
   });
 
   test('should display all existing keywords in table', async ({ page }) => {
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('td:has-text("amazon")')).toBeVisible();
     await expect(page.locator('td:has-text("spotify")')).toBeVisible();
     await expect(page.locator('td:has-text("lidl")')).toBeVisible();
   });
 
   test('should show Matches count column', async ({ page }) => {
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('th:has-text("Matches")')).toBeVisible();
     await expect(page.locator('td:has-text("5")')).toBeVisible();
   });
@@ -67,7 +69,7 @@ test.describe('Keywords Page', () => {
         await route.fulfill({ json: MOCK_KEYWORDS });
       }
     });
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('td:has-text("amazon")')).toBeVisible();
     await page.locator('form input[type="text"]').first().fill('hulu');
     await page.locator('form select').first().selectOption('Entertainment');
@@ -85,7 +87,7 @@ test.describe('Keywords Page', () => {
         await route.fulfill({ json: { success: true } });
       }
     });
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('td:has-text("amazon")')).toBeVisible();
     page.on('dialog', (dialog) => dialog.accept());
     await page.locator('button[aria-label="Delete keyword amazon"]').first().click();
@@ -94,7 +96,7 @@ test.describe('Keywords Page', () => {
   });
 
   test('should show search input and filter keywords client-side', async ({ page }) => {
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('td:has-text("amazon")')).toBeVisible();
     await page.locator('input[placeholder*="earch"]').fill('spotify');
     await expect(page.locator('td:has-text("spotify")')).toBeVisible();
@@ -107,7 +109,7 @@ test.describe('Keywords Page', () => {
       bootstrapCalled = true;
       await route.fulfill({ json: { success: true, learned: 5, skipped: 2 } });
     });
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await page.locator('button:has-text("Bootstrap")').click();
     await page.waitForLoadState('networkidle');
     expect(bootstrapCalled).toBe(true);
@@ -116,7 +118,7 @@ test.describe('Keywords Page', () => {
   });
 
   test('should NOT show priority up/down buttons (removed in fix/quick-wins)', async ({ page }) => {
-    await page.goto('/keywords');
+    await page.goto('/settings?tab=keywords');
     await expect(page.locator('td:has-text("amazon")')).toBeVisible();
     expect(await page.locator('button:has-text("↑")').count()).toBe(0);
     expect(await page.locator('button:has-text("↓")').count()).toBe(0);
