@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { TransactionRow } from './TransactionRow';
+import { TransactionMobileCard } from './TransactionMobileCard';
 import { useCategories } from '@/components/CategoriesProvider';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
 import { buildTransactionFilterParams } from '@/lib/utils';
@@ -14,7 +15,7 @@ function TransactionTableSkeleton() {
         <div className="h-5 w-56 bg-[var(--border)] rounded animate-pulse" />
         <div className="h-9 w-28 bg-[var(--border)] rounded animate-pulse" />
       </div>
-      <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
+      <div className="hidden sm:block overflow-x-auto bg-surface rounded-lg border border-border-soft">
         <table className="w-full table-fixed" aria-hidden="true">
           <thead className="bg-surface-2 border-b border-border-soft animate-pulse">
             <tr>
@@ -45,6 +46,24 @@ function TransactionTableSkeleton() {
             ))}
           </tbody>
         </table>
+      </div>
+      {/* Mobile skeleton */}
+      <div className="sm:hidden bg-surface rounded-lg border border-border-soft animate-pulse">
+        {[90, 70, 80, 60, 75].map((w, i) => (
+          <div key={i} className="border-b border-border-soft px-4 py-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 bg-[var(--border)] rounded" style={{ width: `${w}%` }} />
+                <div className="h-3 w-24 bg-[var(--border)] rounded" />
+              </div>
+              <div className="h-4 w-16 bg-[var(--border)] rounded shrink-0" />
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="h-7 flex-1 bg-[var(--border)] rounded" />
+              <div className="h-7 w-7 bg-[var(--border)] rounded" />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -325,46 +344,65 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         </div>
       )}
 
-      <div className="overflow-x-auto bg-surface rounded-lg border border-border-soft">
-        <table className="w-full table-fixed">
-          <thead className="bg-surface-2 border-b border-border-soft">
-            <tr>
-              <th className="w-9 px-3 py-3">
-                <input
-                  type="checkbox"
-                  aria-label="Select all transactions"
-                  checked={transactions.length > 0 && selectedIds.size === transactions.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
-                />
-              </th>
-              <th className="w-28 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
-                Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
-              </th>
-              <th className="hidden md:table-cell w-28 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Merchant</th>
-              <th className="w-24 px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
-                Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
-              </th>
-              <th className="hidden sm:table-cell w-36 px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
-              <th className="hidden md:table-cell w-20 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
-              <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
-              <th className="w-28 px-2 py-3 text-left text-xs font-medium text-fg-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {!loading && transactions.length === 0 ? (
+      {/* Shared empty state — single DOM element avoids hidden-first locator issues */}
+      {!loading && transactions.length === 0 && (
+        <div className="bg-surface rounded-lg border border-border-soft px-4 py-12 text-center text-sm text-fg-3">
+          {Object.values(filters).some(Boolean)
+            ? 'No transactions match your filters'
+            : <><span>No transactions yet — </span><a href="/upload" className="underline text-fg-2">upload a CSV to get started →</a></>}
+        </div>
+      )}
+
+      {/* Mobile card list */}
+      {transactions.length > 0 && (
+        <div className="sm:hidden bg-surface rounded-lg border border-border-soft">
+          {transactions.map((transaction) => (
+            <TransactionMobileCard
+              key={transaction.id}
+              transaction={transaction}
+              categories={categories}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              selected={selectedIds.has(transaction.id)}
+              onSelect={handleSelect}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Desktop table */}
+      {transactions.length > 0 && (
+        <div className="hidden sm:block overflow-x-auto bg-surface rounded-lg border border-border-soft">
+          <table className="w-full table-fixed">
+            <thead className="bg-surface-2 border-b border-border-soft">
               <tr>
-                <td colSpan={9} className="px-4 py-12 text-center text-sm text-fg-3">
-                  {Object.values(filters).some(Boolean)
-                    ? 'No transactions match your filters'
-                    : <><span>No transactions yet — </span><a href="/upload" className="underline text-fg-2">upload a CSV to get started →</a></>}
-                </td>
+                <th className="w-9 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all transactions"
+                    checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded border-border-soft text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
+                <th className="w-28 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
+                  Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
+                </th>
+                <th className="hidden md:table-cell w-28 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Merchant</th>
+                <th className="w-24 px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
+                  Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
+                </th>
+                <th className="hidden sm:table-cell w-36 px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
+                <th className="hidden md:table-cell w-20 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
+                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
+                <th className="w-28 px-2 py-3 text-left text-xs font-medium text-fg-2">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
-            ) : (
-              transactions.map((transaction) => (
+            </thead>
+            <tbody>
+              {transactions.map((transaction) => (
                 <TransactionRow
                   key={transaction.id}
                   transaction={transaction}
@@ -374,11 +412,11 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                   selected={selectedIds.has(transaction.id)}
                   onSelect={handleSelect}
                 />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="flex justify-center gap-2">
         <button
