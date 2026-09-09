@@ -1,8 +1,9 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
 import { UploadForm } from '@/components/UploadForm';
-import { Suspense } from 'react';
+import { ImportHistory } from '@/components/ImportHistory';
 
 const BANK_LABELS: Record<string, string> = { op: 'OP Bank', amex: 'Amex', finnair: 'Finnair Visa' };
 
@@ -11,6 +12,7 @@ function UploadPageInner() {
   const imported = params.get('imported');
   const account = params.get('account');
   const error = params.get('error');
+  const [historyKey, setHistoryKey] = useState(0);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -32,7 +34,11 @@ function UploadPageInner() {
         </div>
       )}
 
-      <UploadForm />
+      <UploadForm onSuccess={() => setHistoryKey(k => k + 1)} />
+
+      <div className="mt-8">
+        <ImportHistory refreshKey={historyKey} />
+      </div>
     </div>
   );
 }
