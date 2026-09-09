@@ -334,7 +334,7 @@ export const TransactionRow = memo(function TransactionRow({
         <td className="px-3 py-3">
           <input
             type="checkbox"
-            aria-label={`Select ${transaction.merchant}`}
+            aria-label={`Select ${transaction.merchant || 'Unknown merchant'}`}
             checked={selected ?? false}
             onMouseDown={(e) => { if (e.button === 0) shiftPressedRef.current = e.shiftKey; }}
             onChange={(e) => { const shift = shiftPressedRef.current; shiftPressedRef.current = false; onSelect(transaction.id, e.target.checked, shift); }}
@@ -344,8 +344,8 @@ export const TransactionRow = memo(function TransactionRow({
       )}
       <td className="px-4 py-3 text-sm whitespace-nowrap">{formatDate(transaction.date)}</td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">{transaction.account}</td>
-      <td className="px-4 py-3 text-sm truncate max-w-0" title={transaction.merchant}>
-        <div className="truncate">{transaction.merchant}</div>
+      <td className="px-4 py-3 text-sm truncate max-w-0" title={transaction.merchant || 'Unknown merchant'}>
+        <div className="truncate">{transaction.merchant || <span className="text-fg-3 italic">Unknown merchant</span>}</div>
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-0.5">
             {tags.map(t => (

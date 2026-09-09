@@ -205,7 +205,7 @@ export default function TrendsPage() {
             </tr>
           </thead>
           <tbody>
-            {displayed.map((cat, i) => {
+            {displayed.map((cat) => {
               const total = data.byCategoryMonth.reduce((s, r) => s + (Number(r[cat]) || 0), 0);
               return (
                 <tr key={cat} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">

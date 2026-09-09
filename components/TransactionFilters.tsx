@@ -88,6 +88,10 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     return () => clearTimeout(t);
   }, [amountMax]);
 
+  const dateRangeError = dateFrom && dateTo && dateTo < dateFrom
+    ? 'End date must be after start date'
+    : null;
+
   // Keep a stable ref to onFilter so it never needs to be a dep
   const onFilterRef = useRef(onFilter);
   useEffect(() => { onFilterRef.current = onFilter; });
@@ -99,6 +103,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       isInitialRender.current = false;
       return;
     }
+    if (dateFrom && dateTo && dateTo < dateFrom) return;
     onFilterRef.current({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
@@ -187,8 +192,12 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-describedby={dateRangeError ? 'date-range-error' : undefined}
+            className={`w-full px-3 py-2 border rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${dateRangeError ? 'border-red-400 focus:ring-red-400' : 'border-border-soft'}`}
           />
+          {dateRangeError && (
+            <p id="date-range-error" className="mt-1 text-[11px] text-red-500">{dateRangeError}</p>
+          )}
         </div>
         <div>
           <label htmlFor="filter-account" className="block text-xs font-medium text-fg-2 mb-1">Account</label>

@@ -242,10 +242,6 @@ describe('parseGeneric — realistic Nordea CSV', () => {
 
 describe('parseGeneric — realistic Danske Bank CSV', () => {
   it('parses a Danske Bank-style export with inverted amount sign', async () => {
-    const csv = `Date,Description,Debit,Credit
-01/15/2024,Coffee Shop,3.50,
-01/16/2024,Refund,,10.00`;
-
     // Some banks have separate debit/credit columns — this is a simplification
     // using a single Amount column here for test clarity
     const csv2 = `Date,Amount,Description

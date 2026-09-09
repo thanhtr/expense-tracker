@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       type: t.type,
       category: t.category,
       paidBy: t.paidBy === 'tung' ? 'Tung' : t.paidBy === 'thuy' ? 'Thuy' : 'Other',
+      tags: (t.tags ?? []).join('; '),
       note: t.note,
     })));
 

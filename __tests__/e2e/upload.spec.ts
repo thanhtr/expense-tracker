@@ -228,7 +228,7 @@ test.describe('CSV Upload — unknown bank format', () => {
     await page.goto('/upload');
 
     // Simulate a saved profile in localStorage
-    await page.evaluate((csv) => {
+    await page.evaluate((_csv) => {
       // Compute the same fingerprint key the app uses: sorted headers joined
       const headers = ['Booking date', 'Payee', 'Amount', 'Reference'];
       const fingerprint = 'bankProfile:' + [...headers].sort().join('|');
