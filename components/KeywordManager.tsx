@@ -81,9 +81,12 @@ export function KeywordManager() {
 
       if (res.ok) {
         setKeywords(keywords.filter(k => k.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(data.error ?? 'Failed to delete keyword');
       }
-    } catch (error) {
-      console.error('Failed to delete keyword:', error);
+    } catch {
+      toast.error('Failed to delete keyword');
     }
   };
 
@@ -98,9 +101,12 @@ export function KeywordManager() {
       });
       if (res.ok) {
         setKeywords(prev => prev.map(k => k.id === id ? { ...k, category: newCat } : k));
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(data.error ?? 'Failed to update keyword');
       }
-    } catch (err) {
-      console.error('Failed to update category:', err);
+    } catch {
+      toast.error('Failed to update keyword');
     }
   };
 

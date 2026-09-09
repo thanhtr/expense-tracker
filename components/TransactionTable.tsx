@@ -139,7 +139,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         setBulkCategory('');
         toast.success(`Updated ${updated} transaction${updated === 1 ? '' : 's'}`);
       } else {
-        toast.error('Failed to update');
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(body.error ?? 'Failed to update');
       }
     } catch {
       toast.error('Failed to update');
@@ -187,7 +188,8 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
         setSelectedIds(new Set());
         toast.success(`Deleted ${deleted} transaction${deleted === 1 ? '' : 's'}`);
       } else {
-        toast.error('Failed to delete');
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        toast.error(body.error ?? 'Failed to delete');
       }
     } catch {
       toast.error('Failed to delete');
