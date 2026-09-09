@@ -29,7 +29,7 @@ function formatImportDate(iso: string) {
 
 function formatDateRange(from: string | null, to: string | null) {
   if (!from || !to) return null;
-  const fmt = (s: string) => new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short' }).format(new Date(s));
+  const fmt = (s: string) => new Intl.DateTimeFormat('fi-FI', { day: 'numeric', month: 'short' }).format(new Date(s));
   return from === to ? fmt(from) : `${fmt(from)} – ${fmt(to)}`;
 }
 
