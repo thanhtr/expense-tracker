@@ -103,7 +103,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       isInitialRender.current = false;
       return;
     }
-    if (dateRangeError) return;
+    if (dateFrom && dateTo && dateTo < dateFrom) return;
     onFilterRef.current({
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
@@ -116,7 +116,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       amountMax: debouncedAmountMax || undefined,
       tag: tag || undefined,
     });
-  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, tag, dateRangeError]);
+  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, tag]);
 
   const handleReset = () => {
     setDateFrom('');

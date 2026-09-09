@@ -13,46 +13,9 @@ loadEnvConfig(path.resolve(__dirname, '..'));
 
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { normalizeMerchant } from '../lib/merchant-normalizer';
 
-// Mirrors lib/merchant-normalizer.ts
-function normalizeMerchant(merchant: string): string {
-  if (!merchant) return '';
-
-  let normalized = merchant.toLowerCase().trim();
-
-  const suffixes = [
-    /\s+o\.?y\.?$/i,
-    /\s+a\.?b\.?$/i,
-    /\s+ltd\.?$/i,
-    /\s+inc\.?$/i,
-    /\s+gmbh\.?$/i,
-    /\s+sa\.?$/i,
-    /\s+s\.?p\.?a\.?$/i,
-    /\s+d\.?o\.?o\.?$/i,
-    /\s+s\.?r\.?o\.?$/i,
-    /\s+spółka\s+z\s+ograniczoną\s+odpowiedzialnością$/i,
-  ];
-  for (const suffix of suffixes) {
-    normalized = normalized.replace(suffix, '');
-  }
-
-  const finnishCities = [
-    'helsinki', 'espoo', 'vantaa', 'tampere', 'turku', 'oulu',
-    'kerava', 'järvenpää', 'hyvinkää', 'kirkkonummi', 'nurmijärvi',
-    'tuusula', 'klaukkala', 'lohja', 'porvoo', 'lahti', 'kuopio',
-  ];
-  for (const city of finnishCities) {
-    const candidate = normalized.replace(new RegExp(`\\s+${city}$`, 'i'), '').trim();
-    if (candidate.length > 3) normalized = candidate;
-  }
-
-  const candidateBranch = normalized.replace(/\s+\d{1,3}$/, '').trim();
-  if (candidateBranch.length > 3) normalized = candidateBranch;
-
-  return normalized.replace(/\s+/g, ' ').trim();
-}
-
-// Mirrors lib/categorizer.ts
+// Same longest-match algorithm as lib/categorizer.ts, adapted for Record<string, string>
 function resolveCategory(merchant: string, rules: Record<string, string>): string {
   const normalized = normalizeMerchant(merchant);
   if (!normalized) return '';
