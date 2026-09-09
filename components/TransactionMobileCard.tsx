@@ -307,7 +307,7 @@ export const TransactionMobileCard = memo(function TransactionMobileCard({
           {onSelect && (
             <input
               type="checkbox"
-              aria-label={`Select ${transaction.merchant}`}
+              aria-label={`Select ${transaction.merchant || 'Unknown merchant'}`}
               checked={selected ?? false}
               onMouseDown={(e) => { if (e.button === 0) shiftRef.current = e.shiftKey; }}
               onChange={(e) => { const shift = shiftRef.current; shiftRef.current = false; onSelect(transaction.id, e.target.checked, shift); }}
@@ -318,7 +318,7 @@ export const TransactionMobileCard = memo(function TransactionMobileCard({
             {/* Merchant + amount */}
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="font-medium text-sm line-clamp-2">{transaction.merchant}</div>
+                <div className="font-medium text-sm line-clamp-2">{transaction.merchant || <span className="text-fg-3 italic">Unknown merchant</span>}</div>
                 <div className="text-xs text-fg-3 mt-0.5">
                   {formatDate(transaction.date)}
                   {transaction.paidBy && <span className="ml-2">· {nameForSlug(transaction.paidBy)}</span>}
