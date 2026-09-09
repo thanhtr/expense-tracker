@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { processUpload } from '@/lib/services/upload-service';
 import { columnMappingSchema } from '@/lib/validation';
+import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests
@@ -18,6 +19,7 @@ export async function POST(request: NextRequest) {
     let accountType: string;
     let accountOwner: string;
     let isDryRun: boolean;
+    let filename = 'upload.csv';
     let columnMapping: z.infer<typeof columnMappingSchema> | undefined;
 
     if (contentType.includes('text/csv') || contentType.includes('text/plain')) {
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest) {
       accountType = url.searchParams.get('account_type') ?? '';
       accountOwner = url.searchParams.get('account_owner') ?? 'tung';
       isDryRun = url.searchParams.get('dry_run') === 'true';
+      filename = url.searchParams.get('filename') ?? `${accountType || 'upload'}.csv`;
     } else {
       // Multipart form mode (used by the web upload UI)
       const formData = await request.formData();
@@ -52,6 +55,7 @@ export async function POST(request: NextRequest) {
       if (!file) {
         return NextResponse.json({ error: 'No file provided' }, { status: 400 });
       }
+      filename = file.name;
 
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
@@ -70,15 +74,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result);
     }
 
+    const r = result as { created: number; skipped: number; errors: number; total: number; dateFrom?: string; dateTo?: string };
+
+    // Log the import — non-blocking, failure must not affect the response
+    prisma.csvImport.create({
+      data: {
+        bank: result.detectedBank,
+        filename,
+        owner: accountOwner,
+        created: r.created,
+        skipped: r.skipped,
+        dateFrom: r.dateFrom ? new Date(r.dateFrom) : null,
+        dateTo:   r.dateTo   ? new Date(r.dateTo)   : null,
+      },
+    }).catch(err => console.error('Failed to log CsvImport:', err));
+
     return NextResponse.json({
-      created: (result as { created: number }).created,
-      skipped: (result as { skipped: number }).skipped,
-      errors: (result as { errors: number }).errors,
-      total: (result as { total: number }).total,
+      created: r.created,
+      skipped: r.skipped,
+      errors: r.errors,
+      total: r.total,
       detectedBank: result.detectedBank,
-      message: (result as { total: number }).total === 0
+      message: r.total === 0
         ? 'No transactions found in file. Check format and column names.'
-        : `Successfully processed ${(result as { total: number }).total} transactions`,
+        : `Successfully processed ${r.total} transactions`,
     });
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Failed to process upload';

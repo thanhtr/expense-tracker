@@ -42,7 +42,11 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   const { count: created } = await prisma.transaction.createMany({ data, skipDuplicates: true });
   const skipped = rows.length - created;
 
-  return { imported: created, duplicates: skipped, errors: 0, total: rows.length, created, skipped };
+  const dates = candidates.map(c => c.dateStr);
+  const dateFrom = dates.reduce((m, d) => d < m ? d : m, dates[0]!);
+  const dateTo   = dates.reduce((m, d) => d > m ? d : m, dates[0]!);
+
+  return { imported: created, duplicates: skipped, errors: 0, total: rows.length, created, skipped, dateFrom, dateTo };
 }
 
 export async function getTransactions(filters: {

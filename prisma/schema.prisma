@@ -198,3 +198,15 @@ model IncomeRule {
   @@index([merchantPattern])
   @@index([category])
 }
+
+model CsvImport {
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  bank      String
+  filename  String
+  owner     String
+  created   Int
+  skipped   Int
+  dateFrom  DateTime? @db.Date
+  dateTo    DateTime? @db.Date
+}
