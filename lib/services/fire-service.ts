@@ -126,22 +126,27 @@ function simulateDrawdown(config: FireConfig, startPortfolio: number, activeInco
   let portfolio = startPortfolio;
   const totalMonths = (lifeExpectancy - retirementAge) * 12;
 
+  // Net spend (and therefore the gross-up) is constant within each phase, so
+  // compute the monthly gross withdrawal once per phase rather than every month.
+  const gross1a = grossUpAnnual(Math.max(0, phase1aNetMonthly - activeIncomeMonthly) * 12, deemedCostPct) / 12;
+  const gross1b = grossUpAnnual(phase1bNetMonthly * 12, deemedCostPct) / 12;
+  const gross2 = grossUpAnnual(Math.max(0, phase2NetMonthly - pensionNetMonthly) * 12, deemedCostPct) / 12;
+
   for (let m = 0; m < totalMonths; m++) {
     const currentAge = retirementAge + m / 12;
-    let netSpend: number;
+    let grossWithdrawal: number;
 
     if (currentAge < mortgageEndAge) {
       // Phase 1A: high spend, barista income offsets
-      netSpend = Math.max(0, phase1aNetMonthly - activeIncomeMonthly);
+      grossWithdrawal = gross1a;
     } else if (currentAge < pensionAge) {
       // Phase 1B: mortgage cleared
-      netSpend = phase1bNetMonthly;
+      grossWithdrawal = gross1b;
     } else {
       // Phase 2: pension offset
-      netSpend = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+      grossWithdrawal = gross2;
     }
 
-    const grossWithdrawal = grossUpAnnual(netSpend * 12, deemedCostPct) / 12;
     portfolio = portfolio * (1 + mRate) - grossWithdrawal;
   }
 
@@ -252,19 +257,24 @@ export function simulateProjection(
   const drawRate = monthlyRate(drawdownReturn);
   const drawdownMonths = (lifeExpectancy - retirementAge) * 12;
 
+  // Net spend (and therefore the gross-up) is constant within each phase, so
+  // compute the monthly gross withdrawal once per phase rather than every month.
+  const gross1a = grossUpAnnual(Math.max(0, phase1aNetMonthly - activeIncomeMonthly) * 12, deemedCostPct) / 12;
+  const gross1b = grossUpAnnual(phase1bNetMonthly * 12, deemedCostPct) / 12;
+  const gross2 = grossUpAnnual(Math.max(0, phase2NetMonthly - pensionNetMonthly) * 12, deemedCostPct) / 12;
+
   for (let m = 1; m <= drawdownMonths; m++) {
     const age = retirementAge + m / 12;
-    let netSpend: number;
+    let grossWithdrawal: number;
 
     if (age < mortgageEndAge) {
-      netSpend = Math.max(0, phase1aNetMonthly - activeIncomeMonthly);
+      grossWithdrawal = gross1a;
     } else if (age < pensionAge) {
-      netSpend = phase1bNetMonthly;
+      grossWithdrawal = gross1b;
     } else {
-      netSpend = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+      grossWithdrawal = gross2;
     }
 
-    const grossWithdrawal = grossUpAnnual(netSpend * 12, deemedCostPct) / 12;
     portfolio = portfolio * (1 + drawRate) - grossWithdrawal;
 
     if (Math.floor(age) > lastRecordedAge) {
