@@ -1070,11 +1070,15 @@ export function DashboardStats() {
 
   const displayCategories = data.byCategory.map(c => c.category);
 
-  // When filtering to 'Investments', byCategory already contains those rows —
-  // skip the re-injection to avoid doubling the amount in guidelines/budgets.
-  const investmentsInjection: Record<string, number> = data.totalInvestments > 0 && selectedCategory !== 'Investments'
-    ? { Investments: data.totalInvestments }
-    : {};
+  // Guidelines reflect income distribution only. Cap investments at the income surplus
+  // so that investments funded by savings draws / internal transfers are excluded from
+  // the guideline savings bucket (they still appear in FIRE / net worth tracking).
+  const incomeSurplus = Math.max(0, data.totalIncome - data.totalExpenses);
+  const incomeFundedInvestments = Math.min(data.totalInvestments, incomeSurplus);
+  const investmentsInjection: Record<string, number> =
+    incomeFundedInvestments > 0 && selectedCategory !== 'Investments'
+      ? { Investments: incomeFundedInvestments }
+      : {};
 
   return (
     <div className="space-y-[20px]">
@@ -1512,7 +1516,7 @@ export function DashboardStats() {
           ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
           ...investmentsInjection,
         }}
-        totalExpenses={data.totalExpenses + (investmentsInjection.Investments ?? 0)}
+        total={data.totalIncome}
       />
 
       {/* Recent activity */}
