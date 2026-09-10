@@ -124,6 +124,40 @@ test.describe('Dashboard', () => {
     await page.route('**/api/forecast*', (route) => route.fulfill({ json: null }));
   }
 
+  // Bucket config used by guideline tests: Needs=housing, Savings=investments, Wants=catch-all
+  const testBuckets = [
+    { bucket: 'needs', targetPct: 50, categories: ['Rent & Housing'] },
+    { bucket: 'wants', targetPct: 30, categories: [] },
+    { bucket: 'savings', targetPct: 20, categories: ['Investments'] },
+  ];
+
+  // Base dashboard shape — override specific fields per test
+  const baseDashboard = {
+    ...rentShoppingDashboard,
+    byCategory: [],
+    totalExpenses: 0,
+    totalIncome: 0,
+    totalInvestments: 0,
+    net: 0,
+    byMonth: [],
+    byCategoryMonth: [],
+    allCategories: [],
+    transactionCount: 0,
+  };
+
+  async function setupGuidelineRoutes(page: Page, dashOverride: Record<string, unknown>) {
+    const data = { ...baseDashboard, ...dashOverride };
+    await page.route('**/api/dashboard*', (route) => route.fulfill({ json: data }));
+    await page.route('**/api/guidelines*', (route) => route.fulfill({ json: { buckets: testBuckets } }));
+    await page.route('**/api/transactions/recurring*', (route) => route.fulfill({ json: { items: [], totalMonthly: 0 } }));
+    await page.route('**/api/transactions*', (route) => route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } }));
+    await page.route('**/api/categories*', (route) => route.fulfill({ json: { categories: [] } }));
+    await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/forecast*', (route) => route.fulfill({ json: null }));
+  }
+
   const parseEuro = (s: string) => {
     const n = parseFloat(s.replace('€', '').replace('k', ''));
     return s.includes('k') ? n * 1000 : n;
@@ -174,5 +208,82 @@ test.describe('Dashboard', () => {
       const maxAfter = Math.max(...ticksAfter.map(parseEuro).filter(n => !isNaN(n)));
       expect(maxAfter).toBeLessThan(500);
     }).toPass({ timeout: 3000 });
+  });
+
+  // --- Spending Guidelines: income-based calculation ---
+
+  test('guideline panel shows surplus when spending is below income', async ({ page }) => {
+    // Income €5 000, expenses €3 000 → surplus = €2 000 = 40%
+    await setupGuidelineRoutes(page, {
+      totalIncome: 5000,
+      totalExpenses: 3000,
+      totalInvestments: 0,
+      byCategory: [
+        { category: 'Rent & Housing', amount: 2000 },
+        { category: 'Dining Out', amount: 1000 },
+      ],
+    });
+    await page.goto('/');
+
+    const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
+    await expect(panel).toBeVisible({ timeout: 10000 });
+
+    // Surplus row must appear
+    const surplusRow = panel.locator('[data-testid="guideline-surplus"]');
+    await expect(surplusRow).toBeVisible();
+    // 40% of €5 000 = €2 000
+    await expect(surplusRow).toContainText('40%');
+  });
+
+  test('transfer-funded investments are excluded from savings guideline', async ({ page }) => {
+    // Income €3 000, expenses €3 000 → income surplus = 0 → all investments are transfer-funded
+    // incomeFundedInvestments = min(5000, max(0, 3000-3000)) = 0
+    await setupGuidelineRoutes(page, {
+      totalIncome: 3000,
+      totalExpenses: 3000,
+      totalInvestments: 5000,
+      byCategory: [
+        { category: 'Rent & Housing', amount: 2000 },
+        { category: 'Dining Out', amount: 1000 },
+      ],
+    });
+    await page.goto('/');
+
+    const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
+    await expect(panel).toBeVisible({ timeout: 10000 });
+
+    // Savings bucket must show 0% — investments funded by internal transfer, not income
+    const savingsRow = panel.locator('div').filter({ hasText: /^Savings$/ }).locator('..').locator('..');
+    await expect(savingsRow.locator('span', { hasText: /0% actual/ })).toBeVisible();
+
+    // No surplus row (income is fully consumed by expenses)
+    await expect(panel.locator('[data-testid="guideline-surplus"]')).not.toBeVisible();
+  });
+
+  test('income-funded investments count toward savings guideline at correct percentage', async ({ page }) => {
+    // Income €5 000, expenses €3 000 → surplus €2 000 → investments €1 000 fully income-funded
+    // Savings = 1000/5000 = 20%, surplus = 1000/5000 = 20%
+    await setupGuidelineRoutes(page, {
+      totalIncome: 5000,
+      totalExpenses: 3000,
+      totalInvestments: 1000,
+      byCategory: [
+        { category: 'Rent & Housing', amount: 2000 },
+        { category: 'Dining Out', amount: 1000 },
+      ],
+    });
+    await page.goto('/');
+
+    const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
+    await expect(panel).toBeVisible({ timeout: 10000 });
+
+    // Savings = 1000/5000 = 20%
+    const savingsRow = panel.locator('div').filter({ hasText: /^Savings$/ }).locator('..').locator('..');
+    await expect(savingsRow.locator('span', { hasText: /20% actual/ })).toBeVisible();
+
+    // Surplus = (5000 - 3000 - 1000) / 5000 = 20%
+    const surplusRow = panel.locator('[data-testid="guideline-surplus"]');
+    await expect(surplusRow).toBeVisible();
+    await expect(surplusRow).toContainText('20%');
   });
 });

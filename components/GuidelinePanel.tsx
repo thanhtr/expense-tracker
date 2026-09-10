@@ -64,6 +64,11 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
   // Compute the total assigned spend (sum of all bucket spends)
   const totalAssigned = computed.reduce((s, b) => s + b.spent, 0);
 
+  // Surplus: income not yet allocated to any bucket (income-based denominator makes this visible)
+  const surplus = total > 0 ? Math.max(0, total - totalAssigned) : 0;
+  const surplusPct = total > 0 ? (surplus / total) * 100 : 0;
+  const hasUnspent = surplusPct > 0.5;
+
   return (
     <>
       <div className="dash-card">
@@ -82,22 +87,27 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
         </div>
 
         <div className="px-5 pb-5 space-y-4">
-          {/* Stacked bar showing actual split */}
+          {/* Stacked bar showing actual split as % of income */}
           {totalAssigned > 0 && (
             <div className="space-y-1">
               <div className="flex h-[8px] rounded-full overflow-hidden gap-[2px]">
-                {computed.map(b => (
+                {computed.map(b => b.spent > 0 && (
                   <div
                     key={b.bucket}
                     style={{
-                      width: `${(b.spent / totalAssigned) * 100}%`,
+                      width: `${total > 0 ? (b.spent / total) * 100 : 0}%`,
                       background: BUCKET_COLORS[b.bucket],
-                      minWidth: b.spent > 0 ? '3px' : 0,
+                      minWidth: '3px',
                     }}
                   />
                 ))}
+                {hasUnspent && (
+                  <div
+                    style={{ width: `${surplusPct}%`, background: 'var(--border)', minWidth: '3px' }}
+                  />
+                )}
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-3 flex-wrap">
                 {computed.map(b => (
                   <div key={b.bucket} className="flex items-center gap-1 text-[11px] text-[var(--fg-3)]">
                     <span
@@ -107,6 +117,12 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
                     {BUCKET_LABELS[b.bucket]}
                   </div>
                 ))}
+                {hasUnspent && (
+                  <div className="flex items-center gap-1 text-[11px] text-[var(--fg-3)]">
+                    <span className="inline-block w-[8px] h-[8px] rounded-full flex-shrink-0 bg-[var(--border)]" />
+                    Unspent
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -157,6 +173,17 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
                 </div>
               </div>
             ))}
+
+            {/* Surplus row: income not yet accounted for by any bucket */}
+            {hasUnspent && (
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-soft)] text-[12px] text-[var(--fg-3)]" data-testid="guideline-surplus">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-[8px] h-[8px] rounded-full flex-shrink-0 bg-[var(--border)]" />
+                  <span>Surplus</span>
+                </div>
+                <span className="mono">{surplusPct.toFixed(0)}% · {fmtEUR(surplus)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
