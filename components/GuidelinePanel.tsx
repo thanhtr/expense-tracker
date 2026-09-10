@@ -6,7 +6,7 @@ import { GuidelineEditor } from './GuidelineEditor';
 
 interface GuidelinePanelProps {
   spentByCategory: Record<string, number>;
-  totalExpenses: number;
+  total: number; // income — guideline percentages are fractions of income, not of spending
 }
 
 const BUCKET_LABELS: Record<string, string> = {
@@ -30,7 +30,7 @@ function fmtEUR(n: number) {
   }).format(n).replace(/ /g, ' ');
 }
 
-export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePanelProps) {
+export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) {
   const [buckets, setBuckets] = useState<BucketConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -55,7 +55,7 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
     const spent = b.bucket === 'wants'
       ? Object.entries(spentByCategory).filter(([cat]) => !nonWantsCats.has(cat)).reduce((s, [, v]) => s + v, 0)
       : b.categories.reduce((s, cat) => s + (spentByCategory[cat] ?? 0), 0);
-    const actualPct = totalExpenses > 0 ? (spent / totalExpenses) * 100 : 0;
+    const actualPct = total > 0 ? (spent / total) * 100 : 0;
     const over = actualPct > b.targetPct;
     const warn = actualPct > b.targetPct * 0.85 && !over;
     return { ...b, spent, actualPct, over, warn };
@@ -132,10 +132,10 @@ export function GuidelinePanel({ spentByCategory, totalExpenses }: GuidelinePane
                       {fmtEUR(b.spent)}
                     </span>
                     {b.over && (
-                      <span className="dash-chip neg">+{fmtEUR(b.spent - (totalExpenses * b.targetPct / 100))}</span>
+                      <span className="dash-chip neg">+{fmtEUR(b.spent - (total * b.targetPct / 100))}</span>
                     )}
-                    {!b.over && b.spent > 0 && totalExpenses > 0 && (
-                      <span className="dash-chip pos">-{fmtEUR((totalExpenses * b.targetPct / 100) - b.spent)} left</span>
+                    {!b.over && b.spent > 0 && total > 0 && (
+                      <span className="dash-chip pos">-{fmtEUR((total * b.targetPct / 100) - b.spent)} left</span>
                     )}
                   </div>
                 </div>
