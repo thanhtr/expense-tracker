@@ -76,7 +76,7 @@ export interface DashboardAggregation {
   byDay: { day: string; [key: string]: number | string }[];
   uncategorizedCount: number;
   allCategories: string[];
-  topTransaction: { merchant: string; amount: number; category: string; date: string } | null;
+  topTransactions: { merchant: string; amount: number; category: string; date: string }[];
   transactionCount: number;
   byIncomeSource: { merchant: string; amount: number }[];
 }

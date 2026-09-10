@@ -104,7 +104,7 @@ test.describe('Dashboard', () => {
       { month: '2026-03', Rent: 1200, Shopping: 100 },
       { month: '2026-04', Rent: 1200, Shopping: 100 },
     ],
-    topTransaction: null,
+    topTransactions: [],
     allCategories: ['Rent', 'Shopping'],
     transactionCount: 4,
     uncategorizedCount: 0,
