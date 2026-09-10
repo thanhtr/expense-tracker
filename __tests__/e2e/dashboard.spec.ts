@@ -104,7 +104,7 @@ test.describe('Dashboard', () => {
       { month: '2026-03', Rent: 1200, Shopping: 100 },
       { month: '2026-04', Rent: 1200, Shopping: 100 },
     ],
-    topTransaction: null,
+    topTransactions: [],
     allCategories: ['Rent', 'Shopping'],
     transactionCount: 4,
     uncategorizedCount: 0,
@@ -224,6 +224,7 @@ test.describe('Dashboard', () => {
       ],
     });
     await page.goto('/');
+    await page.locator('button', { hasText: 'Spending guidelines' }).click();
 
     const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
     await expect(panel).toBeVisible({ timeout: 10000 });
@@ -248,6 +249,7 @@ test.describe('Dashboard', () => {
       ],
     });
     await page.goto('/');
+    await page.locator('button', { hasText: 'Spending guidelines' }).click();
 
     const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
     await expect(panel).toBeVisible({ timeout: 10000 });
@@ -273,6 +275,7 @@ test.describe('Dashboard', () => {
       ],
     });
     await page.goto('/');
+    await page.locator('button', { hasText: 'Spending guidelines' }).click();
 
     const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
     await expect(panel).toBeVisible({ timeout: 10000 });

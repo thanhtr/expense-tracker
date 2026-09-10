@@ -1337,11 +1337,22 @@ export function DashboardStats() {
               value={data.byCategory[0]?.category || '—'}
               sub={data.byCategory[0] ? fmtEUR(data.byCategory[0].amount, { cents: true }) : '—'}
             />
-            <InsightTile
-              label="Largest transaction"
-              value={data.topTransaction?.merchant || '—'}
-              sub={data.topTransaction ? `${fmtEUR(data.topTransaction.amount, { cents: true })} · ${data.topTransaction.category}` : '—'}
-            />
+            {data.topTransactions.length > 0 && (
+              <div className="col-span-2 border-t border-[var(--border)] pt-[10px]">
+                <div className="text-[10px] uppercase tracking-[.04em] text-[var(--fg-3)] font-medium mb-[8px]">Top transactions</div>
+                <div className="flex flex-col gap-[7px]">
+                  {data.topTransactions.map((tx, i) => (
+                    <div key={i} className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[12px] text-[var(--foreground)] overflow-hidden text-ellipsis whitespace-nowrap">{tx.merchant}</div>
+                        <div className="text-[10px] text-[var(--fg-3)]">{tx.category} · {tx.date.slice(5).replace('-', '/')}</div>
+                      </div>
+                      <span className="mono text-[12px] font-medium flex-shrink-0">{fmtEUR(tx.amount, { cents: true })}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <InsightTile
               label="Monthly average"
               value={fmtEUR(monthlyAverage, { cents: true })}
@@ -1430,21 +1441,6 @@ export function DashboardStats() {
         </div>
       </div>
 
-      {/* Monthly trend */}
-      {data.byMonth.length > 1 && (
-        <div className="dash-card">
-          <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
-            <div>
-              <h3 className="text-[13px] font-semibold m-0">Monthly trend</h3>
-              <div className="text-[12px] text-[var(--fg-3)]">Total expenses per month</div>
-            </div>
-          </div>
-          <div className="p-[0_12px_12px]">
-            <MonthlyChart data={data.byMonth} />
-          </div>
-        </div>
-      )}
-
       {/* Category trend by month */}
       {data.byCategoryMonth.length > 1 && (
         <div className="dash-card">
@@ -1504,20 +1500,28 @@ export function DashboardStats() {
       )}
 
       {/* Forecast */}
-      {forecast && <ForecastCard forecast={forecast} />}
+      {forecast && (
+        <CollapsibleSection storageKey="dash-forecast" title="Forecast">
+          <ForecastCard forecast={forecast} />
+        </CollapsibleSection>
+      )}
 
       {/* Net Worth */}
-      <NetWorthCard />
-      <NetWorthChart />
+      <CollapsibleSection storageKey="dash-networth" title="Net worth">
+        <NetWorthCard />
+        <NetWorthChart />
+      </CollapsibleSection>
 
       {/* Spending Guidelines */}
-      <GuidelinePanel
-        spentByCategory={{
-          ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
-          ...investmentsInjection,
-        }}
-        total={data.totalIncome}
-      />
+      <CollapsibleSection storageKey="dash-guidelines" title="Spending guidelines">
+        <GuidelinePanel
+          spentByCategory={{
+            ...Object.fromEntries(data.byCategory.map(c => [c.category, c.amount])),
+            ...investmentsInjection,
+          }}
+          total={data.totalIncome}
+        />
+      </CollapsibleSection>
 
       {/* Recent activity */}
       <div className="dash-card">
@@ -1542,6 +1546,29 @@ function InsightTile({ label, value, sub }: { label: string; value: React.ReactN
       <div className="text-[10px] uppercase tracking-[.04em] text-[var(--fg-3)] font-medium">{label}</div>
       <div className="text-[14px] font-semibold mt-[4px] overflow-hidden text-ellipsis whitespace-nowrap">{value}</div>
       <div className="text-[12px] text-[var(--fg-3)] mt-[2px] overflow-hidden text-ellipsis whitespace-nowrap">{sub}</div>
+    </div>
+  );
+}
+
+function CollapsibleSection({ storageKey, title, children }: { storageKey: string; title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => {
+    try { return localStorage.getItem(storageKey) === 'true'; } catch { return false; }
+  });
+  const toggle = () => setOpen(v => {
+    const next = !v;
+    try { localStorage.setItem(storageKey, String(next)); } catch {}
+    return next;
+  });
+  return (
+    <div>
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-1 py-[6px] text-[12px] font-medium text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
+      >
+        <span>{title}</span>
+        <span className="text-[10px]">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && <div className="space-y-[20px]">{children}</div>}
     </div>
   );
 }

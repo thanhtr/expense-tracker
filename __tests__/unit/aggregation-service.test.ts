@@ -7,7 +7,6 @@ vi.mock('../../lib/db', () => ({
       groupBy: vi.fn(),
       aggregate: vi.fn(),
       count: vi.fn(),
-      findFirst: vi.fn(),
       findMany: vi.fn(),
     },
     transactionSplit: {
@@ -39,9 +38,9 @@ const DEFAULT_BY_DAY_CAT = [
   { date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -5.50 } },
   { date: new Date('2026-04-11'), category: 'Food & Groceries', _sum: { amount: -25.00 } },
 ];
-const DEFAULT_TOP_TX = {
-  merchant: 'Amazon', amount: -45.67, category: 'Shopping', date: new Date('2026-04-10'),
-};
+const DEFAULT_TOP_TX = [
+  { merchant: 'Amazon', amount: -45.67, category: 'Shopping', date: new Date('2026-04-10') },
+];
 
 function setupMocks(opts: {
   byCategoryGroups?: { category: string; _sum: { amount: number } }[];
@@ -54,7 +53,7 @@ function setupMocks(opts: {
   incomeAmount?: number;
   investmentsAmount?: number;
   internalTransfersAmount?: number;
-  topTx?: typeof DEFAULT_TOP_TX | null;
+  topTx?: typeof DEFAULT_TOP_TX;
   reimbByCategoryGroups?: { category: string; _sum: { amount: number } }[];
   reimbAmount?: number;
 } = {}) {
@@ -91,8 +90,9 @@ function setupMocks(opts: {
     .mockResolvedValueOnce({ _sum: { amount: reimbAmount } } as never); // reimbursements
 
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
-  vi.mocked(prisma.transaction.findFirst).mockResolvedValueOnce(topTx as never);
-  vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([] as never); // income rows for byMonthIncome
+  vi.mocked(prisma.transaction.findMany)
+    .mockResolvedValueOnce((topTx ?? []) as never) // top transactions
+    .mockResolvedValueOnce([] as never); // income rows for byMonthIncome
 }
 
 describe('getDashboardStats', () => {
@@ -161,13 +161,13 @@ describe('getDashboardStats', () => {
     expect(april11?.['Food & Groceries']).toBe(25.00);
   });
 
-  it('should include topTransaction', async () => {
+  it('should include topTransactions', async () => {
     setupMocks();
     const stats = await getDashboardStats();
-    expect(stats.topTransaction).toBeDefined();
-    expect(stats.topTransaction?.merchant).toBe('Amazon');
-    expect(stats.topTransaction?.amount).toBe(45.67);
-    expect(stats.topTransaction?.category).toBe('Shopping');
+    expect(stats.topTransactions).toHaveLength(1);
+    expect(stats.topTransactions[0].merchant).toBe('Amazon');
+    expect(stats.topTransactions[0].amount).toBe(45.67);
+    expect(stats.topTransactions[0].category).toBe('Shopping');
   });
 
   it('should count transactions', async () => {
@@ -186,7 +186,7 @@ describe('getDashboardStats', () => {
       ],
       totalAmount: -45.67,
       totalCount: 1,
-      topTx: { merchant: 'Amazon', amount: -45.67, category: 'Shopping', date: new Date('2026-04-10') },
+      topTx: [{ merchant: 'Amazon', amount: -45.67, category: 'Shopping', date: new Date('2026-04-10') }],
     });
 
     const stats = await getDashboardStats(undefined, undefined, 'Shopping');
@@ -207,7 +207,7 @@ describe('getDashboardStats', () => {
       byDayCatGroups: [],
       totalAmount: 0,
       totalCount: 0,
-      topTx: null,
+      topTx: [],
     });
 
     const stats = await getDashboardStats();
@@ -234,7 +234,7 @@ describe('getDashboardStats', () => {
       totalAmount: -80,
       totalCount: 1,
       incomeAmount: 30,
-      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
@@ -265,7 +265,7 @@ describe('getDashboardStats', () => {
       byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
       totalAmount: -80,
       totalCount: 1,
-      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
@@ -294,7 +294,7 @@ describe('getDashboardStats', () => {
       byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
       totalAmount: -80,
       totalCount: 1,
-      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
       reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 10 } }],
       reimbAmount: 10,
     });
@@ -322,7 +322,7 @@ describe('getDashboardStats', () => {
       byDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -80 } }],
       totalAmount: -80,
       totalCount: 1,
-      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') },
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
       reimbByCategoryGroups: [],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
@@ -349,7 +349,7 @@ describe('getDashboardStats', () => {
       totalAmount: -80,
       totalCount: 1,
       incomeAmount: 0, // the April reimbursement is outside March, so March's real income total is 0
-      topTx: { merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-28') },
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-28') }],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {

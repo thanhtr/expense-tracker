@@ -24,7 +24,7 @@ export interface DashboardAggregation {
   byAccount: Record<string, number>;
   byMonth: Array<{ month: string; amount: number }>;
   byMonthIncome: Array<{ month: string; amount: number }>;
-  topTransaction: { merchant: string; amount: number; category: string; date: string } | null;
+  topTransactions: { merchant: string; amount: number; category: string; date: string }[];
   allCategories: string[];
   transactionCount: number;
   uncategorizedCount: number;
@@ -124,10 +124,10 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
-  const topTransaction = expenses.reduce(
-    (max, t) => (t.amount > max.amount ? { merchant: t.merchant, amount: t.amount, category: t.category, date: t.date } : max),
-    { merchant: '', amount: 0, category: '', date: '' }
-  );
+  const topTransactions = [...expenses]
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5)
+    .map(t => ({ merchant: t.merchant, amount: t.amount, category: t.category, date: t.date }));
 
   const allCategories = Array.from(new Set(expenses.map((t) => t.category)));
 
@@ -175,7 +175,7 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     byAccount,
     byMonth,
     byMonthIncome,
-    topTransaction,
+    topTransactions,
     allCategories,
     transactionCount: expenses.length,
     uncategorizedCount: expenses.filter((t) => !t.category || t.category === '').length,

@@ -155,10 +155,11 @@ export async function getDashboardStats(
       orderBy: { _sum: { amount: 'desc' } },
       take: 5,
     }),
-    prisma.transaction.findFirst({
+    prisma.transaction.findMany({
       where: outflowWhere,
       select: { merchant: true, amount: true, category: true, date: true },
       orderBy: { amount: 'asc' }, // most negative = largest expense
+      take: 5,
     }),
     prisma.transaction.findMany({
       where: incomeWhere,
@@ -397,12 +398,12 @@ export async function getDashboardStats(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, cats]) => ({ month, ...cats }));
 
-  const topTransaction = topTx ? {
-    merchant: topTx.merchant,
-    amount: Math.abs(topTx.amount),
-    category: topTx.category || '⚠ Uncategorized',
-    date: topTx.date.toISOString().slice(0, 10),
-  } : null;
+  const topTransactions = topTx.map(tx => ({
+    merchant: tx.merchant,
+    amount: Math.abs(tx.amount),
+    category: tx.category || '⚠ Uncategorized',
+    date: tx.date.toISOString().slice(0, 10),
+  }));
 
   // Linked Income-type reimbursements move from totalIncome into totalReimbursements
   // (see the linkRecords loop above) — net is unaffected since both terms shift equally.
@@ -427,7 +428,7 @@ export async function getDashboardStats(
     byDay: byDayArray,
     uncategorizedCount,
     allCategories,
-    topTransaction,
+    topTransactions,
     transactionCount,
     byIncomeSource,
   };

@@ -128,7 +128,7 @@ test.describe('Transactions Page', () => {
   test('should show empty state when no transactions match filters', async ({ page }) => {
     // Return empty transactions
     await page.route('**/api/dashboard*', async (route) => {
-      await route.fulfill({ json: { totalExpenses: 0, totalIncome: 0, net: 0, byCategory: [], byDay: [], byAccount: {}, byMonth: [], byMonthIncome: [], topTransaction: null, allCategories: [], transactionCount: 0, uncategorizedCount: 0, byPerson: [], byCategoryMonth: [], byIncomeSource: [] } });
+      await route.fulfill({ json: { totalExpenses: 0, totalIncome: 0, net: 0, byCategory: [], byDay: [], byAccount: {}, byMonth: [], byMonthIncome: [], topTransactions: [], allCategories: [], transactionCount: 0, uncategorizedCount: 0, byPerson: [], byCategoryMonth: [], byIncomeSource: [] } });
     });
     await page.route('**/api/transactions*', async (route) => {
       await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
