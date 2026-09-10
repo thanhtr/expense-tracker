@@ -10,8 +10,7 @@ const NAV_LINKS = [
   { href: '/', label: 'Dashboard' },
   { href: '/transactions', label: 'Transactions' },
   { href: '/transactions/sellers', label: 'Sellers' },
-  { href: '/transactions/recurring', label: 'Recurring' },
-  { href: '/trends', label: 'Trends' },
+
   { href: '/upload', label: 'Upload' },
   { href: '/settings', label: 'Settings' },
   { href: '/fire', label: 'FIRE' },
