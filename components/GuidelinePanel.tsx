@@ -91,7 +91,7 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
           {totalAssigned > 0 && (
             <div className="space-y-1">
               <div className="flex h-[8px] rounded-full overflow-hidden gap-[2px]">
-                {computed.map(b => b.spent > 0 && (
+                {computed.filter(b => b.spent > 0).map(b => (
                   <div
                     key={b.bucket}
                     style={{
@@ -130,7 +130,7 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
           {/* Per-bucket rows */}
           <div className="space-y-3">
             {computed.map(b => (
-              <div key={b.bucket}>
+              <div key={b.bucket} data-testid={`guideline-bucket-${b.bucket}`}>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 gap-1 sm:gap-2">
                   <div className="flex items-center gap-2 min-w-0">
                     <span

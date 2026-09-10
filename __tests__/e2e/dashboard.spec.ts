@@ -253,7 +253,7 @@ test.describe('Dashboard', () => {
     await expect(panel).toBeVisible({ timeout: 10000 });
 
     // Savings bucket must show 0% — investments funded by internal transfer, not income
-    const savingsRow = panel.locator('div').filter({ hasText: /^Savings$/ }).locator('..').locator('..');
+    const savingsRow = panel.locator('[data-testid="guideline-bucket-savings"]');
     await expect(savingsRow.locator('span', { hasText: /0% actual/ })).toBeVisible();
 
     // No surplus row (income is fully consumed by expenses)
@@ -278,7 +278,7 @@ test.describe('Dashboard', () => {
     await expect(panel).toBeVisible({ timeout: 10000 });
 
     // Savings = 1000/5000 = 20%
-    const savingsRow = panel.locator('div').filter({ hasText: /^Savings$/ }).locator('..').locator('..');
+    const savingsRow = panel.locator('[data-testid="guideline-bucket-savings"]');
     await expect(savingsRow.locator('span', { hasText: /20% actual/ })).toBeVisible();
 
     // Surplus = (5000 - 3000 - 1000) / 5000 = 20%
