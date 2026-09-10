@@ -100,17 +100,28 @@ function ModelExplainer() {
           <section className="space-y-2">
             <h3 className="font-semibold text-[var(--fg-1)]">Gross withdrawal and capital gains tax</h3>
             <p>
-              Every portfolio withdrawal incurs Finnish capital gains tax. Because you cannot withdraw net
-              spending directly — you must sell more shares to cover the tax — the model gross-ups each
-              withdrawal:
-            </p>
-            <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded">
-              Gross/mo = Net/mo ÷ (1 − tax rate)
+              Every portfolio withdrawal incurs Finnish capital income tax (pääomatulovero) on the gain
+              portion of the sale. Because you cannot withdraw net spending directly — you must sell more
+              shares to cover the tax — the model gross-ups each withdrawal in two steps.
             </p>
             <p>
-              With the default 20% effective rate (hankintameno-olettama): €4 500 net → €5 625 gross. The
-              20% is an effective blended rate: Finnish law allows 20% of sale proceeds to be treated as
-              acquisition cost on assets held over 10 years, reducing the taxable gain.
+              First, the <span className="font-medium">hankintameno-olettama</span> deemed acquisition cost
+              shields a fraction of the sale from tax regardless of actual cost basis — 20% for any holding
+              period, 40% only after 10+ years. With no per-lot holding-period data, this model assumes the
+              worst case throughout: 20%, never 40%. Second, the remaining taxable gain is taxed at Finland&apos;s
+              actual progressive capital-income rate: 30% up to €30,000 of taxable gain per year, 34% above
+              it — assuming a single taxpayer, with no benefit taken from splitting withdrawals across a
+              spouse&apos;s separate threshold.
+            </p>
+            <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded whitespace-pre-wrap">
+{`taxable = gross × (1 − deemed cost %)
+tax     = 30% × min(taxable, €30k) + 34% × max(0, taxable − €30k)
+net     = gross − tax   (solved for gross, annually, then ÷ 12)`}
+            </p>
+            <p>
+              With the defaults (20% deemed cost): a €4,500/mo net Phase 1A spend needs about
+              €6,044/mo gross — not €5,625/mo as a flat-20%-tax shortcut would suggest, because
+              €54,000/yr of net spend pushes most of the taxable gain into the 34% bracket.
             </p>
           </section>
 
@@ -122,6 +133,15 @@ function ModelExplainer() {
               is needed. A nominal equity return of ~7% with 2–3% inflation gives a ~4–5% real return during
               accumulation; a conservative 3–4% real is used during drawdown to account for
               sequence-of-returns risk.
+            </p>
+            <p className="text-[var(--fg-3)]">
+              <span className="font-medium">Known limitation:</span> every year is assumed to return exactly
+              this rate — there is no volatility. Using a lower average return during drawdown widens the
+              margin on average, but it is not the same as protecting against an actually bad sequence (e.g.
+              a market crash in the first few retirement years), which this deterministic model cannot
+              represent. The FIRE number is also solved to reach exactly €0 at the life-expectancy age, with
+              no residual buffer for living longer, a worse-than-assumed market, or unplanned costs (e.g.
+              long-term care) — treat it as a floor, not a comfortable target.
             </p>
           </section>
 
@@ -376,8 +396,8 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
         tip: "After-inflation annual portfolio return during the savings phase. A global equity index historically returns ~7% nominal; subtract ~2% inflation ≈ 5–6% real. Using real returns means spending targets stay in today's euros." },
       { key: 'drawdownReturn', label: 'Drawdown real return', min: 0, max: 15, step: 0.1, pct: true,
         tip: 'After-inflation return applied during retirement. Set lower than the accumulation return to account for sequence-of-returns risk — a bad market early in retirement hurts disproportionately. Typical conservative estimate: 3–4%.' },
-      { key: 'capitalGainsTaxRate', label: 'Capital gains tax rate', min: 0, max: 50, step: 0.5, pct: true,
-        tip: 'Finnish hankintameno-olettama: for assets held 10+ years, 20% of sale proceeds are treated as acquisition cost before tax. Effective rate = 30% × (1 − 20%) = 24% on gains, but this model uses 20% as a blended effective rate on gross withdrawals.' },
+      { key: 'deemedCostPct', label: 'Deemed acquisition cost %', min: 0, max: 40, step: 0.5, pct: true,
+        tip: 'Finnish hankintameno-olettama: this fraction of each sale is treated as acquisition cost (untaxed) regardless of actual cost basis. 20% applies to any holding period; 40% only after 10+ years — this model conservatively assumes 20% throughout, since no per-lot holding period is tracked. The remaining gain is taxed at Finland’s actual capital-income rate (30% up to €30,000/yr, 34% above) — see the model explainer above for the combined formula.' },
     ],
   },
   {
