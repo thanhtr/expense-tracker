@@ -70,7 +70,7 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
         <div className="flex items-center justify-between gap-3 p-[16px_20px_12px]">
           <div>
             <h3 className="text-[13px] font-semibold m-0">Spending Guidelines</h3>
-            <div className="text-[12px] text-[var(--fg-3)]">Actual vs. target allocation</div>
+            <div className="text-[12px] text-[var(--fg-3)]">% of income by bucket</div>
           </div>
           <button
             onClick={() => setEditorOpen(true)}
