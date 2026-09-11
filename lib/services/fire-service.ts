@@ -32,9 +32,13 @@ export const FIRE_DEFAULTS: FireConfig = {
   // (no per-lot cost-basis tracking exists to prove it). See FI_CAPITAL_TAX_* below
   // for the actual progressive tax applied to the resulting taxable gain.
   deemedCostPct: 0.20,
-  phase1aNetMonthly: 4500,
-  phase1bNetMonthly: 3000,
-  phase2NetMonthly: 3000,
+  // Based on YTD 2026 actual spending — comfortable scenario (includes travel):
+  //   1A: lifestyle €3,126 + mortgage €2,267 + travel €923, rounded up
+  //   1B: mortgage cleared, travel stays
+  //   2 : same spend; pensionNetMonthly offset applied automatically
+  phase1aNetMonthly: 6500,
+  phase1bNetMonthly: 4100,
+  phase2NetMonthly: 4100,
   pensionNetMonthly: 1580,
 };
 
