@@ -20,8 +20,8 @@ export interface FireConfig {
 
 export const FIRE_DEFAULTS: FireConfig = {
   dateOfBirth: '1990-05-15',
-  retirementAge: 50,
-  mortgageEndAge: 60,
+  retirementAge: 55,
+  mortgageEndAge: 58,
   pensionAge: 65,
   lifeExpectancy: 95,
   monthlyContribution: 3000,
@@ -32,9 +32,9 @@ export const FIRE_DEFAULTS: FireConfig = {
   // (no per-lot cost-basis tracking exists to prove it). See FI_CAPITAL_TAX_* below
   // for the actual progressive tax applied to the resulting taxable gain.
   deemedCostPct: 0.20,
-  phase1aNetMonthly: 4500,
-  phase1bNetMonthly: 3000,
-  phase2NetMonthly: 3000,
+  phase1aNetMonthly: 4400,
+  phase1bNetMonthly: 4100,
+  phase2NetMonthly: 4100,
   pensionNetMonthly: 1580,
 };
 

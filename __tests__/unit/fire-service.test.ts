@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   FIRE_DEFAULTS,
+  type FireConfig,
   computeCurrentAge,
   computeFireTarget,
   computePhases,
@@ -10,6 +11,16 @@ import {
   runFireCalculation,
   grossUpAnnual,
 } from '@/lib/services/fire-service';
+
+const MATH_CONFIG: FireConfig = {
+  ...FIRE_DEFAULTS,
+  retirementAge: 50,
+  mortgageEndAge: 60,
+  phase1aNetMonthly: 4500,
+  phase1bNetMonthly: 3000,
+  phase2NetMonthly: 3000,
+  pensionNetMonthly: 1580,
+};
 
 describe('grossUpAnnual', () => {
   it('applies only the 30% bracket below the €30k taxable-gain threshold', () => {
@@ -49,18 +60,18 @@ describe('grossUpAnnual', () => {
 
 describe('computePhases', () => {
   it('returns 3 phases with correct age boundaries', () => {
-    const phases = computePhases(FIRE_DEFAULTS);
+    const phases = computePhases(MATH_CONFIG);
     expect(phases).toHaveLength(3);
-    expect(phases[0]!.ageFrom).toBe(50);
-    expect(phases[0]!.ageTo).toBe(60);
-    expect(phases[1]!.ageFrom).toBe(60);
-    expect(phases[1]!.ageTo).toBe(65);
-    expect(phases[2]!.ageFrom).toBe(65);
-    expect(phases[2]!.ageTo).toBe(95);
+    expect(phases[0]!.ageFrom).toBe(MATH_CONFIG.retirementAge);
+    expect(phases[0]!.ageTo).toBe(MATH_CONFIG.mortgageEndAge);
+    expect(phases[1]!.ageFrom).toBe(MATH_CONFIG.mortgageEndAge);
+    expect(phases[1]!.ageTo).toBe(MATH_CONFIG.pensionAge);
+    expect(phases[2]!.ageFrom).toBe(MATH_CONFIG.pensionAge);
+    expect(phases[2]!.ageTo).toBe(MATH_CONFIG.lifeExpectancy);
   });
 
   it('Phase 1A gross withdrawal applies 20% deemed cost then progressive 30/34% tax', () => {
-    const phases = computePhases(FIRE_DEFAULTS);
+    const phases = computePhases(MATH_CONFIG);
     // net annual = €54,000 (above the €28,500 net-at-threshold), so the 34% bracket
     // applies above €30k of taxable gain: gross = (54000 - 1200) / 0.728 ≈ €72,527/yr
     expect(phases[0]!.grossAnnual).toBeCloseTo(72527.47, 1);
@@ -68,14 +79,14 @@ describe('computePhases', () => {
   });
 
   it('Phase 1B gross withdrawal is correct', () => {
-    const phases = computePhases(FIRE_DEFAULTS);
+    const phases = computePhases(MATH_CONFIG);
     // net annual = €36,000, also above threshold: gross = (36000 - 1200) / 0.728 ≈ €47,802/yr
     expect(phases[1]!.grossAnnual).toBeCloseTo(47802.20, 1);
     expect(phases[1]!.grossWithdrawal).toBeCloseTo(3983.52, 1);
   });
 
   it('Phase 2 applies pension offset before gross-up', () => {
-    const phases = computePhases(FIRE_DEFAULTS);
+    const phases = computePhases(MATH_CONFIG);
     // shortfall = €3000 - €1580 = €1420/mo; net annual €17,040 is below the
     // €28,500 net-at-threshold, so only the 30% bracket applies: gross = 17040 / 0.76 ≈ €22,421/yr
     expect(phases[2]!.portfolioShortfall).toBeCloseTo(1420, 0);
@@ -84,7 +95,7 @@ describe('computePhases', () => {
   });
 
   it('Phase 2 pension offset is zero before pensionAge for phases 1A/1B', () => {
-    const phases = computePhases(FIRE_DEFAULTS);
+    const phases = computePhases(MATH_CONFIG);
     expect(phases[0]!.pensionOffset).toBe(0);
     expect(phases[1]!.pensionOffset).toBe(0);
     expect(phases[2]!.pensionOffset).toBe(1580);
@@ -92,8 +103,8 @@ describe('computePhases', () => {
 });
 
 describe('computeFireTarget', () => {
-  it('returns ~965k for Finnish default config (pure FIRE)', () => {
-    const target = computeFireTarget(FIRE_DEFAULTS, 0);
+  it('returns ~965k for MATH_CONFIG (4500/3000/3000 spending)', () => {
+    const target = computeFireTarget(MATH_CONFIG, 0);
     expect(target).toBeGreaterThan(945_000);
     expect(target).toBeLessThan(985_000);
   });
@@ -134,41 +145,39 @@ describe('computeYearsToFire', () => {
   });
 
   it('returns fractional years less than (retirementAge - currentAge)', () => {
-    const target = computeFireTarget(FIRE_DEFAULTS, 0);
-    // Starting portfolio large enough to comfortably reach the (now higher, tax-corrected)
-    // FIRE target within the accumulation window.
-    const years = computeYearsToFire(FIRE_DEFAULTS, 300_000, target);
+    const target = computeFireTarget(MATH_CONFIG, 0);
+    const years = computeYearsToFire(MATH_CONFIG, 300_000, target);
     expect(years).not.toBeNull();
     expect(years!).toBeGreaterThan(0);
     expect(years!).toBeLessThan(12);
-    expect(years!).toBeLessThanOrEqual(FIRE_DEFAULTS.retirementAge - computeCurrentAge(FIRE_DEFAULTS.dateOfBirth));
+    expect(years!).toBeLessThanOrEqual(MATH_CONFIG.retirementAge - computeCurrentAge(MATH_CONFIG.dateOfBirth));
   });
 });
 
 describe('simulateProjection', () => {
   it('starts at current fractional age and ends at lifeExpectancy', () => {
-    const pts = simulateProjection(FIRE_DEFAULTS, 82_000);
-    expect(pts[0]!.age).toBeCloseTo(computeCurrentAge(FIRE_DEFAULTS.dateOfBirth), 1);
-    expect(pts[pts.length - 1]!.age).toBe(FIRE_DEFAULTS.lifeExpectancy);
+    const pts = simulateProjection(MATH_CONFIG, 82_000);
+    expect(pts[0]!.age).toBeCloseTo(computeCurrentAge(MATH_CONFIG.dateOfBirth), 1);
+    expect(pts[pts.length - 1]!.age).toBe(MATH_CONFIG.lifeExpectancy);
   });
 
   it('portfolio grows during accumulation phase', () => {
-    const pts = simulateProjection(FIRE_DEFAULTS, 82_000);
-    const atRetirement = pts.find(p => p.age === FIRE_DEFAULTS.retirementAge)!;
+    const pts = simulateProjection(MATH_CONFIG, 82_000);
+    const atRetirement = pts.find(p => p.age === MATH_CONFIG.retirementAge)!;
     const atStart = pts[0]!;
     expect(atRetirement.portfolio).toBeGreaterThan(atStart.portfolio);
   });
 
   it('under-funded portfolio depletes to negative by lifeExpectancy', () => {
     // €0 start can never reach FIRE target — drawdown phase runs out of money
-    const pts = simulateProjection(FIRE_DEFAULTS, 0);
+    const pts = simulateProjection(MATH_CONFIG, 0);
     const atEnd = pts[pts.length - 1]!;
     expect(atEnd.portfolio).toBeLessThan(0);
   });
 
   it('over-funded portfolio stays positive throughout', () => {
-    const target = computeFireTarget(FIRE_DEFAULTS, 0);
-    const pts = simulateProjection(FIRE_DEFAULTS, target * 3);
+    const target = computeFireTarget(MATH_CONFIG, 0);
+    const pts = simulateProjection(MATH_CONFIG, target * 3);
     const atEnd = pts[pts.length - 1]!;
     expect(atEnd.portfolio).toBeGreaterThan(0);
   });
