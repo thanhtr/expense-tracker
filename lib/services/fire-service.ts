@@ -20,7 +20,7 @@ export interface FireConfig {
 
 export const FIRE_DEFAULTS: FireConfig = {
   dateOfBirth: '1990-05-15',
-  retirementAge: 50,
+  retirementAge: 55,
   mortgageEndAge: 58,
   pensionAge: 65,
   lifeExpectancy: 95,

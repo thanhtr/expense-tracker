@@ -14,6 +14,7 @@ import {
 
 const MATH_CONFIG: FireConfig = {
   ...FIRE_DEFAULTS,
+  retirementAge: 50,
   mortgageEndAge: 60,
   phase1aNetMonthly: 4500,
   phase1bNetMonthly: 3000,
@@ -59,7 +60,7 @@ describe('grossUpAnnual', () => {
 
 describe('computePhases', () => {
   it('returns 3 phases with correct age boundaries', () => {
-    const phases = computePhases(MATH_CONFIG); // mortgageEndAge=60, pensionAge=65
+    const phases = computePhases(MATH_CONFIG);
     expect(phases).toHaveLength(3);
     expect(phases[0]!.ageFrom).toBe(MATH_CONFIG.retirementAge);
     expect(phases[0]!.ageTo).toBe(MATH_CONFIG.mortgageEndAge);
@@ -155,28 +156,28 @@ describe('computeYearsToFire', () => {
 
 describe('simulateProjection', () => {
   it('starts at current fractional age and ends at lifeExpectancy', () => {
-    const pts = simulateProjection(FIRE_DEFAULTS, 82_000);
-    expect(pts[0]!.age).toBeCloseTo(computeCurrentAge(FIRE_DEFAULTS.dateOfBirth), 1);
-    expect(pts[pts.length - 1]!.age).toBe(FIRE_DEFAULTS.lifeExpectancy);
+    const pts = simulateProjection(MATH_CONFIG, 82_000);
+    expect(pts[0]!.age).toBeCloseTo(computeCurrentAge(MATH_CONFIG.dateOfBirth), 1);
+    expect(pts[pts.length - 1]!.age).toBe(MATH_CONFIG.lifeExpectancy);
   });
 
   it('portfolio grows during accumulation phase', () => {
-    const pts = simulateProjection(FIRE_DEFAULTS, 82_000);
-    const atRetirement = pts.find(p => p.age === FIRE_DEFAULTS.retirementAge)!;
+    const pts = simulateProjection(MATH_CONFIG, 82_000);
+    const atRetirement = pts.find(p => p.age === MATH_CONFIG.retirementAge)!;
     const atStart = pts[0]!;
     expect(atRetirement.portfolio).toBeGreaterThan(atStart.portfolio);
   });
 
   it('under-funded portfolio depletes to negative by lifeExpectancy', () => {
     // €0 start can never reach FIRE target — drawdown phase runs out of money
-    const pts = simulateProjection(FIRE_DEFAULTS, 0);
+    const pts = simulateProjection(MATH_CONFIG, 0);
     const atEnd = pts[pts.length - 1]!;
     expect(atEnd.portfolio).toBeLessThan(0);
   });
 
   it('over-funded portfolio stays positive throughout', () => {
-    const target = computeFireTarget(FIRE_DEFAULTS, 0);
-    const pts = simulateProjection(FIRE_DEFAULTS, target * 3);
+    const target = computeFireTarget(MATH_CONFIG, 0);
+    const pts = simulateProjection(MATH_CONFIG, target * 3);
     const atEnd = pts[pts.length - 1]!;
     expect(atEnd.portfolio).toBeGreaterThan(0);
   });
