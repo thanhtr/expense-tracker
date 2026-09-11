@@ -34,6 +34,17 @@ describe('grossUpAnnual', () => {
     expect(grossUpAnnual(0, 0.20)).toBe(0);
     expect(grossUpAnnual(-100, 0.20)).toBe(0);
   });
+
+  it('higher deemedCostPct (40%) requires lower gross than 20% for the same net', () => {
+    // With 40% deemed cost, only 60% of the gross is taxable gain, so less tax is owed.
+    // net €30,000, deemed cost 40%: lowBracketFactor = 1 - 0.30*0.60 = 0.82
+    //   grossAtThreshold = 30000/0.60 = 50000; netAtThreshold = 50000*0.82 = 41000
+    //   30000 < 41000 → low bracket only: gross = 30000/0.82 ≈ 36585
+    const gross40 = grossUpAnnual(30000, 0.40);
+    const gross20 = grossUpAnnual(30000, 0.20);
+    expect(gross40).toBeLessThan(gross20);
+    expect(gross40).toBeCloseTo(36585, 0);
+  });
 });
 
 describe('computePhases', () => {
@@ -129,6 +140,7 @@ describe('computeYearsToFire', () => {
     const years = computeYearsToFire(FIRE_DEFAULTS, 300_000, target);
     expect(years).not.toBeNull();
     expect(years!).toBeGreaterThan(0);
+    expect(years!).toBeLessThan(12);
     expect(years!).toBeLessThanOrEqual(FIRE_DEFAULTS.retirementAge - computeCurrentAge(FIRE_DEFAULTS.dateOfBirth));
   });
 });
