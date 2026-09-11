@@ -14,6 +14,7 @@ import {
 
 const MATH_CONFIG: FireConfig = {
   ...FIRE_DEFAULTS,
+  mortgageEndAge: 60,
   phase1aNetMonthly: 4500,
   phase1bNetMonthly: 3000,
   phase2NetMonthly: 3000,
@@ -58,14 +59,14 @@ describe('grossUpAnnual', () => {
 
 describe('computePhases', () => {
   it('returns 3 phases with correct age boundaries', () => {
-    const phases = computePhases(MATH_CONFIG);
+    const phases = computePhases(MATH_CONFIG); // mortgageEndAge=60, pensionAge=65
     expect(phases).toHaveLength(3);
-    expect(phases[0]!.ageFrom).toBe(50);
-    expect(phases[0]!.ageTo).toBe(60);
-    expect(phases[1]!.ageFrom).toBe(60);
-    expect(phases[1]!.ageTo).toBe(65);
-    expect(phases[2]!.ageFrom).toBe(65);
-    expect(phases[2]!.ageTo).toBe(95);
+    expect(phases[0]!.ageFrom).toBe(MATH_CONFIG.retirementAge);
+    expect(phases[0]!.ageTo).toBe(MATH_CONFIG.mortgageEndAge);
+    expect(phases[1]!.ageFrom).toBe(MATH_CONFIG.mortgageEndAge);
+    expect(phases[1]!.ageTo).toBe(MATH_CONFIG.pensionAge);
+    expect(phases[2]!.ageFrom).toBe(MATH_CONFIG.pensionAge);
+    expect(phases[2]!.ageTo).toBe(MATH_CONFIG.lifeExpectancy);
   });
 
   it('Phase 1A gross withdrawal applies 20% deemed cost then progressive 30/34% tax', () => {
