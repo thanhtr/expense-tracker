@@ -12,8 +12,6 @@ import {
   grossUpAnnual,
 } from '@/lib/services/fire-service';
 
-// Fixed config used for math-specific tests so they don't break when FIRE_DEFAULTS
-// spending levels are updated to reflect real-world data.
 const MATH_CONFIG: FireConfig = {
   ...FIRE_DEFAULTS,
   phase1aNetMonthly: 4500,
@@ -146,8 +144,6 @@ describe('computeYearsToFire', () => {
 
   it('returns fractional years less than (retirementAge - currentAge)', () => {
     const target = computeFireTarget(MATH_CONFIG, 0);
-    // Starting portfolio large enough to comfortably reach the FIRE target within
-    // the accumulation window (uses MATH_CONFIG to pin against spending-level changes).
     const years = computeYearsToFire(MATH_CONFIG, 300_000, target);
     expect(years).not.toBeNull();
     expect(years!).toBeGreaterThan(0);
