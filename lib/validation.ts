@@ -199,7 +199,7 @@ export const fireConfigSchema = z.object({
   monthlyContribution: z.number().min(0).finite().optional(),
   accumulationReturn:  z.number().min(0).max(0.20).optional(),
   drawdownReturn:      z.number().min(0).max(0.15).optional(),
-  capitalGainsTaxRate: z.number().min(0).max(0.50).optional(),
+  deemedCostPct:       z.number().min(0).max(0.40).optional(),
   phase1aNetMonthly:   z.number().min(0).finite().optional(),
   phase1bNetMonthly:   z.number().min(0).finite().optional(),
   phase2NetMonthly:    z.number().min(0).finite().optional(),

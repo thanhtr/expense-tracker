@@ -11,7 +11,7 @@ export interface FireConfig {
   monthlyContribution: number;
   accumulationReturn: number;
   drawdownReturn: number;
-  capitalGainsTaxRate: number;
+  deemedCostPct: number;
   phase1aNetMonthly: number;
   phase1bNetMonthly: number;
   phase2NetMonthly: number;
@@ -27,12 +27,49 @@ export const FIRE_DEFAULTS: FireConfig = {
   monthlyContribution: 3000,
   accumulationReturn: 0.06,
   drawdownReturn: 0.04,
-  capitalGainsTaxRate: 0.20,
+  // Worst-case hankintameno-olettama: 20% deemed acquisition cost applies to any
+  // holding period; the more generous 40% requires 10+ years and is never assumed
+  // (no per-lot cost-basis tracking exists to prove it). See FI_CAPITAL_TAX_* below
+  // for the actual progressive tax applied to the resulting taxable gain.
+  deemedCostPct: 0.20,
   phase1aNetMonthly: 4500,
   phase1bNetMonthly: 3000,
   phase2NetMonthly: 3000,
   pensionNetMonthly: 1580,
 };
+
+// Finnish capital income tax (pääomatulovero), 2026 rates — update if vero.fi changes.
+// 30% up to the annual threshold of taxable capital income, 34% above it.
+// Source: vero.fi / Veronmaksajain Keskusliitto. Applied here to the taxable *gain*
+// after the deemed-cost reduction above, not to the gross withdrawal — a flat "20%
+// tax rate" (as this model used to assume) understates the real liability by
+// conflating the deemed-cost percentage with the tax rate itself.
+export const FI_CAPITAL_TAX_THRESHOLD = 30_000; // € annual taxable-gain threshold
+export const FI_CAPITAL_TAX_RATE_LOW = 0.30;    // rate on gain up to threshold
+export const FI_CAPITAL_TAX_RATE_HIGH = 0.34;   // rate on gain above threshold
+
+// Grosses up a desired net annual withdrawal into the pre-tax amount that must be
+// sold, given a deemed-cost percentage and Finland's two-bracket progressive rate
+// on the resulting taxable gain. Assumes the full withdrawal is realized gain
+// (no proof of a higher cost basis) and that all of it is taxed as a single
+// taxpayer's capital income for the year (no benefit assumed from splitting
+// withdrawals across spouses' individual €30k thresholds).
+export function grossUpAnnual(netAnnual: number, deemedCostPct: number): number {
+  if (netAnnual <= 0) return 0;
+
+  const taxableFraction = 1 - deemedCostPct;
+  const lowBracketFactor = 1 - FI_CAPITAL_TAX_RATE_LOW * taxableFraction;
+  const grossAtThreshold = FI_CAPITAL_TAX_THRESHOLD / taxableFraction;
+  const netAtThreshold = grossAtThreshold * lowBracketFactor;
+
+  if (netAnnual <= netAtThreshold) {
+    return netAnnual / lowBracketFactor;
+  }
+
+  const highBracketFactor = 1 - FI_CAPITAL_TAX_RATE_HIGH * taxableFraction;
+  const bracketIntercept = FI_CAPITAL_TAX_THRESHOLD * (FI_CAPITAL_TAX_RATE_HIGH - FI_CAPITAL_TAX_RATE_LOW);
+  return (netAnnual - bracketIntercept) / highBracketFactor;
+}
 
 export interface ProjectionPoint {
   age: number;
@@ -79,32 +116,46 @@ function monthlyRate(annualRate: number): number {
   return Math.pow(1 + annualRate, 1 / 12) - 1;
 }
 
+// Pre-computes the monthly gross withdrawal for each spending phase.
+// Net spend is constant within a phase, so this only needs to run once per simulation.
+function computePhaseGrossWithdrawals(
+  config: Pick<FireConfig, 'deemedCostPct' | 'phase1aNetMonthly' | 'phase1bNetMonthly' | 'phase2NetMonthly' | 'pensionNetMonthly'>,
+  activeIncomeMonthly: number,
+): { gross1a: number; gross1b: number; gross2: number } {
+  const { deemedCostPct, phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
+  return {
+    gross1a: grossUpAnnual(Math.max(0, phase1aNetMonthly - activeIncomeMonthly) * 12, deemedCostPct) / 12,
+    gross1b: grossUpAnnual(phase1bNetMonthly * 12, deemedCostPct) / 12,
+    gross2: grossUpAnnual(Math.max(0, phase2NetMonthly - pensionNetMonthly) * 12, deemedCostPct) / 12,
+  };
+}
+
 // Simulates drawdown from retirementAge to lifeExpectancy.
 // Returns the portfolio value at lifeExpectancy (positive = surplus, negative = depleted).
 function simulateDrawdown(config: FireConfig, startPortfolio: number, activeIncomeMonthly: number): number {
-  const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy, capitalGainsTaxRate,
-    phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly, drawdownReturn } = config;
+  const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy, drawdownReturn } = config;
 
   const mRate = monthlyRate(drawdownReturn);
   let portfolio = startPortfolio;
   const totalMonths = (lifeExpectancy - retirementAge) * 12;
 
+  const { gross1a, gross1b, gross2 } = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
+
   for (let m = 0; m < totalMonths; m++) {
     const currentAge = retirementAge + m / 12;
-    let netSpend: number;
+    let grossWithdrawal: number;
 
     if (currentAge < mortgageEndAge) {
       // Phase 1A: high spend, barista income offsets
-      netSpend = Math.max(0, phase1aNetMonthly - activeIncomeMonthly);
+      grossWithdrawal = gross1a;
     } else if (currentAge < pensionAge) {
       // Phase 1B: mortgage cleared
-      netSpend = phase1bNetMonthly;
+      grossWithdrawal = gross1b;
     } else {
       // Phase 2: pension offset
-      netSpend = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+      grossWithdrawal = gross2;
     }
 
-    const grossWithdrawal = netSpend / (1 - capitalGainsTaxRate);
     portfolio = portfolio * (1 + mRate) - grossWithdrawal;
   }
 
@@ -131,11 +182,15 @@ export function computeFireTarget(config: FireConfig, activeIncomeMonthly = 0): 
 
 export function computePhases(config: FireConfig): PhaseInfo[] {
   const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy,
-    capitalGainsTaxRate, phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
+    deemedCostPct, phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
 
   const phase1aShortfall = phase1aNetMonthly;
   const phase1bShortfall = phase1bNetMonthly;
   const phase2Shortfall = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+
+  const phase1aGrossAnnual = grossUpAnnual(phase1aShortfall * 12, deemedCostPct);
+  const phase1bGrossAnnual = grossUpAnnual(phase1bShortfall * 12, deemedCostPct);
+  const phase2GrossAnnual = grossUpAnnual(phase2Shortfall * 12, deemedCostPct);
 
   return [
     {
@@ -145,8 +200,8 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       netMonthly: phase1aNetMonthly,
       pensionOffset: 0,
       portfolioShortfall: phase1aShortfall,
-      grossWithdrawal: phase1aShortfall / (1 - capitalGainsTaxRate),
-      grossAnnual: (phase1aShortfall / (1 - capitalGainsTaxRate)) * 12,
+      grossWithdrawal: phase1aGrossAnnual / 12,
+      grossAnnual: phase1aGrossAnnual,
       durationYears: mortgageEndAge - retirementAge,
     },
     {
@@ -156,8 +211,8 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       netMonthly: phase1bNetMonthly,
       pensionOffset: 0,
       portfolioShortfall: phase1bShortfall,
-      grossWithdrawal: phase1bShortfall / (1 - capitalGainsTaxRate),
-      grossAnnual: (phase1bShortfall / (1 - capitalGainsTaxRate)) * 12,
+      grossWithdrawal: phase1bGrossAnnual / 12,
+      grossAnnual: phase1bGrossAnnual,
       durationYears: pensionAge - mortgageEndAge,
     },
     {
@@ -167,8 +222,8 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       netMonthly: phase2NetMonthly,
       pensionOffset: pensionNetMonthly,
       portfolioShortfall: phase2Shortfall,
-      grossWithdrawal: phase2Shortfall / (1 - capitalGainsTaxRate),
-      grossAnnual: (phase2Shortfall / (1 - capitalGainsTaxRate)) * 12,
+      grossWithdrawal: phase2GrossAnnual / 12,
+      grossAnnual: phase2GrossAnnual,
       durationYears: lifeExpectancy - pensionAge,
     },
   ];
@@ -180,8 +235,7 @@ export function simulateProjection(
   activeIncomeMonthly = 0,
 ): ProjectionPoint[] {
   const { dateOfBirth, retirementAge, mortgageEndAge, pensionAge, lifeExpectancy,
-    monthlyContribution, accumulationReturn, drawdownReturn, capitalGainsTaxRate,
-    phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
+    monthlyContribution, accumulationReturn, drawdownReturn } = config;
 
   const currentAge = computeCurrentAge(dateOfBirth);
   const currentYear = new Date().getFullYear();
@@ -211,19 +265,20 @@ export function simulateProjection(
   const drawRate = monthlyRate(drawdownReturn);
   const drawdownMonths = (lifeExpectancy - retirementAge) * 12;
 
+  const { gross1a, gross1b, gross2 } = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
+
   for (let m = 1; m <= drawdownMonths; m++) {
     const age = retirementAge + m / 12;
-    let netSpend: number;
+    let grossWithdrawal: number;
 
     if (age < mortgageEndAge) {
-      netSpend = Math.max(0, phase1aNetMonthly - activeIncomeMonthly);
+      grossWithdrawal = gross1a;
     } else if (age < pensionAge) {
-      netSpend = phase1bNetMonthly;
+      grossWithdrawal = gross1b;
     } else {
-      netSpend = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+      grossWithdrawal = gross2;
     }
 
-    const grossWithdrawal = netSpend / (1 - capitalGainsTaxRate);
     portfolio = portfolio * (1 + drawRate) - grossWithdrawal;
 
     if (Math.floor(age) > lastRecordedAge) {

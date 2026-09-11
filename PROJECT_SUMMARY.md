@@ -1,6 +1,6 @@
 # Expense Tracker Web - Project Summary
 
-**Last Updated:** August 3, 2026
+**Last Updated:** September 10, 2026
 **Key Tech Stack:** Next.js 16.2.2, React, TypeScript, Tailwind CSS, Recharts 3.8.1, PostgreSQL (Neon)
 
 ---
@@ -625,6 +625,41 @@ npx prisma generate
 
 ### Budget tracking (branch: `feat/budget-tracking`)
 - **B2**: New `Budget` DB model (category unique, monthlyLimit). API: `GET/POST /api/budgets`, `DELETE /api/budgets/[id]`. `BudgetCard` component on dashboard shows progress bars (green/amber/red at 0–70%/70–100%/>100%). Click any limit value to edit in-place. "+ Add budget" adds categories not yet budgeted.
+
+---
+
+## Recent Changes (September 2026)
+
+### FIRE calculation audit and tax-model fix (branch: `claude/fire-feature-calculation-review-bbiz0e`)
+The gross-up formula for portfolio withdrawals conflated the hankintameno-olettama
+**deemed acquisition cost** percentage (20%, statutory) with the **capital income tax
+rate** itself, and applied it as a single flat divisor. Fixed to model Finnish tax
+law correctly and conservatively:
+- `capitalGainsTaxRate` config field renamed to **`deemedCostPct`** (default
+  unchanged, 0.20 — the worst-case rate that applies to any holding period; the
+  more generous 40% requires 10+ years and is never assumed, since no per-lot cost
+  basis is tracked). Migration: `20260910000000_rename_capital_gains_tax_rate`.
+- New `grossUpAnnual()` in `lib/services/fire-service.ts` applies Finland's actual
+  progressive capital-income tax to the taxable gain (after the deemed-cost
+  reduction): 30% up to €30,000/year of taxable gain, 34% above — instead of a flat
+  20% divisor. Because Phase 1A/1B annual withdrawals comfortably exceed the €30k
+  threshold, most of the gain in those phases is taxed at 34%, not 30%.
+- Net effect: the default Pure FIRE target rose from ~€903k (bug) to ~€965k
+  (correct), i.e. the tool was previously understating the required portfolio by
+  ~7%. `FireDashboard`'s "How this model works" panel and config tooltips updated
+  to explain the corrected formula and fix a reversed claim (the tooltip previously
+  said 20% deemed cost applies for holdings *over* 10 years — it's the opposite:
+  20% applies to *any* holding period, 40% requires 10+ years).
+- Assumes a single taxpayer for the €30k threshold (no benefit from splitting
+  withdrawals across a spouse's separate allowance) — flagged as a known
+  simplification in the model explainer, not fixed, since it would require
+  assuming a specific ownership/withdrawal split with no data to back it.
+- **Not fixed, flagged only** (bigger, more subjective changes — see model explainer
+  and conversation for detail): the model uses a constant deterministic annual
+  return with no sequence-of-returns risk / volatility modeling, and the FIRE
+  target is solved to reach exactly €0 at life expectancy with no residual buffer.
+  Both are real limitations worth a follow-up if a Monte Carlo or buffer-margin
+  feature is wanted.
 
 ---
 
