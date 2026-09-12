@@ -202,7 +202,6 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
 
     let extraProjection: { age: number; portfolio: number }[] = [];
     let extraFireAge: number | null = null;
-    let extraFireAgeRounded: number | null = null;
     let yearsSaved: number | null = null;
     if (extraInvestment > 0) {
       extraProjection = simulateProjection(data.config, currentPortfolio + extraInvestment)
@@ -212,9 +211,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
       const yearsToFire = computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget);
       if (yearsToFire !== null) {
         extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
-        extraFireAgeRounded = Math.round(extraFireAge);
-        // Ensure the marker's x lands on an age that's actually a category on the chart
-        ageSet.add(extraFireAgeRounded);
+        ageSet.add(Math.round(extraFireAge));
         const baseYears = data.pureFire.yearsToFire;
         yearsSaved = baseYears !== null ? baseYears - yearsToFire : null;
       }
@@ -227,7 +224,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
       pure: data.pureFire.projection.find(p => p.age === age)?.portfolio ?? null,
       barista33: data.barista33.projection.find(p => p.age === age)?.portfolio ?? null,
       barista50: data.barista50.projection.find(p => p.age === age)?.portfolio ?? null,
-      withExtra: extraMap.has(age) ? (extraMap.get(age) ?? null) : null,
+      withExtra: extraMap.get(age) ?? null,
     }));
 
     return { chartData: points, extraFireAge, yearsSaved };
@@ -263,7 +260,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             />
           </div>
           {yearsSaved !== null && yearsSaved > 0.05 && (
-            <span className="text-[11px] font-medium px-2 py-[2px] rounded-full" style={{ background: `${EXTRA_COLOR}22`, color: EXTRA_COLOR }}>
+            <span className="text-[11px] font-medium px-2 py-[2px] rounded-full" style={{ background: 'oklch(0.62 0.18 35 / 0.13)', color: EXTRA_COLOR }}>
               −{yearsSaved.toFixed(1)} yr earlier
             </span>
           )}
