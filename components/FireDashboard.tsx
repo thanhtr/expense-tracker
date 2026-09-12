@@ -204,11 +204,12 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
     let extraFireAge: number | null = null;
     let yearsSaved: number | null = null;
     if (extraInvestment > 0) {
-      extraProjection = simulateProjection(data.config, currentPortfolio + extraInvestment)
+      const boostedConfig = { ...data.config, monthlyContribution: data.config.monthlyContribution + extraInvestment };
+      extraProjection = simulateProjection(boostedConfig, currentPortfolio)
         .filter(p => p.age <= retirementAge);
       extraProjection.forEach(p => ageSet.add(p.age));
 
-      const yearsToFire = computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget);
+      const yearsToFire = computeYearsToFire(boostedConfig, currentPortfolio, fireTarget);
       if (yearsToFire !== null) {
         extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
         ageSet.add(Math.round(extraFireAge));
@@ -242,14 +243,14 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <div className="text-[13px] font-semibold">Portfolio Projection</div>
         <div className="flex items-center gap-2">
-          <label htmlFor="extra-investment" className="text-[11px] text-[var(--fg-3)] whitespace-nowrap">Extra investment</label>
+          <label htmlFor="extra-investment" className="text-[11px] text-[var(--fg-3)] whitespace-nowrap">Extra monthly</label>
           <div className="flex items-center border border-[var(--border)] rounded px-2 py-[3px] bg-[var(--surface-2)] gap-1">
             <span className="text-[11px] text-[var(--fg-3)]">€</span>
             <input
               id="extra-investment"
               type="number"
               min={0}
-              step={1000}
+              step={100}
               value={extraInvestment || ''}
               placeholder="0"
               onChange={e => {
@@ -279,12 +280,12 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             contentStyle={tooltipStyle}
             formatter={(value, name) => [
               typeof value === 'number' && value < 0 ? `−${fmt(Math.abs(value))}` : fmt(Number(value ?? 0)),
-              name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : name === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)} now`,
+              name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : name === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)}/mo`,
             ]}
             labelFormatter={label => `Age ${label}`}
           />
           <Legend
-            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : v === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)} now`}
+            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : v === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)}/mo`}
             wrapperStyle={{ fontSize: 12 }}
           />
           <ReferenceLine
