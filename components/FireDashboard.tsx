@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
-import { FIRE_DEFAULTS, computeCurrentAge, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeYearsToFire, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
 
 type FireApiResponse = FireCalculationResult & { config: FireConfig };
 
@@ -182,28 +182,57 @@ net     = gross − tax   (solved for gross, annually, then ÷ 12)`}
   );
 }
 
-type ChartPoint = { age: number; pure?: number | null; barista33?: number | null; barista50?: number | null };
 
-function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retirementAge }: {
+const EXTRA_COLOR = 'oklch(0.62 0.18 35)';
+
+function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retirementAge, extraInvestment, onExtraChange }: {
   data: FireApiResponse;
   fireTarget: number;
   currentAge: number;
   currentPortfolio: number;
   retirementAge: number;
+  extraInvestment: number;
+  onExtraChange: (v: number) => void;
 }) {
-  const chartData: ChartPoint[] = useMemo(() => {
+  const { chartData, extraFireAge } = useMemo(() => {
     const ageSet = new Set<number>();
     data.pureFire.projection.forEach(p => ageSet.add(p.age));
     data.barista33.projection.forEach(p => ageSet.add(p.age));
     data.barista50.projection.forEach(p => ageSet.add(p.age));
 
-    return Array.from(ageSet).sort((a, b) => a - b).map(age => ({
+    let extraProjection: { age: number; portfolio: number }[] = [];
+    if (extraInvestment > 0) {
+      extraProjection = simulateProjection(data.config, currentPortfolio + extraInvestment)
+        .filter(p => p.age <= retirementAge);
+      extraProjection.forEach(p => ageSet.add(p.age));
+    }
+
+    const extraMap = new Map(extraProjection.map(p => [p.age, p.portfolio]));
+
+    const points = Array.from(ageSet).sort((a, b) => a - b).map(age => ({
       age,
       pure: data.pureFire.projection.find(p => p.age === age)?.portfolio ?? null,
       barista33: data.barista33.projection.find(p => p.age === age)?.portfolio ?? null,
       barista50: data.barista50.projection.find(p => p.age === age)?.portfolio ?? null,
+      withExtra: extraMap.has(age) ? (extraMap.get(age) ?? null) : null,
     }));
-  }, [data]);
+
+    // Find the age (integer) where withExtra first crosses fireTarget
+    let extraFireAge: number | null = null;
+    if (extraInvestment > 0) {
+      const yearsToFire = computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget);
+      if (yearsToFire !== null) extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
+    }
+
+    return { chartData: points, extraFireAge };
+  }, [data, extraInvestment, currentPortfolio, retirementAge, fireTarget, currentAge]);
+
+  // Years saved vs baseline Pure FIRE
+  const baseYears = data.pureFire.yearsToFire;
+  const extraYears = extraInvestment > 0
+    ? computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget)
+    : null;
+  const yearsSaved = baseYears !== null && extraYears !== null ? baseYears - extraYears : null;
 
   const tooltipStyle = {
     backgroundColor: 'var(--surface)',
@@ -214,7 +243,33 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
 
   return (
     <div className="dash-card p-[16px_20px_14px]">
-      <div className="text-[13px] font-semibold mb-4">Portfolio Projection</div>
+      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <div className="text-[13px] font-semibold">Portfolio Projection</div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="extra-investment" className="text-[11px] text-[var(--fg-3)] whitespace-nowrap">Extra investment</label>
+          <div className="flex items-center border border-[var(--border)] rounded px-2 py-[3px] bg-[var(--surface-2)] gap-1">
+            <span className="text-[11px] text-[var(--fg-3)]">€</span>
+            <input
+              id="extra-investment"
+              type="number"
+              min={0}
+              step={1000}
+              value={extraInvestment || ''}
+              placeholder="0"
+              onChange={e => {
+                const v = parseFloat(e.target.value);
+                onExtraChange(isNaN(v) || v < 0 ? 0 : v);
+              }}
+              className="w-[90px] bg-transparent text-[12px] mono outline-none"
+            />
+          </div>
+          {yearsSaved !== null && yearsSaved > 0.05 && (
+            <span className="text-[11px] font-medium px-2 py-[2px] rounded-full" style={{ background: `${EXTRA_COLOR}22`, color: EXTRA_COLOR }}>
+              −{yearsSaved.toFixed(1)} yr earlier
+            </span>
+          )}
+        </div>
+      </div>
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -228,12 +283,12 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             contentStyle={tooltipStyle}
             formatter={(value, name) => [
               typeof value === 'number' && value < 0 ? `−${fmt(Math.abs(value))}` : fmt(Number(value ?? 0)),
-              name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : 'Barista 50%',
+              name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : name === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)} now`,
             ]}
             labelFormatter={label => `Age ${label}`}
           />
           <Legend
-            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : 'Barista 50%'}
+            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : v === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)} now`}
             wrapperStyle={{ fontSize: 12 }}
           />
           <ReferenceLine
@@ -257,9 +312,23 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             strokeWidth={2}
             label={{ value: 'Now', position: 'top', fontSize: 10, fill: 'var(--accent)' }}
           />
+          {extraFireAge !== null && (
+            <ReferenceDot
+              x={Math.round(extraFireAge)}
+              y={fireTarget}
+              r={5}
+              fill={EXTRA_COLOR}
+              stroke="var(--surface)"
+              strokeWidth={2}
+              label={{ value: `FIRE ${extraFireAge.toFixed(1)}`, position: 'bottom', fontSize: 10, fill: EXTRA_COLOR }}
+            />
+          )}
           <Line type="monotone" dataKey="pure" stroke="oklch(0.55 0.10 225)" strokeWidth={2} dot={false} />
           <Line type="monotone" dataKey="barista33" stroke="oklch(0.60 0.09 155)" strokeWidth={2} strokeDasharray="6 2" dot={false} />
           <Line type="monotone" dataKey="barista50" stroke="oklch(0.66 0.06 200)" strokeWidth={2} strokeDasharray="2 3" dot={false} />
+          {extraInvestment > 0 && (
+            <Line type="monotone" dataKey="withExtra" stroke={EXTRA_COLOR} strokeWidth={2.5} strokeDasharray="4 2" dot={false} connectNulls={false} />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -527,6 +596,7 @@ export function FireDashboard() {
   const [data, setData] = useState<FireApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [extraInvestment, setExtraInvestment] = useState(0);
 
   async function load() {
     try {
@@ -605,6 +675,8 @@ export function FireDashboard() {
         currentAge={computeCurrentAge(config.dateOfBirth)}
         currentPortfolio={currentPortfolio}
         retirementAge={config.retirementAge}
+        extraInvestment={extraInvestment}
+        onExtraChange={setExtraInvestment}
       />
 
       <PhaseCards phases={phases} />
