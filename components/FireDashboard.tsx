@@ -194,17 +194,30 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
   extraInvestment: number;
   onExtraChange: (v: number) => void;
 }) {
-  const { chartData, extraFireAge } = useMemo(() => {
+  const { chartData, extraFireAge, yearsSaved } = useMemo(() => {
     const ageSet = new Set<number>();
     data.pureFire.projection.forEach(p => ageSet.add(p.age));
     data.barista33.projection.forEach(p => ageSet.add(p.age));
     data.barista50.projection.forEach(p => ageSet.add(p.age));
 
     let extraProjection: { age: number; portfolio: number }[] = [];
+    let extraFireAge: number | null = null;
+    let extraFireAgeRounded: number | null = null;
+    let yearsSaved: number | null = null;
     if (extraInvestment > 0) {
       extraProjection = simulateProjection(data.config, currentPortfolio + extraInvestment)
         .filter(p => p.age <= retirementAge);
       extraProjection.forEach(p => ageSet.add(p.age));
+
+      const yearsToFire = computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget);
+      if (yearsToFire !== null) {
+        extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
+        extraFireAgeRounded = Math.round(extraFireAge);
+        // Ensure the marker's x lands on an age that's actually a category on the chart
+        ageSet.add(extraFireAgeRounded);
+        const baseYears = data.pureFire.yearsToFire;
+        yearsSaved = baseYears !== null ? baseYears - yearsToFire : null;
+      }
     }
 
     const extraMap = new Map(extraProjection.map(p => [p.age, p.portfolio]));
@@ -217,22 +230,8 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
       withExtra: extraMap.has(age) ? (extraMap.get(age) ?? null) : null,
     }));
 
-    // Find the age (integer) where withExtra first crosses fireTarget
-    let extraFireAge: number | null = null;
-    if (extraInvestment > 0) {
-      const yearsToFire = computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget);
-      if (yearsToFire !== null) extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
-    }
-
-    return { chartData: points, extraFireAge };
+    return { chartData: points, extraFireAge, yearsSaved };
   }, [data, extraInvestment, currentPortfolio, retirementAge, fireTarget, currentAge]);
-
-  // Years saved vs baseline Pure FIRE
-  const baseYears = data.pureFire.yearsToFire;
-  const extraYears = extraInvestment > 0
-    ? computeYearsToFire(data.config, currentPortfolio + extraInvestment, fireTarget)
-    : null;
-  const yearsSaved = baseYears !== null && extraYears !== null ? baseYears - extraYears : null;
 
   const tooltipStyle = {
     backgroundColor: 'var(--surface)',
@@ -597,6 +596,10 @@ export function FireDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [extraInvestment, setExtraInvestment] = useState(0);
+  const currentAge = useMemo(
+    () => data ? computeCurrentAge(data.config.dateOfBirth) : 0,
+    [data?.config.dateOfBirth],
+  );
 
   async function load() {
     try {
@@ -672,7 +675,7 @@ export function FireDashboard() {
       <ProjectionChart
         data={data}
         fireTarget={fireTarget}
-        currentAge={computeCurrentAge(config.dateOfBirth)}
+        currentAge={currentAge}
         currentPortfolio={currentPortfolio}
         retirementAge={config.retirementAge}
         extraInvestment={extraInvestment}
