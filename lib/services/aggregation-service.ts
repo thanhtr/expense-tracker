@@ -10,8 +10,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // show real numbers when the user explicitly filters to one of them.
 const NON_SPENDING_CATEGORIES = ['Investments', 'Internal Transfer'];
 
-function cacheKey(dateFrom?: Date, dateTo?: Date, category?: string, paidBy?: string, account?: string): string {
-  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', category ?? '', paidBy ?? '', account ?? ''].join('|');
+function cacheKey(dateFrom?: Date, dateTo?: Date, category?: string, paidBy?: string, accounts?: string[]): string {
+  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', category ?? '', paidBy ?? '', (accounts ?? []).slice().sort().join(',')].join('|');
 }
 
 export function invalidateDashboardCache(): void {
@@ -23,10 +23,10 @@ export async function getDashboardStats(
   dateTo?: Date,
   category?: string,
   paidBy?: string,
-  account?: string,
+  accounts?: string[],
   forceRefresh = false,
 ): Promise<DashboardAggregation> {
-  const key = cacheKey(dateFrom, dateTo, category, paidBy, account);
+  const key = cacheKey(dateFrom, dateTo, category, paidBy, accounts);
   const cached = _cache.get(key);
   if (!forceRefresh && cached && Date.now() < cached.expiry) return cached.data;
 
@@ -40,7 +40,7 @@ export async function getDashboardStats(
   }
 
   if (paidBy) baseWhere.paidBy = paidBy;
-  if (account) baseWhere.account = account;
+  if (accounts?.length) baseWhere.account = accounts.length === 1 ? accounts[0] : { in: accounts };
 
   const where: Prisma.TransactionWhereInput = { ...baseWhere };
   if (category) where.category = category;
@@ -348,7 +348,7 @@ export async function getDashboardStats(
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo && r.date > dateTo) return false;
     if (paidBy && r.paidBy !== paidBy) return false;
-    if (account && r.account !== account) return false;
+    if (accounts?.length && !accounts.includes(r.account)) return false;
     const isNonSpending = NON_SPENDING_CATEGORIES.includes(r.category ?? '');
     if (isNonSpending && !categoryFilterIsNonSpending) return false;
     return true;

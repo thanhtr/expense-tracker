@@ -859,7 +859,10 @@ export function DashboardStats() {
   const [dateFrom, setDateFrom] = useState(initRange.from);
   const [dateTo, setDateTo] = useState(initRange.to);
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') ?? '');
-  const [selectedAccount, setSelectedAccount] = useState(searchParams.get('account') ?? '');
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(() => {
+    const a = searchParams.get('account');
+    return a ? a.split(',').filter(Boolean) : [];
+  });
   const [selectedPaidBy, setSelectedPaidBy] = useState(searchParams.get('paid_by') ?? '');
   const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>(() => {
     const c = searchParams.get('chart');
@@ -914,14 +917,14 @@ export function DashboardStats() {
     (async () => {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
         if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (shouldRefresh.current) params.set('refresh', '1');
         const res = await fetch(`/api/dashboard?${params}`);
         if (res.ok) setUnfilteredByCategory(await res.json());
       } catch (e) { console.error(e); }
     })();
-  }, [dateFrom, dateTo, selectedAccount, selectedPaidBy, refreshNonce]);
+  }, [dateFrom, dateTo, selectedAccounts, selectedPaidBy, refreshNonce]);
 
   // Fetch filtered + comparison-period for deltas
   useEffect(() => {
@@ -932,13 +935,13 @@ export function DashboardStats() {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         if (selectedCategory) params.set('category', selectedCategory);
-        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
         if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (isRefresh) params.set('refresh', '1');
 
         const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
         if (selectedCategory) prevParams.set('category', selectedCategory);
-        if (selectedAccount) prevParams.set('account', selectedAccount);
+        if (selectedAccounts.length) prevParams.set('account', selectedAccounts.join(','));
         if (selectedPaidBy) prevParams.set('paid_by', selectedPaidBy);
         if (isRefresh) prevParams.set('refresh', '1');
 
@@ -955,7 +958,7 @@ export function DashboardStats() {
         setRefreshing(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareRange, refreshNonce]);
+  }, [dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy, compareRange, refreshNonce]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -982,13 +985,13 @@ export function DashboardStats() {
       params.set('to', dateTo);
     }
     if (selectedCategory) params.set('category', selectedCategory);
-    if (selectedAccount) params.set('account', selectedAccount);
+    if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
     if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
     if (compareMode !== 'prev') params.set('compare', compareMode);
     if (chartStyle !== 'bars') params.set('chart', chartStyle);
     const qs = params.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
-  }, [preset, dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareMode, chartStyle, router]);
+  }, [preset, dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy, compareMode, chartStyle, router]);
 
   const biggestChange = useMemo(() => {
     if (!data || !prevData) return null;
@@ -1053,10 +1056,10 @@ export function DashboardStats() {
   const exportUrl = useMemo(() => {
     const p = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
     if (selectedCategory) p.set('category', selectedCategory);
-    if (selectedAccount) p.set('account', selectedAccount);
+    if (selectedAccounts.length) p.set('account', selectedAccounts.join(','));
     if (selectedPaidBy) p.set('paid_by', selectedPaidBy);
     return `/api/export?${p}`;
-  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy]);
+  }, [dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy]);
 
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
@@ -1161,14 +1164,17 @@ export function DashboardStats() {
         </select>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Account</span>
-        <select
-          className="select-plain"
-          value={selectedAccount}
-          onChange={(e) => setSelectedAccount(e.target.value)}
-        >
-          <option value="">All accounts</option>
-          {ACCOUNT_NAMES.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
+        <div className="seg">
+          {ACCOUNT_NAMES.map(a => (
+            <button
+              key={a}
+              className={selectedAccounts.includes(a) ? 'active' : ''}
+              onClick={() => setSelectedAccounts(prev =>
+                prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]
+              )}
+            >{a}</button>
+          ))}
+        </div>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Owner</span>
         <select
@@ -1409,7 +1415,7 @@ export function DashboardStats() {
                   : '—'
               }
             />
-            {!selectedAccount && Object.keys(data.byAccount).length > 0 && (
+            {selectedAccounts.length !== 1 && Object.keys(data.byAccount).length > 0 && (
               <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px]">
                 {Object.entries(data.byAccount).map(([a, v]) => (
                   <div key={a} className="min-w-0">

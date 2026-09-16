@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const parsed = parseQuery(dashboardQuerySchema, new URL(request.url).searchParams);
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, category, paid_by, account, refresh } = parsed.data;
+  const accounts = account ? account.split(',').filter(Boolean) : undefined;
 
   try {
     const stats = await getDashboardStats(
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       date_to ? new Date(date_to) : undefined,
       category,
       paid_by,
-      account,
+      accounts,
       refresh === '1',
     );
     return NextResponse.json(stats);

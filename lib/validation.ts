@@ -13,7 +13,7 @@ export const dashboardQuerySchema = z.object({
   date_to: dateParam,
   category: z.string().max(100).optional(),
   paid_by: z.enum(PAID_BY).optional(),
-  account: z.string().max(100).optional(),
+  account: z.string().max(500).optional(), // comma-separated list of account names
   refresh: z.literal('1').optional(),
 });
 
