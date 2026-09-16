@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const result = await getTransactions({
       dateFrom: date_from,
       dateTo: date_to,
-      account,
+      accounts: account ? [account] : undefined,
       category,
       merchant,
       type,

@@ -1165,6 +1165,10 @@ export function DashboardStats() {
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Account</span>
         <div className="seg">
+          <button
+            className={selectedAccounts.length === 0 ? 'active' : ''}
+            onClick={() => setSelectedAccounts([])}
+          >All</button>
           {ACCOUNT_NAMES.map(a => (
             <button
               key={a}
