@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { NextResponse } from 'next/server';
-import { PAID_BY, TRANSACTION_TYPES, ASSET_TYPES } from './constants';
+import { PAID_BY, TRANSACTION_TYPES, ASSET_TYPES, ACCOUNT_NAMES } from './constants';
+
+// Validates a comma-separated list of account names, stripping any unrecognised values.
+const accountParam = z
+  .string()
+  .max(500)
+  .optional()
+  .transform(s => {
+    if (!s) return undefined;
+    const valid = s.split(',').filter(v => (ACCOUNT_NAMES as readonly string[]).includes(v));
+    return valid.length ? valid.join(',') : undefined;
+  });
 
 const dateParam = z
   .string()
@@ -13,7 +24,7 @@ export const dashboardQuerySchema = z.object({
   date_to: dateParam,
   category: z.string().max(100).optional(),
   paid_by: z.enum(PAID_BY).optional(),
-  account: z.string().max(100).optional(),
+  account: accountParam,
   refresh: z.literal('1').optional(),
 });
 
@@ -60,7 +71,7 @@ export const bulkDeleteQuerySchema = z.object({
 export const exportQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
-  account: z.string().max(100).optional(),
+  account: accountParam,
   category: z.string().max(100).optional(),
   merchant: z.string().max(200).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),

@@ -52,7 +52,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
 export async function getTransactions(filters: {
   dateFrom?: string;
   dateTo?: string;
-  account?: string;
+  accounts?: string[];
   category?: string;
   merchant?: string;
   type?: string;
@@ -78,7 +78,7 @@ export async function getTransactions(filters: {
     if (filters.dateFrom) (where.date as Prisma.DateTimeFilter).gte = new Date(filters.dateFrom);
     if (filters.dateTo) (where.date as Prisma.DateTimeFilter).lte = new Date(filters.dateTo);
   }
-  if (filters.account) where.account = filters.account;
+  if (filters.accounts?.length) where.account = filters.accounts.length === 1 ? filters.accounts[0] : { in: filters.accounts };
   if (filters.category === '__uncategorized__') {
     where.category = '';
   } else if (filters.category) {

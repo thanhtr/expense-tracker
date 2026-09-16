@@ -83,10 +83,10 @@ describe('getTransactions', () => {
     vi.mocked(prisma.transaction.count).mockResolvedValueOnce(0);
     vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([]);
 
-    await getTransactions({ account: 'OP Bank', category: 'Shopping', type: 'Expense', paidBy: 'tung' });
+    await getTransactions({ accounts: ['OP Bank'], category: 'Shopping', type: 'Expense', paidBy: 'tung' });
 
     const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
-    expect(whereArg?.account).toBe('OP Bank');
+    expect(whereArg?.account).toBe('OP Bank'); // single account → string equality, not { in }
     expect(whereArg?.category).toBe('Shopping');
     expect(whereArg?.type).toBe('Expense');
     expect(whereArg?.paidBy).toBe('tung');
