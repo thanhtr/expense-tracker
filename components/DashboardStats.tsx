@@ -14,6 +14,7 @@ import { GuidelinePanel } from './GuidelinePanel';
 import { useCategories } from '@/components/CategoriesProvider';
 import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 import { fmtEUR } from '@/lib/utils';
+import { ACCOUNT_NAMES } from '@/lib/constants';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
 const CAT_COLORS = [
@@ -858,6 +859,8 @@ export function DashboardStats() {
   const [dateFrom, setDateFrom] = useState(initRange.from);
   const [dateTo, setDateTo] = useState(initRange.to);
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') ?? '');
+  const [selectedAccount, setSelectedAccount] = useState(searchParams.get('account') ?? '');
+  const [selectedPaidBy, setSelectedPaidBy] = useState(searchParams.get('paid_by') ?? '');
   const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>(() => {
     const c = searchParams.get('chart');
     return c === 'donut' ? 'donut' : 'bars';
@@ -869,10 +872,11 @@ export function DashboardStats() {
   });
 
   const { categories: allCategories } = useCategories();
-  const { nameForSlug } = useHouseholdMembers();
+  const { members, nameForSlug } = useHouseholdMembers();
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
-  const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
+  // Fetched without a category filter; account/owner still applied so the uncategorized count is scoped correctly.
+  const [unfilteredByCategory, setUnfilteredByCategory] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -905,17 +909,19 @@ export function DashboardStats() {
       .catch(() => {});
   }, []);
 
-  // Fetch unfiltered (for category dropdown + uncategorized count)
+  // Fetch without category filter (for uncategorized count warning), but scoped to account/owner.
   useEffect(() => {
     (async () => {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (shouldRefresh.current) params.set('refresh', '1');
         const res = await fetch(`/api/dashboard?${params}`);
-        if (res.ok) setUnfiltered(await res.json());
+        if (res.ok) setUnfilteredByCategory(await res.json());
       } catch (e) { console.error(e); }
     })();
-  }, [dateFrom, dateTo, refreshNonce]);
+  }, [dateFrom, dateTo, selectedAccount, selectedPaidBy, refreshNonce]);
 
   // Fetch filtered + comparison-period for deltas
   useEffect(() => {
@@ -926,10 +932,14 @@ export function DashboardStats() {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         if (selectedCategory) params.set('category', selectedCategory);
+        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (isRefresh) params.set('refresh', '1');
 
         const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
         if (selectedCategory) prevParams.set('category', selectedCategory);
+        if (selectedAccount) prevParams.set('account', selectedAccount);
+        if (selectedPaidBy) prevParams.set('paid_by', selectedPaidBy);
         if (isRefresh) prevParams.set('refresh', '1');
 
         const [resCur, resPrev] = await Promise.all([
@@ -945,7 +955,7 @@ export function DashboardStats() {
         setRefreshing(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory, compareRange, refreshNonce]);
+  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareRange, refreshNonce]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -972,11 +982,13 @@ export function DashboardStats() {
       params.set('to', dateTo);
     }
     if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedAccount) params.set('account', selectedAccount);
+    if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
     if (compareMode !== 'prev') params.set('compare', compareMode);
     if (chartStyle !== 'bars') params.set('chart', chartStyle);
     const qs = params.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
-  }, [preset, dateFrom, dateTo, selectedCategory, compareMode, chartStyle, router]);
+  }, [preset, dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareMode, chartStyle, router]);
 
   const biggestChange = useMemo(() => {
     if (!data || !prevData) return null;
@@ -1038,6 +1050,14 @@ export function DashboardStats() {
     }));
   }, [data]);
 
+  const exportUrl = useMemo(() => {
+    const p = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (selectedCategory) p.set('category', selectedCategory);
+    if (selectedAccount) p.set('account', selectedAccount);
+    if (selectedPaidBy) p.set('paid_by', selectedPaidBy);
+    return `/api/export?${p}`;
+  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy]);
+
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
@@ -1092,10 +1112,10 @@ export function DashboardStats() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          {unfiltered && unfiltered.uncategorizedCount > 0 && !selectedCategory && (
+          {unfilteredByCategory && unfilteredByCategory.uncategorizedCount > 0 && !selectedCategory && (
             <span className="warn-pill">
               <span className="dot" />
-              {unfiltered.uncategorizedCount} transaction{unfiltered.uncategorizedCount === 1 ? '' : 's'} need a category
+              {unfilteredByCategory.uncategorizedCount} transaction{unfilteredByCategory.uncategorizedCount === 1 ? '' : 's'} need a category
             </span>
           )}
           {recurringMonthly !== null && recurringMonthly > 0 && (
@@ -1140,6 +1160,26 @@ export function DashboardStats() {
           {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
+        <span className="tool-label mr-[4px]">Account</span>
+        <select
+          className="select-plain"
+          value={selectedAccount}
+          onChange={(e) => setSelectedAccount(e.target.value)}
+        >
+          <option value="">All accounts</option>
+          {ACCOUNT_NAMES.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
+        <span className="tool-label mr-[4px]">Owner</span>
+        <select
+          className="select-plain"
+          value={selectedPaidBy}
+          onChange={(e) => setSelectedPaidBy(e.target.value)}
+        >
+          <option value="">All owners</option>
+          {members.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}
+        </select>
+        <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Compare</span>
         <div className="seg">
           <button className={compareMode === 'prev' ? 'active' : ''} onClick={() => setCompareMode('prev')}>Prev period</button>
@@ -1159,7 +1199,7 @@ export function DashboardStats() {
           >
             {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
           </button>
-          <a href="/api/export" className="btn-ghost print:hidden">Export CSV</a>
+          <a href={exportUrl} className="btn-ghost print:hidden">Export CSV</a>
           <button
             type="button"
             onClick={() => window.print()}
@@ -1369,7 +1409,7 @@ export function DashboardStats() {
                   : '—'
               }
             />
-            {Object.keys(data.byAccount).length > 0 && (
+            {!selectedAccount && Object.keys(data.byAccount).length > 0 && (
               <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px]">
                 {Object.entries(data.byAccount).map(([a, v]) => (
                   <div key={a} className="min-w-0">
@@ -1379,7 +1419,7 @@ export function DashboardStats() {
                 ))}
               </div>
             )}
-            {data.byPerson.length > 0 && (
+            {!selectedPaidBy && data.byPerson.length > 0 && (
               <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px] border-t border-[var(--border)] mt-[4px]">
                 {data.byPerson.map(({ person, amount }) => (
                   <div key={person} className="min-w-0">
