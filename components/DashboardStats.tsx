@@ -14,6 +14,7 @@ import { GuidelinePanel } from './GuidelinePanel';
 import { useCategories } from '@/components/CategoriesProvider';
 import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 import { fmtEUR } from '@/lib/utils';
+import { ACCOUNT_NAMES } from '@/lib/constants';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
 const CAT_COLORS = [
@@ -858,6 +859,8 @@ export function DashboardStats() {
   const [dateFrom, setDateFrom] = useState(initRange.from);
   const [dateTo, setDateTo] = useState(initRange.to);
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') ?? '');
+  const [selectedAccount, setSelectedAccount] = useState(searchParams.get('account') ?? '');
+  const [selectedPaidBy, setSelectedPaidBy] = useState(searchParams.get('paid_by') ?? '');
   const [chartStyle, setChartStyle] = useState<'bars' | 'donut'>(() => {
     const c = searchParams.get('chart');
     return c === 'donut' ? 'donut' : 'bars';
@@ -869,7 +872,7 @@ export function DashboardStats() {
   });
 
   const { categories: allCategories } = useCategories();
-  const { nameForSlug } = useHouseholdMembers();
+  const { members, nameForSlug } = useHouseholdMembers();
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
   const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
@@ -910,12 +913,14 @@ export function DashboardStats() {
     (async () => {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (shouldRefresh.current) params.set('refresh', '1');
         const res = await fetch(`/api/dashboard?${params}`);
         if (res.ok) setUnfiltered(await res.json());
       } catch (e) { console.error(e); }
     })();
-  }, [dateFrom, dateTo, refreshNonce]);
+  }, [dateFrom, dateTo, selectedAccount, selectedPaidBy, refreshNonce]);
 
   // Fetch filtered + comparison-period for deltas
   useEffect(() => {
@@ -926,10 +931,14 @@ export function DashboardStats() {
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
         if (selectedCategory) params.set('category', selectedCategory);
+        if (selectedAccount) params.set('account', selectedAccount);
+        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (isRefresh) params.set('refresh', '1');
 
         const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
         if (selectedCategory) prevParams.set('category', selectedCategory);
+        if (selectedAccount) prevParams.set('account', selectedAccount);
+        if (selectedPaidBy) prevParams.set('paid_by', selectedPaidBy);
         if (isRefresh) prevParams.set('refresh', '1');
 
         const [resCur, resPrev] = await Promise.all([
@@ -945,7 +954,7 @@ export function DashboardStats() {
         setRefreshing(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory, compareRange, refreshNonce]);
+  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareRange, refreshNonce]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -972,11 +981,13 @@ export function DashboardStats() {
       params.set('to', dateTo);
     }
     if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedAccount) params.set('account', selectedAccount);
+    if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
     if (compareMode !== 'prev') params.set('compare', compareMode);
     if (chartStyle !== 'bars') params.set('chart', chartStyle);
     const qs = params.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
-  }, [preset, dateFrom, dateTo, selectedCategory, compareMode, chartStyle, router]);
+  }, [preset, dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy, compareMode, chartStyle, router]);
 
   const biggestChange = useMemo(() => {
     if (!data || !prevData) return null;
@@ -1138,6 +1149,26 @@ export function DashboardStats() {
         >
           <option value="">All categories</option>
           {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
+        <span className="tool-label mr-[4px]">Account</span>
+        <select
+          className="select-plain"
+          value={selectedAccount}
+          onChange={(e) => setSelectedAccount(e.target.value)}
+        >
+          <option value="">All accounts</option>
+          {ACCOUNT_NAMES.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
+        <span className="tool-label mr-[4px]">Owner</span>
+        <select
+          className="select-plain"
+          value={selectedPaidBy}
+          onChange={(e) => setSelectedPaidBy(e.target.value)}
+        >
+          <option value="">All</option>
+          {members.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}
         </select>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Compare</span>
