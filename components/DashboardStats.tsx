@@ -875,7 +875,8 @@ export function DashboardStats() {
   const { members, nameForSlug } = useHouseholdMembers();
   const [data, setData] = useState<DashboardAggregation | null>(null);
   const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
-  const [unfiltered, setUnfiltered] = useState<DashboardAggregation | null>(null);
+  // Fetched without a category filter; account/owner still applied so the uncategorized count is scoped correctly.
+  const [unfilteredByCategory, setUnfilteredByCategory] = useState<DashboardAggregation | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -908,7 +909,7 @@ export function DashboardStats() {
       .catch(() => {});
   }, []);
 
-  // Fetch unfiltered (for category dropdown + uncategorized count)
+  // Fetch without category filter (for uncategorized count warning), but scoped to account/owner.
   useEffect(() => {
     (async () => {
       try {
@@ -917,7 +918,7 @@ export function DashboardStats() {
         if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (shouldRefresh.current) params.set('refresh', '1');
         const res = await fetch(`/api/dashboard?${params}`);
-        if (res.ok) setUnfiltered(await res.json());
+        if (res.ok) setUnfilteredByCategory(await res.json());
       } catch (e) { console.error(e); }
     })();
   }, [dateFrom, dateTo, selectedAccount, selectedPaidBy, refreshNonce]);
@@ -1049,6 +1050,14 @@ export function DashboardStats() {
     }));
   }, [data]);
 
+  const exportUrl = useMemo(() => {
+    const p = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (selectedCategory) p.set('category', selectedCategory);
+    if (selectedAccount) p.set('account', selectedAccount);
+    if (selectedPaidBy) p.set('paid_by', selectedPaidBy);
+    return `/api/export?${p}`;
+  }, [dateFrom, dateTo, selectedCategory, selectedAccount, selectedPaidBy]);
+
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
@@ -1103,10 +1112,10 @@ export function DashboardStats() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          {unfiltered && unfiltered.uncategorizedCount > 0 && !selectedCategory && (
+          {unfilteredByCategory && unfilteredByCategory.uncategorizedCount > 0 && !selectedCategory && (
             <span className="warn-pill">
               <span className="dot" />
-              {unfiltered.uncategorizedCount} transaction{unfiltered.uncategorizedCount === 1 ? '' : 's'} need a category
+              {unfilteredByCategory.uncategorizedCount} transaction{unfilteredByCategory.uncategorizedCount === 1 ? '' : 's'} need a category
             </span>
           )}
           {recurringMonthly !== null && recurringMonthly > 0 && (
@@ -1167,7 +1176,7 @@ export function DashboardStats() {
           value={selectedPaidBy}
           onChange={(e) => setSelectedPaidBy(e.target.value)}
         >
-          <option value="">All</option>
+          <option value="">All owners</option>
           {members.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}
         </select>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
@@ -1190,7 +1199,7 @@ export function DashboardStats() {
           >
             {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
           </button>
-          <a href="/api/export" className="btn-ghost print:hidden">Export CSV</a>
+          <a href={exportUrl} className="btn-ghost print:hidden">Export CSV</a>
           <button
             type="button"
             onClick={() => window.print()}
@@ -1400,7 +1409,7 @@ export function DashboardStats() {
                   : '—'
               }
             />
-            {Object.keys(data.byAccount).length > 0 && (
+            {!selectedAccount && Object.keys(data.byAccount).length > 0 && (
               <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px]">
                 {Object.entries(data.byAccount).map(([a, v]) => (
                   <div key={a} className="min-w-0">
@@ -1410,7 +1419,7 @@ export function DashboardStats() {
                 ))}
               </div>
             )}
-            {data.byPerson.length > 0 && (
+            {!selectedPaidBy && data.byPerson.length > 0 && (
               <div className="col-span-2 grid grid-cols-2 sm:grid-cols-3 items-end pt-[4px] gap-[12px] border-t border-[var(--border)] mt-[4px]">
                 {data.byPerson.map(({ person, amount }) => (
                   <div key={person} className="min-w-0">
