@@ -35,13 +35,22 @@ function mockAssets(investmentTotal: number, bankTotal: number) {
   });
 }
 
+// byMonthIncome only needs the right length — the route divides totalIncome
+// by how many months are present, it doesn't read each entry's amount.
+const monthsOfIncome = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({ month: `2026-${String(i + 1).padStart(2, '0')}`, amount: 0 }));
+
+function mockIncome(totalIncome: number, monthCount: number) {
+  vi.mocked(getDashboardStats).mockResolvedValueOnce({ totalIncome, byMonthIncome: monthsOfIncome(monthCount) } as never);
+}
+
 describe('GET /api/fire — portfolio breakdown', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('counts bank cash above the emergency buffer toward the portfolio', async () => {
     vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig({ emergencyFundMonths: 6 }));
     mockAssets(78_131.24, 52_177.11);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ totalIncome: 6_000 } as never);
+    mockIncome(6_000, 12);
 
     const res = await GET();
     expect(res.status).toBe(200);
@@ -59,7 +68,7 @@ describe('GET /api/fire — portfolio breakdown', () => {
   it('excludes all bank cash when it is under the buffer target', async () => {
     vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig({ emergencyFundMonths: 6 }));
     mockAssets(10_000, 2_000);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ totalIncome: 60_000 } as never);
+    mockIncome(60_000, 12);
 
     const res = await GET();
     const body = await res.json();
@@ -69,16 +78,46 @@ describe('GET /api/fire — portfolio breakdown', () => {
     expect(body.currentPortfolio).toBe(10_000);
   });
 
+  it('averages over the months actually covered by data, not a fixed 12', async () => {
+    vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig({ emergencyFundMonths: 1 }));
+    mockAssets(0, 5_000);
+    // Only 3 months of history — averaging over a hardcoded 12 would understate
+    // avgMonthlyIncome (750 instead of 3000) and undersize the buffer.
+    mockIncome(9_000, 3);
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.avgMonthlyIncome).toBe(3_000);
+    expect(body.bufferTarget).toBe(3_000);
+    expect(body.investableCash).toBe(2_000);
+  });
+
   it('does not double-count liability or property assets', async () => {
     vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig({ emergencyFundMonths: 0 }));
     mockAssets(10_000, 5_000);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ totalIncome: 0 } as never);
+    mockIncome(0, 0);
 
     await GET();
     expect(prisma.asset.findMany).toHaveBeenCalledWith({ where: { type: 'investment' } });
     expect(prisma.asset.findMany).toHaveBeenCalledWith({ where: { type: 'bank' } });
     expect(prisma.asset.findMany).not.toHaveBeenCalledWith({ where: { type: 'liability' } });
     expect(prisma.asset.findMany).not.toHaveBeenCalledWith({ where: { type: 'property' } });
+  });
+
+  it('requests income stats truncated to a day boundary, so repeated calls hit the aggregation cache', async () => {
+    vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig());
+    mockAssets(0, 0);
+    mockIncome(0, 0);
+
+    await GET();
+    const [dateFrom, dateTo] = vi.mocked(getDashboardStats).mock.calls[0]!;
+    for (const d of [dateFrom, dateTo] as Date[]) {
+      expect(d.getHours()).toBe(0);
+      expect(d.getMinutes()).toBe(0);
+      expect(d.getSeconds()).toBe(0);
+      expect(d.getMilliseconds()).toBe(0);
+    }
   });
 });
 
@@ -88,7 +127,7 @@ describe('PUT /api/fire — recomputes breakdown with updated config', () => {
   it('applies the saved emergencyFundMonths to the buffer calculation', async () => {
     vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig({ emergencyFundMonths: 3 }));
     mockAssets(0, 3_000);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ totalIncome: 12_000 } as never);
+    mockIncome(12_000, 12);
 
     const req = new Request('http://localhost/api/fire', {
       method: 'PUT',
