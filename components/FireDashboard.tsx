@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
-import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeYearsToFire, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate } from '@/lib/services/fire-service';
 
 type FireApiResponse = FireCalculationResult & {
   config: FireConfig;
@@ -88,6 +88,26 @@ function ModelExplainer() {
               <li><span className="font-medium">Phase 1B</span> — Mortgage end → TyEL pension age. Mortgage cleared, spend drops, still fully portfolio-funded.</li>
               <li><span className="font-medium">Phase 2</span> — Pension age → plan end. TyEL pension income offsets withdrawals; portfolio draw-down shrinks significantly.</li>
             </ul>
+            <p>Net rental income, if entered, offsets withdrawals in every phase.</p>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-semibold text-[var(--fg-1)]">TyEL pension estimate</h3>
+            <p>
+              The pension is projected from your statement rather than taken as a fixed number. Starting from the
+              combined pension accrued so far, the model adds 1.5% of gross earnings (after the 7.3% employee
+              contribution) for each remaining year of work until the target retirement age — nothing accrues after
+              you stop. The total is multiplied by the life-expectancy coefficient and reduced by earned-income tax.
+            </p>
+            <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded whitespace-pre-wrap">
+{`gross = (accrued + earnings × 0.927 × 1.5% ÷ 12 × years to retirement) × coefficient
+net   = gross × (1 − pension tax %)`}
+            </p>
+            <p>
+              For those born 1965 or later, the lowest retirement age rises with cohort life expectancy: ETK
+              estimates 67 years 9 months for the 1990 cohort, not 65. Accrued pension is also raised by the wage
+              coefficient until it starts; that uplift is ignored here (conservative).
+            </p>
           </section>
 
           <section className="space-y-2">
@@ -113,22 +133,24 @@ function ModelExplainer() {
             </p>
             <p>
               First, the <span className="font-medium">hankintameno-olettama</span> deemed acquisition cost
-              shields a fraction of the sale from tax regardless of actual cost basis — 20% for any holding
-              period, 40% only after 10+ years. With no per-lot holding-period data, this model assumes the
-              worst case throughout: 20%, never 40%. Second, the remaining taxable gain is taxed at Finland&apos;s
-              actual progressive capital-income rate: 30% up to €30,000 of taxable gain per year, 34% above
-              it — assuming a single taxpayer, with no benefit taken from splitting withdrawals across a
-              spouse&apos;s separate threshold.
+              shields part of each sale from tax: 40% of the sale price for shares held 10+ years, 20% otherwise
+              (or the actual cost, if higher). Sales from a securities account must follow FIFO, so in retirement
+              you always sell your oldest lots. When retirement is 10+ years away, those are held well over 10 years,
+              so the model uses 40%. Because taxable = sale − max(actual cost, 40%), at most 60% of a sale is taxed
+              (the Years-to-FIRE search uses 20% for retirement ages under 10 years away). Second, the taxable part is taxed at Finland&apos;s capital-income rate: 30% up to €30,000 per year,
+              34% above. Each spouse has their own threshold, so withdrawals (and rent) are split across the number
+              of taxpayers.
             </p>
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded whitespace-pre-wrap">
-{`taxable = gross × (1 − deemed cost %)
+{`per taxpayer:
+taxable = sale × (1 − deemed cost %) + rent
 tax     = 30% × min(taxable, €30k) + 34% × max(0, taxable − €30k)
-net     = gross − tax   (solved for gross, annually, then ÷ 12)`}
+need    = sale + rent − tax   (solved for sale, annually, then ÷ 12)`}
             </p>
             <p>
-              With the defaults (20% deemed cost): a €4,500/mo net Phase 1A spend needs about
-              €6,044/mo gross — not €5,625/mo as a flat-20%-tax shortcut would suggest, because
-              €54,000/yr of net spend pushes most of the taxable gain into the 34% bracket.
+              Example, 40% deemed cost and two taxpayers: a €4,400/mo net household spend needs about
+              €5,366/mo of sales, all within the 30% bracket. As a single taxpayer it is €5,402/mo, and with a
+              20% deemed cost it would be €5,907/mo.
             </p>
           </section>
 
@@ -175,8 +197,10 @@ net     = gross − tax   (solved for gross, annually, then ÷ 12)`}
             <p>
               The chart&apos;s growth curve before the retirement-age line is the accumulation phase: starting
               from the current portfolio, adding the monthly contribution every month, compounding at the
-              accumulation real return. The model checks each month whether the portfolio has reached the FIRE
-              number — the first month it does is the <span className="font-medium">Years to FIRE</span> figure.
+              accumulation real return. <span className="font-medium">Years to FIRE</span> is the first month at
+              which the portfolio covers the FIRE number <em>for retiring at that age</em>. Retiring earlier
+              needs a bigger pot (a longer drawdown and less pension accrued), so the target moves with the age
+              being tested. It is searched up to the pension age.
             </p>
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded">
               portfolio = portfolio × (1 + monthly rate) + monthly contribution
@@ -201,7 +225,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
   extraInvestment: number;
   onExtraChange: (v: number) => void;
 }) {
-  const { chartData, extraFireAge, yearsSaved } = useMemo(() => {
+  const { chartData, extraFireAge, extraFireTarget, yearsSaved } = useMemo(() => {
     const ageSet = new Set<number>();
     data.pureFire.projection.forEach(p => ageSet.add(p.age));
     data.barista33.projection.forEach(p => ageSet.add(p.age));
@@ -209,19 +233,25 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
 
     let extraProjection: { age: number; portfolio: number }[] = [];
     let extraFireAge: number | null = null;
+    let extraFireTarget: number | null = null;
     let yearsSaved: number | null = null;
     if (extraInvestment > 0) {
       const boostedConfig = { ...data.config, monthlyContribution: data.config.monthlyContribution + extraInvestment };
-      extraProjection = simulateProjection(boostedConfig, currentPortfolio)
-        .filter(p => p.age <= retirementAge);
+      const earliest = computeEarliestFire(boostedConfig, currentPortfolio);
+
+      // Draw accumulation up to whichever is later — the planned retirement age or the
+      // earliest FIRE age — so the FIRE dot sits on the plotted curve.
+      const lineEndAge = Math.max(retirementAge, earliest ? Math.ceil(earliest.retirementAge) : retirementAge);
+      extraProjection = simulateProjection({ ...boostedConfig, retirementAge: lineEndAge }, currentPortfolio)
+        .filter(p => p.age <= lineEndAge);
       extraProjection.forEach(p => ageSet.add(p.age));
 
-      const yearsToFire = computeYearsToFire(boostedConfig, currentPortfolio, fireTarget);
-      if (yearsToFire !== null) {
-        extraFireAge = Math.round((currentAge + yearsToFire) * 10) / 10;
+      if (earliest !== null) {
+        extraFireAge = Math.round(earliest.retirementAge * 10) / 10;
+        extraFireTarget = earliest.fireTarget;
         ageSet.add(Math.round(extraFireAge));
         const baseYears = data.pureFire.yearsToFire;
-        yearsSaved = baseYears !== null ? baseYears - yearsToFire : null;
+        yearsSaved = baseYears !== null ? baseYears - earliest.yearsToFire : null;
       }
     }
 
@@ -235,8 +265,8 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
       withExtra: extraMap.get(age) ?? null,
     }));
 
-    return { chartData: points, extraFireAge, yearsSaved };
-  }, [data, extraInvestment, currentPortfolio, retirementAge, fireTarget, currentAge]);
+    return { chartData: points, extraFireAge, extraFireTarget, yearsSaved };
+  }, [data, extraInvestment, currentPortfolio, retirementAge]);
 
   const tooltipStyle = {
     backgroundColor: 'var(--surface)',
@@ -316,10 +346,10 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
             strokeWidth={2}
             label={{ value: 'Now', position: 'top', fontSize: 10, fill: 'var(--accent)' }}
           />
-          {extraFireAge !== null && (
+          {extraFireAge !== null && extraFireTarget !== null && (
             <ReferenceDot
               x={Math.round(extraFireAge)}
-              y={fireTarget}
+              y={extraFireTarget}
               r={5}
               fill={EXTRA_COLOR}
               stroke="var(--surface)"
@@ -339,7 +369,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
   );
 }
 
-function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
+function PhaseCards({ phases, pension }: { phases: PhaseInfo[]; pension: PensionEstimate }) {
   const colors = ['var(--accent)', 'oklch(0.60 0.09 155)', 'oklch(0.55 0.10 225)'];
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -357,17 +387,25 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
                 <td className="py-[4px] text-right mono font-medium">{fmtEUR(p.netMonthly)}</td>
               </tr>
               {p.pensionOffset > 0 && (
+                <>
+                  <tr>
+                    <td className="py-[4px] text-[var(--fg-3)]">Pension (net)</td>
+                    <td className="py-[4px] text-right mono text-[var(--pos)]">−{fmtEUR(p.pensionOffset)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-[4px] text-[var(--fg-3)]">After pension/mo</td>
+                    <td className="py-[4px] text-right mono">{fmtEUR(p.portfolioShortfall)}</td>
+                  </tr>
+                </>
+              )}
+              {p.rentalIncome > 0 && (
                 <tr>
-                  <td className="py-[4px] text-[var(--fg-3)]">Pension offset</td>
-                  <td className="py-[4px] text-right mono text-[var(--pos)]">−{fmtEUR(p.pensionOffset)}</td>
+                  <td className="py-[4px] text-[var(--fg-3)]">Rent received (taxed with sales)</td>
+                  <td className="py-[4px] text-right mono text-[var(--pos)]">{fmtEUR(p.rentalIncome)}</td>
                 </tr>
               )}
               <tr>
-                <td className="py-[4px] text-[var(--fg-3)]">Portfolio/mo</td>
-                <td className="py-[4px] text-right mono">{fmtEUR(p.portfolioShortfall)}</td>
-              </tr>
-              <tr>
-                <td className="py-[4px] text-[var(--fg-3)]">Gross/mo</td>
+                <td className="py-[4px] text-[var(--fg-3)]">Portfolio sale/mo</td>
                 <td className="py-[4px] text-right mono font-semibold">{fmtEUR(p.grossWithdrawal)}</td>
               </tr>
               <tr>
@@ -376,6 +414,11 @@ function PhaseCards({ phases }: { phases: PhaseInfo[] }) {
               </tr>
             </tbody>
           </table>
+          {p.pensionOffset > 0 && (
+            <div className="mt-2 text-[11px] text-[var(--fg-3)] leading-snug">
+              TyEL {fmtEUR(Math.round(pension.grossMonthly))} gross/mo = ({fmtEUR(Math.round(pension.accruedMonthly))} accrued + {fmtEUR(Math.round(pension.futureAccrualMonthly))} future) × life-expectancy coef.
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -458,7 +501,7 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
       { key: 'mortgageEndAge', label: 'Mortgage end age', min: 30, max: 90, step: 1,
         tip: 'Age when your mortgage is fully paid off. Phase 1A ends here and monthly spend drops.' },
       { key: 'pensionAge', label: 'TyEL pension age', min: 55, max: 75, step: 1,
-        tip: 'Age you start drawing your Finnish earnings-related pension (TyEL). Currently 65 for most. Check your forecast at tyoelake.fi.' },
+        tip: 'Age the TyEL old-age pension starts. For those born 1965+ the lowest retirement age is tied to cohort life expectancy — ETK estimates 67 y 9 m for the 1990 cohort (round up). A partial early old-age pension is possible earlier, at a permanent 0.4%/month reduction. Check yours at tyoelake.fi.' },
     ],
   },
   {
@@ -469,8 +512,17 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
         tip: "After-inflation annual portfolio return during the savings phase. A global equity index historically returns ~7% nominal; subtract ~2% inflation ≈ 5–6% real. Using real returns means spending targets stay in today's euros." },
       { key: 'drawdownReturn', label: 'Drawdown real return', min: 0, max: 15, step: 0.1, pct: true,
         tip: 'After-inflation return applied during retirement. Set lower than the accumulation return to account for sequence-of-returns risk — a bad market early in retirement hurts disproportionately. Typical conservative estimate: 3–4%.' },
+    ],
+  },
+  {
+    group: 'Capital income tax',
+    fields: [
       { key: 'deemedCostPct', label: 'Deemed acquisition cost %', min: 0, max: 40, step: 0.5, pct: true,
-        tip: 'Finnish hankintameno-olettama: this fraction of each sale is treated as acquisition cost (untaxed) regardless of actual cost basis. 20% applies to any holding period; 40% only after 10+ years — this model conservatively assumes 20% throughout, since no per-lot holding period is tracked. The remaining gain is taxed at Finland’s actual capital-income rate (30% up to €30,000/yr, 34% above) — see the model explainer above for the combined formula.' },
+        tip: 'Finnish hankintameno-olettama: 40% of the sale price for shares held 10+ years, 20% otherwise. FIFO is mandatory within a securities account, so retirement sales come from your oldest lots — held well over 10 years if retirement is 10+ years away — making 40% the applicable rate. Taxable = sale − max(actual cost, deemed cost), so at most 60% of a sale is taxed. Use 20% only if retirement is under 10 years away.' },
+      { key: 'taxpayers', label: 'Taxpayers sharing withdrawals', min: 1, max: 2, step: 1,
+        tip: 'Each spouse has their own €30,000/yr threshold for the 30% capital-income rate. With 2, withdrawals and rent are split evenly between you, which fits if investments are held in both names.' },
+      { key: 'rentalNetMonthly', label: 'Rental income net of costs (€/mo)', min: 0, max: 10000, step: 50,
+        tip: 'Rent after maintenance, interest and other deductible costs, before tax. Applied from retirement onward: it reduces portfolio withdrawals, is taxed as capital income, and uses up part of the €30k threshold. Leave 0 if the property may be sold.' },
     ],
   },
   {
@@ -486,8 +538,19 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
       { key: 'phase1aNetMonthly', label: 'Phase 1A net/mo — retire → mortgage end (€)', min: 0, max: 20000, step: 100 },
       { key: 'phase1bNetMonthly', label: 'Phase 1B net/mo — mortgage end → pension (€)', min: 0, max: 15000, step: 100 },
       { key: 'phase2NetMonthly', label: 'Phase 2 net/mo — pension age onward (€)', min: 0, max: 15000, step: 100 },
-      { key: 'pensionNetMonthly', label: 'TyEL pension net/mo (€)', min: 0, max: 10000, step: 50,
-        tip: 'Your estimated combined TyEL net monthly pension income. This offsets portfolio withdrawals in Phase 2. Check your personalised forecast at tyoelake.fi.' },
+    ],
+  },
+  {
+    group: 'TyEL pension (household)',
+    fields: [
+      { key: 'pensionAccruedMonthly', label: 'Accrued so far, gross/mo (€)', min: 0, max: 10000, step: 10,
+        tip: 'Combined monthly pension you have both earned to date, as shown on your työeläkeote (pension company statement or tyoelake.fi) — before life-expectancy coefficient and tax.' },
+      { key: 'annualGrossEarnings', label: 'Combined gross earnings (€/yr)', min: 0, max: 500000, step: 1000,
+        tip: 'Your combined gross salary per year. TyEL accrues 1.5% of earnings (after the 7.3% employee contribution) for each year worked until the target retirement age; nothing accrues after you stop working.' },
+      { key: 'lifeExpectancyCoef', label: 'Life-expectancy coefficient', min: 0.5, max: 1, step: 0.01,
+        tip: 'Elinaikakerroin: reduces the pension at start. Confirmed 0.946 for the 1964 cohort and falling for later ones; 0.90 is a conservative estimate for the 1990 cohort. Working past the lowest retirement age offsets it, but not when retired early.' },
+      { key: 'pensionTaxRate', label: 'Pension effective tax %', min: 0, max: 60, step: 0.5, pct: true,
+        tip: 'Average earned-income tax (state + municipal + church/Yle) on each spouse\'s pension. Roughly 15–22% for a €1,000–2,000/mo gross pension; check with the vero.fi tax calculator.' },
     ],
   },
 ];
@@ -653,22 +716,22 @@ export function FireDashboard() {
     return <div className="dash-card p-8 text-center text-[var(--fg-3)]">Failed to load FIRE data.</div>;
   }
 
-  const { config, fireTarget, currentPortfolio, yearsToFire, projectedRetirementAge, phases, pureFire, barista33, barista50, investmentTotal, investableCash, bufferTarget } = data;
+  const { config, fireTarget, currentPortfolio, yearsToFire, projectedRetirementAge, earliestFireTarget, pension, warnings, phases, pureFire, barista33, barista50, investmentTotal, investableCash, bufferTarget } = data;
 
   const yearsLabel = yearsToFire !== null
     ? yearsToFire <= 0
       ? 'Already there 🎉'
       : `${yearsToFire.toFixed(1)} yrs`
-    : '> target date';
+    : 'not before pension';
 
-  const retireAgeLabel = projectedRetirementAge !== null
-    ? `age ${projectedRetirementAge.toFixed(1)}`
+  const retireAgeLabel = projectedRetirementAge !== null && earliestFireTarget !== null
+    ? `age ${projectedRetirementAge.toFixed(1)} · needs ${fmt(earliestFireTarget)}`
     : undefined;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KPI label="FIRE Number" value={fmt(fireTarget)} sub="at retirement age" />
+        <KPI label="FIRE Number" value={fmt(fireTarget)} sub={`to retire at ${config.retirementAge}`} />
         <KPI
           label="Current Portfolio"
           value={fmt(currentPortfolio)}
@@ -681,8 +744,15 @@ export function FireDashboard() {
           value={yearsLabel}
           sub={retireAgeLabel}
           accent={yearsToFire !== null && yearsToFire <= 0}
+          tip="Earliest age at which the projected portfolio covers the FIRE number for retiring at that age. Retiring earlier needs a larger portfolio (longer drawdown, less pension accrued), so this target differs from the FIRE Number tile."
         />
       </div>
+
+      {warnings.length > 0 && (
+        <div className="dash-card p-[10px_16px] text-[12px] text-[var(--fg-2)] space-y-1 border-l-[3px] border-l-[oklch(0.75_0.15_75)]">
+          {warnings.map(w => <div key={w}>⚠ {w}</div>)}
+        </div>
+      )}
 
       <ModelExplainer />
       <ProjectionChart
@@ -695,7 +765,7 @@ export function FireDashboard() {
         onExtraChange={setExtraInvestment}
       />
 
-      <PhaseCards phases={phases} />
+      <PhaseCards phases={phases} pension={pension} />
       <BaristaTable variants={[pureFire, barista33, barista50]} />
       <ConfigPanel config={config} onSave={handleSave} saving={saving} />
       <div className="text-right">

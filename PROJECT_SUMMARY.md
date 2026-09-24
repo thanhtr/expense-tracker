@@ -661,6 +661,30 @@ law correctly and conservatively:
   Both are real limitations worth a follow-up if a Monte Carlo or buffer-margin
   feature is wanted.
 
+### FIRE model review for Finland / household (branch: `fix/fire-finland-review`)
+A second audit checked the model against Finnish rules and the actual household situation (two spouses born ~1990, both stopping work together, regular securities accounts, a rental property). It found and fixed these issues:
+- **Pension age**: default 65 → **68**. For people born 1965+, the lowest retirement age is tied to cohort life expectancy, and ETK estimates **67 y 9 m** for the 1990 cohort. The tooltip previously said "65 for most".
+- **Pension input was misused**: `pensionNetMonthly` was entered from the pension-company statement (the combined pension *accrued so far*, gross), but the model used it as the net pension at retirement. It was renamed to **`pensionAccruedMonthly`**, and the pension is now projected by `computePension()`:
+  - accrued so far, plus 1.5% × `annualGrossEarnings` × (1 − 7.3% employee contribution) per year until `retirementAge` (nothing after)
+  - × `lifeExpectancyCoef` (default 0.90, an estimate; the 1964 cohort's confirmed value is 0.946)
+  - × (1 − `pensionTaxRate`, default 20%)
+  - `annualGrossEarnings` defaults to 0 (accrued-only, conservative), and the UI warns until it is set.
+- **Deemed cost 20% → 40% default**. FIFO is mandatory within a securities account (vero.fi), so retirement sales come from the oldest lots, held 10+ years whenever retirement is 10+ years away. Taxable = sale − max(actual cost, 40%), so at most 60% of a sale is taxed. The previous "20% = worst case" reasoning was wrong, not conservative. A warning shows if retirement is < 10 years away.
+- **Per-spouse threshold**: new `taxpayers` (default 2). `grossUpAnnual()` splits the need across taxpayers, each with their own €30k 30%-bracket threshold.
+- **Rental income**: new `rentalNetMonthly` (net of costs, before tax). It offsets withdrawals in every phase, is taxed as capital income and uses up the threshold; `grossUpAnnual(..., { otherCapitalIncome })` solves this in closed form.
+- **Years to FIRE was inconsistent**: it compared the portfolio against the target for the *configured* retirement age, so reaching it earlier looked feasible even though retiring earlier needs more. The new `computeEarliestFire()` binary-searches the first month where portfolio(age) ≥ target(retire at that age), up to pension age: it scans year by year and then refines by month, so it doesn't rely on the result only improving with age, and ages under 10 years away use at most 20% deemed cost. It replaces `computeYearsToFire` and also drives the chart what-if.
+- Migration `20260925000000_fire_pension_and_tax_model` renames the pension column, adds the new fields, and changes only the *defaults* for `pensionAge` / `deemedCostPct`. Saved values are untouched and have to be updated in the config panel.
+
+**Flagged, not changed:**
+- 6% real accumulation return is optimistic (5% costs ~0.6 yr).
+- The €30k threshold is nominal and not indexed, so it shrinks in real terms.
+- The wage-coefficient uplift of accrued pension is ignored (conservative).
+- Cash above the buffer is counted as if invested.
+- Mandatum (partly employer-funded) is taxed like a regular investment.
+- Only one pension age is modelled for both spouses.
+- Surplus rent/pension beyond spending is not reinvested.
+- No sequence-of-returns risk and no plan-end buffer (see September 2026 audit above).
+
 ---
 
 ## Next Steps / Future Improvements

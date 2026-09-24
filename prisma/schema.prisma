@@ -170,22 +170,27 @@ model BankProfile {
 }
 
 model FireConfig {
-  id                  Int      @id @default(autoincrement())
-  dateOfBirth         String   @default("1990-05-15")
-  retirementAge       Int      @default(50)
-  mortgageEndAge      Int      @default(60)
-  pensionAge          Int      @default(65)
-  lifeExpectancy      Int      @default(95)
-  emergencyFundMonths Float    @default(6)
-  monthlyContribution Float    @default(3000)
-  accumulationReturn  Float    @default(0.06)
-  drawdownReturn      Float    @default(0.04)
-  deemedCostPct       Float    @default(0.20)
-  phase1aNetMonthly   Float    @default(4500)
-  phase1bNetMonthly   Float    @default(3000)
-  phase2NetMonthly    Float    @default(3000)
-  pensionNetMonthly   Float    @default(1580)
-  updatedAt           DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  dateOfBirth           String   @default("1990-05-15")
+  retirementAge         Int      @default(50)
+  mortgageEndAge        Int      @default(60)
+  pensionAge            Int      @default(68)
+  lifeExpectancy        Int      @default(95)
+  emergencyFundMonths   Float    @default(6)
+  monthlyContribution   Float    @default(3000)
+  accumulationReturn    Float    @default(0.06)
+  drawdownReturn        Float    @default(0.04)
+  deemedCostPct         Float    @default(0.40)
+  taxpayers             Int      @default(2)
+  phase1aNetMonthly     Float    @default(4500)
+  phase1bNetMonthly     Float    @default(3000)
+  phase2NetMonthly      Float    @default(3000)
+  pensionAccruedMonthly Float    @default(1330)
+  annualGrossEarnings   Float    @default(0)
+  lifeExpectancyCoef    Float    @default(0.90)
+  pensionTaxRate        Float    @default(0.20)
+  rentalNetMonthly      Float    @default(0)
+  updatedAt             DateTime @updatedAt
 }
 
 model IncomeRule {

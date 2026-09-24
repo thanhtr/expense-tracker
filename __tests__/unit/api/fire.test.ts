@@ -142,4 +142,35 @@ describe('PUT /api/fire — recomputes breakdown with updated config', () => {
     expect(body.investableCash).toBe(0);
     expect(body.currentPortfolio).toBe(0);
   });
+
+  it('accepts the pension, tax and rent fields and returns the projected pension', async () => {
+    const saved = { pensionAccruedMonthly: 1330, annualGrossEarnings: 120_000, lifeExpectancyCoef: 0.9, pensionTaxRate: 0.2, taxpayers: 2, rentalNetMonthly: 300 };
+    vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig(saved));
+    mockAssets(50_000, 0);
+    mockIncome(12_000, 12);
+
+    const req = new Request('http://localhost/api/fire', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(saved),
+    });
+    const res = await PUT(req as never);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.pension.accruedMonthly).toBe(1330);
+    expect(body.pension.futureAccrualMonthly).toBeGreaterThan(0);
+    expect(body.phases[0].rentalIncome).toBe(300);
+  });
+
+  it('rejects more than two taxpayers', async () => {
+    const req = new Request('http://localhost/api/fire', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taxpayers: 3 }),
+    });
+    const res = await PUT(req as never);
+    expect(res.status).toBe(400);
+    expect(prisma.fireConfig.upsert).not.toHaveBeenCalled();
+  });
 });
