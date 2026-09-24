@@ -9,7 +9,14 @@ import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
 import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeYearsToFire, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo } from '@/lib/services/fire-service';
 
-type FireApiResponse = FireCalculationResult & { config: FireConfig };
+type FireApiResponse = FireCalculationResult & {
+  config: FireConfig;
+  investmentTotal: number;
+  bankTotal: number;
+  avgMonthlyIncome: number;
+  bufferTarget: number;
+  investableCash: number;
+};
 
 function fmt(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `€${(n / 1_000_000).toFixed(2)}M`;
@@ -21,10 +28,10 @@ function pctFmt(n: number): string {
   return `${Math.min(100, n).toFixed(1)}%`;
 }
 
-function KPI({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
+function KPI({ label, value, sub, accent, tip }: { label: string; value: string; sub?: string; accent?: boolean; tip?: string }) {
   return (
     <div className="dash-card p-[14px_18px_12px] flex flex-col gap-[2px]">
-      <div className="tool-label text-[var(--fg-3)]">{label}</div>
+      <div className="tool-label text-[var(--fg-3)]">{label}{tip && <InfoTip text={tip} />}</div>
       <div className={`mono text-[22px] font-semibold leading-tight ${accent ? 'text-[var(--accent)]' : ''}`}>{value}</div>
       {sub && <div className="text-[11px] text-[var(--fg-3)]">{sub}</div>}
     </div>
@@ -467,6 +474,13 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
     ],
   },
   {
+    group: 'Cash buffer',
+    fields: [
+      { key: 'emergencyFundMonths', label: 'Emergency fund (months of income)', min: 0, max: 24, step: 0.5,
+        tip: 'Bank/cash balances above this many months of your trailing-12-month average income count toward your FIRE portfolio; the buffer itself stays reserved and excluded. 3–6 months is the commonly-advised range.' },
+    ],
+  },
+  {
     group: 'Spending phases',
     fields: [
       { key: 'phase1aNetMonthly', label: 'Phase 1A net/mo — retire → mortgage end (€)', min: 0, max: 20000, step: 100 },
@@ -639,7 +653,7 @@ export function FireDashboard() {
     return <div className="dash-card p-8 text-center text-[var(--fg-3)]">Failed to load FIRE data.</div>;
   }
 
-  const { config, fireTarget, currentPortfolio, yearsToFire, projectedRetirementAge, phases, pureFire, barista33, barista50 } = data;
+  const { config, fireTarget, currentPortfolio, yearsToFire, projectedRetirementAge, phases, pureFire, barista33, barista50, investmentTotal, investableCash, bufferTarget } = data;
 
   const yearsLabel = yearsToFire !== null
     ? yearsToFire <= 0
@@ -658,7 +672,8 @@ export function FireDashboard() {
         <KPI
           label="Current Portfolio"
           value={fmt(currentPortfolio)}
-          sub={currentPortfolio === 0 ? 'add investment assets below' : 'investment assets'}
+          sub={currentPortfolio === 0 ? 'add investment assets below' : `${fmt(investmentTotal)} invest + ${fmt(investableCash)} cash`}
+          tip={`Investment assets plus bank cash above a ${config.emergencyFundMonths}-month average-income buffer (${fmt(bufferTarget)} reserved), so your emergency fund isn't counted as FIRE progress.`}
         />
         <ProgressBar pct={data.progressPct} />
         <KPI

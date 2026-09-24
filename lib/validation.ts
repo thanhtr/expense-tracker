@@ -207,6 +207,7 @@ export const fireConfigSchema = z.object({
   mortgageEndAge:      z.number().int().min(30).max(90).optional(),
   pensionAge:          z.number().int().min(55).max(75).optional(),
   lifeExpectancy:      z.number().int().min(70).max(110).optional(),
+  emergencyFundMonths: z.number().min(0).max(24).optional(),
   monthlyContribution: z.number().min(0).finite().optional(),
   accumulationReturn:  z.number().min(0).max(0.20).optional(),
   drawdownReturn:      z.number().min(0).max(0.15).optional(),
