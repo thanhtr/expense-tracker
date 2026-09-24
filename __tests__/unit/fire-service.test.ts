@@ -110,11 +110,11 @@ describe('computePension', () => {
     expect(p.netMonthly).toBeCloseTo(720, 6);
   });
 
-  it('accrues 1.5% of earnings (after employee contribution) per year until retirement', () => {
+  it('accrues 1.5% of gross earnings per year until retirement', () => {
     const cfg = { ...FIRE_DEFAULTS, annualGrossEarnings: 100_000 };
     const years = cfg.retirementAge - computeCurrentAge(cfg.dateOfBirth);
     const p = computePension(cfg);
-    expect(p.futureAccrualMonthly).toBeCloseTo(100_000 * 0.927 * 0.015 / 12 * years, 6);
+    expect(p.futureAccrualMonthly).toBeCloseTo(100_000 * 0.015 / 12 * years, 6);
   });
 
   it('retiring later accrues a larger pension', () => {
@@ -366,6 +366,14 @@ describe('runFireCalculation', () => {
     const far = runFireCalculation({ ...FIRE_DEFAULTS, retirementAge: Math.ceil(currentAge + 15) }, 82_000);
     expect(soon.warnings.some(w => w.includes('deemed'))).toBe(true);
     expect(far.warnings.some(w => w.includes('deemed'))).toBe(false);
+  });
+
+  it('uses the 20% deemed cost for the headline target and phases when retirement is under 10 years away', () => {
+    const currentAge = computeCurrentAge(FIRE_DEFAULTS.dateOfBirth);
+    const cfg = { ...FIRE_DEFAULTS, deemedCostPct: 0.40, retirementAge: Math.ceil(currentAge + 5), mortgageEndAge: Math.ceil(currentAge + 8) };
+    const result = runFireCalculation(cfg, 82_000);
+    expect(result.fireTarget).toBeCloseTo(computeFireTarget({ ...cfg, deemedCostPct: 0.20 }), 0);
+    expect(result.phases[0]!.grossWithdrawal).toBeCloseTo(computePhases({ ...cfg, deemedCostPct: 0.20 })[0]!.grossWithdrawal, 6);
   });
 
   it('result shape is complete', () => {

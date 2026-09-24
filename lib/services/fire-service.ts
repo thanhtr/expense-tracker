@@ -61,10 +61,11 @@ export const FI_CAPITAL_TAX_THRESHOLD = 30_000; // € annual taxable capital in
 export const FI_CAPITAL_TAX_RATE_LOW = 0.30;    // rate up to threshold
 export const FI_CAPITAL_TAX_RATE_HIGH = 0.34;   // rate above threshold
 
-// TyEL accrual: 1.5% of annual earnings, after deducting the employee's own pension
-// contribution (7.3% in 2026 for under-53s).
+// TyEL accrual from 2026: 1.5% of gross annual earnings, at any age (tyoelake.fi).
 export const FI_TYEL_ACCRUAL_RATE = 0.015;
-export const FI_TYEL_EMPLOYEE_CONTRIBUTION = 0.073;
+
+// Deemed acquisition cost for shares held under 10 years (vero.fi).
+export const FI_DEEMED_COST_SHORT_HOLD = 0.20;
 
 export function capitalIncomeTax(taxable: number): number {
   if (taxable <= 0) return 0;
@@ -114,7 +115,7 @@ export interface PensionEstimate {
 // on accrued pension before it starts (conservative).
 export function computePension(config: FireConfig): PensionEstimate {
   const yearsWorked = Math.max(0, config.retirementAge - computeCurrentAge(config.dateOfBirth));
-  const accrualPerYearMonthly = config.annualGrossEarnings * (1 - FI_TYEL_EMPLOYEE_CONTRIBUTION) * FI_TYEL_ACCRUAL_RATE / 12;
+  const accrualPerYearMonthly = config.annualGrossEarnings * FI_TYEL_ACCRUAL_RATE / 12;
   const futureAccrualMonthly = accrualPerYearMonthly * yearsWorked;
   const grossMonthly = (config.pensionAccruedMonthly + futureAccrualMonthly) * config.lifeExpectancyCoef;
   return {
@@ -372,6 +373,14 @@ export function simulateProjection(
   return points;
 }
 
+// Sales in the first years of a retirement under 10 years away may include lots held
+// < 10 years, which only get the 20% deemed cost, so cap the rate for such ages.
+export function withHoldingPeriodRule(config: FireConfig, retirementAge = config.retirementAge): FireConfig {
+  const yearsAway = retirementAge - computeCurrentAge(config.dateOfBirth);
+  const deemedCostPct = yearsAway < 10 ? Math.min(config.deemedCostPct, FI_DEEMED_COST_SHORT_HOLD) : config.deemedCostPct;
+  return { ...config, deemedCostPct, retirementAge };
+}
+
 // Finds the earliest month at which the accumulated portfolio covers the FIRE target
 // *for retiring at that age* — retiring earlier means a longer drawdown and less
 // pension accrual, so the target itself moves with the candidate age. Candidate ages
@@ -399,8 +408,7 @@ export function computeEarliestFire(
   const targetAt = (m: number) => {
     let t = targets.get(m);
     if (t === undefined) {
-      const deemedCostPct = m < 120 ? Math.min(config.deemedCostPct, 0.20) : config.deemedCostPct;
-      t = computeFireTarget({ ...config, deemedCostPct, retirementAge: currentAge + m / 12 }, activeIncomeMonthly);
+      t = computeFireTarget(withHoldingPeriodRule(config, currentAge + m / 12), activeIncomeMonthly);
       targets.set(m, t);
     }
     return t;
@@ -437,10 +445,11 @@ export function baristaVariants(config: FireConfig, currentPortfolio: number): {
     { label: 'Barista 50%', activeIncomeMonthly: config.phase1aNetMonthly * 0.50 },
   ];
 
+  const planned = withHoldingPeriodRule(config);
   const [pure, barista33, barista50] = variants.map(({ label, activeIncomeMonthly }) => {
-    const fireTarget = computeFireTarget(config, activeIncomeMonthly);
+    const fireTarget = computeFireTarget(planned, activeIncomeMonthly);
     const earliest = computeEarliestFire(config, currentPortfolio, activeIncomeMonthly);
-    const projection = simulateProjection(config, currentPortfolio, activeIncomeMonthly);
+    const projection = simulateProjection(planned, currentPortfolio, activeIncomeMonthly);
     const portfolioAtDeath = projection[projection.length - 1]?.portfolio ?? 0;
 
     return {
@@ -461,9 +470,9 @@ export function baristaVariants(config: FireConfig, currentPortfolio: number): {
 function computeWarnings(config: FireConfig): string[] {
   const warnings: string[] = [];
   const yearsToRetirement = config.retirementAge - computeCurrentAge(config.dateOfBirth);
-  if (config.deemedCostPct > 0.20 && yearsToRetirement < 10) {
+  if (config.deemedCostPct > FI_DEEMED_COST_SHORT_HOLD && yearsToRetirement < 10) {
     warnings.push(
-      `Retirement is under 10 years away, so early-retirement sales may include lots held < 10 years, which only get the 20% deemed acquisition cost — the ${Math.round(config.deemedCostPct * 100)}% assumption may understate tax.`,
+      `Retirement is under 10 years away, so early sales may include shares held under 10 years. The 20% deemed acquisition cost is used instead of your ${Math.round(config.deemedCostPct * 100)}%.`,
     );
   }
   if (config.annualGrossEarnings <= 0) {
@@ -475,7 +484,7 @@ function computeWarnings(config: FireConfig): string[] {
 }
 
 export function runFireCalculation(config: FireConfig, currentPortfolio: number): FireCalculationResult {
-  const phases = computePhases(config);
+  const phases = computePhases(withHoldingPeriodRule(config));
   const { pure, barista33, barista50 } = baristaVariants(config, currentPortfolio);
 
   const fireTarget = pure.fireTarget;
