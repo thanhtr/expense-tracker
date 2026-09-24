@@ -15,10 +15,31 @@ vi.mock('../../../lib/services/aggregation-service', () => ({
   getDashboardStats: vi.fn(),
 }));
 
+vi.mock('../../../lib/services/fire-inputs-service', () => ({
+  deriveFireInputs: vi.fn(),
+}));
+
 import { GET, PUT } from '../../../app/api/fire/route';
 import { prisma } from '../../../lib/db';
 import { getDashboardStats } from '../../../lib/services/aggregation-service';
 import { FIRE_DEFAULTS } from '../../../lib/services/fire-service';
+import { deriveFireInputs } from '../../../lib/services/fire-inputs-service';
+
+const DERIVED = {
+  inputs: { annualGrossEarnings: 120_000, rentalNetMonthly: 300, rentalTaxOnlyDeductionsMonthly: 15, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033 },
+  earnings: { netMonthly: 6200, months: 9, grossAnnual: 120_000 },
+  rental: {
+    rentMonthly: 450, rentMonths: 9,
+    fees: [{ merchant: 'Säästötupa', share: 1, cash: true, paidMonthly: 150, deductibleMonthly: 150 }],
+    netMonthly: 300, loanPaymentMonthly: 300, loanRate: 0.033,
+    euribor: { rate: 0.027, period: '2026-08', live: true },
+    loanBalance: 50_000, loanInterestMonthly: 50,
+  },
+};
+
+beforeEach(() => {
+  vi.mocked(deriveFireInputs).mockResolvedValue(DERIVED as never);
+});
 
 const makeConfig = (overrides = {}) => ({
   id: 1,
@@ -143,8 +164,8 @@ describe('PUT /api/fire — recomputes breakdown with updated config', () => {
     expect(body.currentPortfolio).toBe(0);
   });
 
-  it('accepts the pension, tax and rent fields and returns the projected pension', async () => {
-    const saved = { pensionAccruedMonthly: 1330, annualGrossEarnings: 120_000, lifeExpectancyCoef: 0.9, pensionTaxRate: 0.2, taxpayers: 2, rentalNetMonthly: 300 };
+  it('merges derived earnings and rent into the config and returns their breakdown', async () => {
+    const saved = { pensionAccruedMonthly: 1330, lifeExpectancyCoef: 0.9, pensionTaxRate: 0.2, taxpayers: 2 };
     vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig(saved));
     mockAssets(50_000, 0);
     mockIncome(12_000, 12);
@@ -161,6 +182,25 @@ describe('PUT /api/fire — recomputes breakdown with updated config', () => {
     expect(body.pension.accruedMonthly).toBe(1330);
     expect(body.pension.futureAccrualMonthly).toBeGreaterThan(0);
     expect(body.phases[0].rentalIncome).toBe(300);
+    expect(body.config.annualGrossEarnings).toBe(120_000);
+    expect(body.config).not.toHaveProperty('deemedCostPct');
+    expect(body.deemedCostPct).toBe(0.40);
+    expect(body.derived.rental.euribor.period).toBe('2026-08');
+  });
+
+  it('ignores attempts to save derived fields', async () => {
+    vi.mocked(prisma.fireConfig.upsert).mockResolvedValueOnce(makeConfig());
+    mockAssets(0, 0);
+    mockIncome(0, 0);
+
+    const req = new Request('http://localhost/api/fire', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deemedCostPct: 0.1, annualGrossEarnings: 1, rentalNetMonthly: 9999 }),
+    });
+    await PUT(req as never);
+    const arg = vi.mocked(prisma.fireConfig.upsert).mock.calls[0]![0] as { update: Record<string, unknown> };
+    expect(arg.update).toEqual({});
   });
 
   it('rejects more than two taxpayers', async () => {

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   FIRE_DEFAULTS,
+  NO_DERIVED_INPUTS,
+  deemedCostPct,
   type FireConfig,
   computeCurrentAge,
   computeFireTarget,
@@ -14,23 +16,23 @@ import {
   capitalIncomeTax,
 } from '@/lib/services/fire-service';
 
-// Hand-checkable config: single taxpayer, 20% deemed cost, no rent, and a pension that
-// nets exactly €1,580/mo (no future accrual, coefficient 1, no tax).
+const DEFAULTS: FireConfig = { ...FIRE_DEFAULTS, ...NO_DERIVED_INPUTS };
+
+// Hand-checkable config: single taxpayer, no rent, and a pension that nets exactly
+// €1,580/mo (no future accrual, coefficient 1, no tax). Retirement at 50 is 10+ years
+// from the default birth date, so the derived deemed cost is 40%.
 const MATH_CONFIG: FireConfig = {
-  ...FIRE_DEFAULTS,
+  ...DEFAULTS,
   retirementAge: 50,
   mortgageEndAge: 60,
   pensionAge: 65,
-  deemedCostPct: 0.20,
   taxpayers: 1,
   phase1aNetMonthly: 4500,
   phase1bNetMonthly: 3000,
   phase2NetMonthly: 3000,
   pensionAccruedMonthly: 1580,
-  annualGrossEarnings: 0,
   lifeExpectancyCoef: 1,
   pensionTaxRate: 0,
-  rentalNetMonthly: 0,
 };
 
 describe('grossUpAnnual', () => {
@@ -82,6 +84,20 @@ describe('grossUpAnnual', () => {
     }
   });
 
+  it('deductible loan interest lowers taxable rent but not the cash it provides', () => {
+    // €12k rent cash, €3k interest: taxable rent €9k. Sale covers €30k − €12k = €18k plus tax.
+    const gross = grossUpAnnual(30000, 0.40, { otherCapitalIncome: 12000, otherCapitalIncomeTaxable: 9000 });
+    const tax = capitalIncomeTax(gross * 0.6 + 9000);
+    expect(gross + 12000 - tax).toBeCloseTo(30000, 1);
+    expect(gross).toBeLessThan(grossUpAnnual(30000, 0.40, { otherCapitalIncome: 12000 }));
+  });
+
+  it('a rental loss first absorbs sale gains tax-free', () => {
+    // taxable rent −€600 offsets €1,000 of sale (60% taxable); need beyond cash is €500
+    const gross = grossUpAnnual(1000, 0.40, { otherCapitalIncome: 500, otherCapitalIncomeTaxable: -600 });
+    expect(gross).toBeCloseTo(500, 6);
+  });
+
   it('rental income offsets the need but uses up the threshold', () => {
     // €12k rent nets €8,400 at 30%; the sale covers the remaining €21,600 at the low rate
     const gross = grossUpAnnual(30000, 0.40, { otherCapitalIncome: 12000 });
@@ -102,23 +118,38 @@ describe('grossUpAnnual', () => {
   });
 });
 
+describe('deemedCostPct', () => {
+  it('is 40% when retirement is 10+ years away and 20% when closer', () => {
+    const currentAge = computeCurrentAge(DEFAULTS.dateOfBirth);
+    expect(deemedCostPct({ ...DEFAULTS, retirementAge: currentAge + 10.1 })).toBe(0.40);
+    expect(deemedCostPct({ ...DEFAULTS, retirementAge: currentAge + 9.9 })).toBe(0.20);
+  });
+
+  it('makes retiring under 10 years away need a larger target, all else equal', () => {
+    const currentAge = computeCurrentAge(DEFAULTS.dateOfBirth);
+    const at = (years: number) => computeFireTarget({ ...MATH_CONFIG, retirementAge: currentAge + years, mortgageEndAge: currentAge + years + 1 });
+    // Just under vs just over 10 years: a month's difference in drawdown can't outweigh 20% vs 40%
+    expect(at(9.95)).toBeGreaterThan(at(10.05));
+  });
+});
+
 describe('computePension', () => {
   it('with no earnings, equals accrued × coefficient, then taxed', () => {
-    const p = computePension({ ...FIRE_DEFAULTS, pensionAccruedMonthly: 1000, annualGrossEarnings: 0, lifeExpectancyCoef: 0.9, pensionTaxRate: 0.2 });
+    const p = computePension({ ...DEFAULTS, pensionAccruedMonthly: 1000, annualGrossEarnings: 0, lifeExpectancyCoef: 0.9, pensionTaxRate: 0.2 });
     expect(p.futureAccrualMonthly).toBe(0);
     expect(p.grossMonthly).toBeCloseTo(900, 6);
     expect(p.netMonthly).toBeCloseTo(720, 6);
   });
 
   it('accrues 1.5% of gross earnings per year until retirement', () => {
-    const cfg = { ...FIRE_DEFAULTS, annualGrossEarnings: 100_000 };
+    const cfg = { ...DEFAULTS, annualGrossEarnings: 100_000 };
     const years = cfg.retirementAge - computeCurrentAge(cfg.dateOfBirth);
     const p = computePension(cfg);
     expect(p.futureAccrualMonthly).toBeCloseTo(100_000 * 0.015 / 12 * years, 6);
   });
 
   it('retiring later accrues a larger pension', () => {
-    const cfg = { ...FIRE_DEFAULTS, annualGrossEarnings: 100_000 };
+    const cfg = { ...DEFAULTS, annualGrossEarnings: 100_000 };
     expect(computePension({ ...cfg, retirementAge: 55 }).netMonthly)
       .toBeGreaterThan(computePension({ ...cfg, retirementAge: 50 }).netMonthly);
   });
@@ -136,28 +167,50 @@ describe('computePhases', () => {
     expect(phases[2]!.ageTo).toBe(MATH_CONFIG.lifeExpectancy);
   });
 
-  it('Phase 1A gross withdrawal applies 20% deemed cost then progressive 30/34% tax', () => {
+  it('Phase 1A gross withdrawal applies the derived 40% deemed cost then progressive 30/34% tax', () => {
     const phases = computePhases(MATH_CONFIG);
-    // net annual = €54,000 (above the €28,500 net-at-threshold), so the 34% bracket
-    // applies above €30k of taxable gain: gross = (54000 - 1200) / 0.728 ≈ €72,527/yr
-    expect(phases[0]!.grossAnnual).toBeCloseTo(72527.47, 1);
-    expect(phases[0]!.grossWithdrawal).toBeCloseTo(6043.96, 1);
+    // net annual = €54,000 (above the €41,000 net-at-threshold), so the 34% bracket
+    // applies above €30k of taxable gain: gross = (54000 - 1200) / 0.796 ≈ €66,332/yr
+    expect(phases[0]!.grossAnnual).toBeCloseTo(66331.66, 1);
+    expect(phases[0]!.grossWithdrawal).toBeCloseTo(5527.64, 1);
   });
 
   it('Phase 1B gross withdrawal is correct', () => {
     const phases = computePhases(MATH_CONFIG);
-    // net annual = €36,000, also above threshold: gross = (36000 - 1200) / 0.728 ≈ €47,802/yr
-    expect(phases[1]!.grossAnnual).toBeCloseTo(47802.20, 1);
-    expect(phases[1]!.grossWithdrawal).toBeCloseTo(3983.52, 1);
+    // net annual = €36,000, below threshold: gross = 36000 / 0.82 ≈ €43,902/yr
+    expect(phases[1]!.grossAnnual).toBeCloseTo(43902.44, 1);
+    expect(phases[1]!.grossWithdrawal).toBeCloseTo(3658.54, 1);
   });
 
   it('Phase 2 applies pension offset before gross-up', () => {
     const phases = computePhases(MATH_CONFIG);
-    // shortfall = €3000 - €1580 = €1420/mo; net annual €17,040 is below the
-    // €28,500 net-at-threshold, so only the 30% bracket applies: gross = 17040 / 0.76 ≈ €22,421/yr
+    // shortfall = €3000 - €1580 = €1420/mo; net annual €17,040: gross = 17040 / 0.82 ≈ €20,780/yr
     expect(phases[2]!.portfolioShortfall).toBeCloseTo(1420, 0);
-    expect(phases[2]!.grossAnnual).toBeCloseTo(22421.05, 1);
-    expect(phases[2]!.grossWithdrawal).toBeCloseTo(1868.42, 1);
+    expect(phases[2]!.grossAnnual).toBeCloseTo(20780.49, 1);
+    expect(phases[2]!.grossWithdrawal).toBeCloseTo(1731.71, 1);
+  });
+
+  it('own-home fee share lowers taxable rent in every phase', () => {
+    const rent = { ...MATH_CONFIG, rentalNetMonthly: 500 };
+    const withFee = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 50 });
+    const without = computePhases(rent);
+    withFee.forEach((p, i) => expect(p.grossWithdrawal).toBeLessThan(without[i]!.grossWithdrawal));
+  });
+
+  it('taxable rent is floored at 0 (no rental loss offsets sale gains)', () => {
+    const rent = { ...MATH_CONFIG, rentalNetMonthly: 100 };
+    const huge = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 1000 });
+    const exact = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 100 });
+    huge.forEach((p, i) => expect(p.grossWithdrawal).toBeCloseTo(exact[i]!.grossWithdrawal, 6));
+  });
+
+  it('rental loan interest lowers Phase 1A only (loan ends at mortgage end)', () => {
+    const rent = { ...MATH_CONFIG, rentalNetMonthly: 500 };
+    const withLoan = computePhases({ ...rent, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033 });
+    const without = computePhases(rent);
+    expect(withLoan[0]!.grossWithdrawal).toBeLessThan(without[0]!.grossWithdrawal);
+    expect(withLoan[1]!.grossWithdrawal).toBeCloseTo(without[1]!.grossWithdrawal, 6);
+    expect(withLoan[2]!.grossWithdrawal).toBeCloseTo(without[2]!.grossWithdrawal, 6);
   });
 
   it('rental income lowers every phase\'s gross withdrawal', () => {
@@ -175,21 +228,21 @@ describe('computePhases', () => {
 });
 
 describe('computeFireTarget', () => {
-  it('returns ~965k for MATH_CONFIG (4500/3000/3000 spending)', () => {
+  it('returns ~885k for MATH_CONFIG (4500/3000/3000 spending)', () => {
     const target = computeFireTarget(MATH_CONFIG, 0);
-    expect(target).toBeGreaterThan(945_000);
-    expect(target).toBeLessThan(985_000);
+    expect(target).toBeGreaterThan(875_000);
+    expect(target).toBeLessThan(895_000);
   });
 
   it('barista income reduces the FIRE target', () => {
-    const pure = computeFireTarget(FIRE_DEFAULTS, 0);
-    const barista = computeFireTarget(FIRE_DEFAULTS, 1500);
+    const pure = computeFireTarget(DEFAULTS, 0);
+    const barista = computeFireTarget(DEFAULTS, 1500);
     expect(barista).toBeLessThan(pure);
   });
 
   it('50% barista target is lower than 33% barista target', () => {
-    const b33 = computeFireTarget(FIRE_DEFAULTS, FIRE_DEFAULTS.phase1aNetMonthly * 0.33);
-    const b50 = computeFireTarget(FIRE_DEFAULTS, FIRE_DEFAULTS.phase1aNetMonthly * 0.50);
+    const b33 = computeFireTarget(DEFAULTS, DEFAULTS.phase1aNetMonthly * 0.33);
+    const b50 = computeFireTarget(DEFAULTS, DEFAULTS.phase1aNetMonthly * 0.50);
     expect(b50).toBeLessThan(b33);
   });
 
@@ -198,32 +251,29 @@ describe('computeFireTarget', () => {
       .toBeGreaterThan(computeFireTarget(MATH_CONFIG));
   });
 
-  it('40% deemed cost and two taxpayers lower the FIRE target', () => {
-    const base = computeFireTarget(MATH_CONFIG);
-    const fifo = computeFireTarget({ ...MATH_CONFIG, deemedCostPct: 0.40 });
-    const couple = computeFireTarget({ ...MATH_CONFIG, deemedCostPct: 0.40, taxpayers: 2 });
-    expect(fifo).toBeLessThan(base);
-    expect(couple).toBeLessThanOrEqual(fifo);
+  it('two taxpayers lower the FIRE target', () => {
+    expect(computeFireTarget({ ...MATH_CONFIG, taxpayers: 2 }))
+      .toBeLessThanOrEqual(computeFireTarget(MATH_CONFIG));
   });
 
   it('higher drawdown return reduces FIRE target', () => {
-    const low = computeFireTarget({ ...FIRE_DEFAULTS, drawdownReturn: 0.03 }, 0);
-    const high = computeFireTarget({ ...FIRE_DEFAULTS, drawdownReturn: 0.05 }, 0);
+    const low = computeFireTarget({ ...DEFAULTS, drawdownReturn: 0.03 }, 0);
+    const high = computeFireTarget({ ...DEFAULTS, drawdownReturn: 0.05 }, 0);
     expect(high).toBeLessThan(low);
   });
 });
 
 describe('computeEarliestFire', () => {
   it('returns 0 years when the portfolio already covers retiring today', () => {
-    const currentAge = computeCurrentAge(FIRE_DEFAULTS.dateOfBirth);
-    const targetNow = computeFireTarget({ ...FIRE_DEFAULTS, deemedCostPct: 0.20, retirementAge: currentAge });
-    const result = computeEarliestFire(FIRE_DEFAULTS, targetNow * 1.01);
+    const currentAge = computeCurrentAge(DEFAULTS.dateOfBirth);
+    const targetNow = computeFireTarget({ ...DEFAULTS, retirementAge: currentAge });
+    const result = computeEarliestFire(DEFAULTS, targetNow * 1.01);
     expect(result).not.toBeNull();
     expect(result!.yearsToFire).toBe(0);
   });
 
   it('returns null when the target cannot be reached before pension age', () => {
-    expect(computeEarliestFire({ ...FIRE_DEFAULTS, monthlyContribution: 0 }, 0)).toBeNull();
+    expect(computeEarliestFire({ ...DEFAULTS, monthlyContribution: 0 }, 0)).toBeNull();
   });
 
   it('target equals the FIRE target for retiring at the found age', () => {
@@ -251,15 +301,6 @@ describe('computeEarliestFire', () => {
     expect(portfolioAt(m - 1)).toBeLessThan(targetBefore);
   });
 
-  it('uses at most 20% deemed cost for candidate ages under 10 years away', () => {
-    const currentAge = computeCurrentAge(MATH_CONFIG.dateOfBirth);
-    const cfg = { ...MATH_CONFIG, deemedCostPct: 0.40, retirementAge: Math.ceil(currentAge + 15), mortgageEndAge: Math.ceil(currentAge + 16) };
-    const result = computeEarliestFire(cfg, 2_000_000)!;
-    expect(result.yearsToFire).toBeLessThan(10);
-    const at20 = computeFireTarget({ ...cfg, deemedCostPct: 0.20, retirementAge: result.retirementAge });
-    expect(result.fireTarget).toBeCloseTo(at20, 0);
-  });
-
   it('finds the first funded month even when funded-ness is not monotonic', () => {
     // Drawdown return above accumulation return: target can grow with age
     const cfg = { ...MATH_CONFIG, accumulationReturn: 0.01, drawdownReturn: 0.08, monthlyContribution: 500 };
@@ -269,10 +310,9 @@ describe('computeEarliestFire', () => {
       const m = Math.round(result.yearsToFire * 12);
       const r = Math.pow(1.01, 1 / 12) - 1;
       const portfolioAt = (k: number) => 400_000 * Math.pow(1 + r, k) + 500 * (Math.pow(1 + r, k) - 1) / r;
-      const deemed = (k: number) => (k < 120 ? 0.20 : cfg.deemedCostPct);
       expect(portfolioAt(m)).toBeGreaterThanOrEqual(result.fireTarget);
       for (let k = 0; k < m; k++) {
-        const t = computeFireTarget({ ...cfg, deemedCostPct: deemed(k), retirementAge: currentAge + k / 12 });
+        const t = computeFireTarget({ ...cfg, retirementAge: currentAge + k / 12 });
         expect(portfolioAt(k)).toBeLessThan(t);
       }
     }
@@ -317,19 +357,19 @@ describe('simulateProjection', () => {
 
 describe('baristaVariants', () => {
   it('returns three named variants', () => {
-    const { pure, barista33, barista50 } = baristaVariants(FIRE_DEFAULTS, 82_000);
+    const { pure, barista33, barista50 } = baristaVariants(DEFAULTS, 82_000);
     expect(pure.label).toBe('Pure FIRE');
     expect(barista33.label).toBe('Barista 33%');
     expect(barista50.label).toBe('Barista 50%');
   });
 
   it('Pure FIRE has zero active income', () => {
-    const { pure } = baristaVariants(FIRE_DEFAULTS, 82_000);
+    const { pure } = baristaVariants(DEFAULTS, 82_000);
     expect(pure.activeIncomeMonthly).toBe(0);
   });
 
   it('FIRE targets decrease as active income increases', () => {
-    const { pure, barista33, barista50 } = baristaVariants(FIRE_DEFAULTS, 82_000);
+    const { pure, barista33, barista50 } = baristaVariants(DEFAULTS, 82_000);
     expect(barista33.fireTarget).toBeLessThan(pure.fireTarget);
     expect(barista50.fireTarget).toBeLessThan(barista33.fireTarget);
   });
@@ -337,47 +377,35 @@ describe('baristaVariants', () => {
 
 describe('runFireCalculation', () => {
   it('progressPct is 100 when portfolio equals fireTarget', () => {
-    const target = computeFireTarget(FIRE_DEFAULTS, 0);
-    const result = runFireCalculation(FIRE_DEFAULTS, target);
+    const target = computeFireTarget(DEFAULTS, 0);
+    const result = runFireCalculation(DEFAULTS, target);
     expect(result.progressPct).toBeCloseTo(100, 0);
   });
 
   it('progressPct is 0 for empty portfolio', () => {
-    const result = runFireCalculation(FIRE_DEFAULTS, 0);
+    const result = runFireCalculation(DEFAULTS, 0);
     expect(result.progressPct).toBe(0);
   });
 
   it('yearsToFire is null when portfolio never reaches target', () => {
     const result = runFireCalculation(
-      { ...FIRE_DEFAULTS, monthlyContribution: 0 },
+      { ...DEFAULTS, monthlyContribution: 0 },
       0,
     );
     expect(result.yearsToFire).toBeNull();
   });
 
-  it('warns when pension has no earnings input', () => {
-    const result = runFireCalculation({ ...FIRE_DEFAULTS, annualGrossEarnings: 0 }, 82_000);
-    expect(result.warnings.some(w => w.includes('earnings'))).toBe(true);
+  it('warns when no salary was found to derive earnings from', () => {
+    const result = runFireCalculation({ ...DEFAULTS, annualGrossEarnings: 0 }, 82_000);
+    expect(result.warnings.some(w => w.includes('salary'))).toBe(true);
   });
 
-  it('warns about the 40% deemed cost when retirement is under 10 years away', () => {
-    const currentAge = computeCurrentAge(FIRE_DEFAULTS.dateOfBirth);
-    const soon = runFireCalculation({ ...FIRE_DEFAULTS, retirementAge: Math.ceil(currentAge + 5) }, 82_000);
-    const far = runFireCalculation({ ...FIRE_DEFAULTS, retirementAge: Math.ceil(currentAge + 15) }, 82_000);
-    expect(soon.warnings.some(w => w.includes('deemed'))).toBe(true);
-    expect(far.warnings.some(w => w.includes('deemed'))).toBe(false);
-  });
-
-  it('uses the 20% deemed cost for the headline target and phases when retirement is under 10 years away', () => {
-    const currentAge = computeCurrentAge(FIRE_DEFAULTS.dateOfBirth);
-    const cfg = { ...FIRE_DEFAULTS, deemedCostPct: 0.40, retirementAge: Math.ceil(currentAge + 5), mortgageEndAge: Math.ceil(currentAge + 8) };
-    const result = runFireCalculation(cfg, 82_000);
-    expect(result.fireTarget).toBeCloseTo(computeFireTarget({ ...cfg, deemedCostPct: 0.20 }), 0);
-    expect(result.phases[0]!.grossWithdrawal).toBeCloseTo(computePhases({ ...cfg, deemedCostPct: 0.20 })[0]!.grossWithdrawal, 6);
+  it('reports the derived deemed cost', () => {
+    expect(runFireCalculation(MATH_CONFIG, 82_000).deemedCostPct).toBe(0.40);
   });
 
   it('result shape is complete', () => {
-    const result = runFireCalculation(FIRE_DEFAULTS, 82_000);
+    const result = runFireCalculation(DEFAULTS, 82_000);
     expect(result).toHaveProperty('fireTarget');
     expect(result).toHaveProperty('currentPortfolio', 82_000);
     expect(result).toHaveProperty('progressPct');

@@ -169,6 +169,9 @@ model BankProfile {
   updatedAt     DateTime @updatedAt
 }
 
+// deemedCostPct, annualGrossEarnings and rentalNetMonthly columns still exist in the
+// database but are no longer read: they are derived (fire-service / fire-inputs-service).
+// Drop them in a follow-up migration once no deployed code reads them.
 model FireConfig {
   id                    Int      @id @default(autoincrement())
   dateOfBirth           String   @default("1990-05-15")
@@ -180,16 +183,13 @@ model FireConfig {
   monthlyContribution   Float    @default(3000)
   accumulationReturn    Float    @default(0.06)
   drawdownReturn        Float    @default(0.04)
-  deemedCostPct         Float    @default(0.40)
   taxpayers             Int      @default(2)
   phase1aNetMonthly     Float    @default(4500)
   phase1bNetMonthly     Float    @default(3000)
   phase2NetMonthly      Float    @default(3000)
   pensionAccruedMonthly Float    @default(1330)
-  annualGrossEarnings   Float    @default(0)
   lifeExpectancyCoef    Float    @default(0.90)
   pensionTaxRate        Float    @default(0.20)
-  rentalNetMonthly      Float    @default(0)
   updatedAt             DateTime @updatedAt
 }
 

@@ -687,6 +687,28 @@ A second audit checked the model against Finnish rules and the actual household 
 - Surplus rent/pension beyond spending is not reinvested.
 - No sequence-of-returns risk and no plan-end buffer (see September 2026 audit above).
 
+### FIRE inputs derived from data (branch: `feat/fire-derived-inputs`)
+Three FIRE inputs were settings but are facts that can be read off the data, so they are now derived and no longer editable:
+- **Deemed acquisition cost** — `deemedCostPct(config)` in `fire-service.ts`: 40% when the retirement age is 10+ years away, otherwise 20% (vero.fi: 20% under 10 years, 40% for 10+; FIFO). It applies to every candidate age in the earliest-FIRE search, which replaced the earlier `withHoldingPeriodRule`.
+- **Combined gross earnings** — `lib/services/fire-inputs-service.ts`: average monthly net salary (Income, category `Salary`, last 12 months, over the months that have pay) × 12 ÷ (1 − 30% − 7.3% − 0.89%).
+  - 7.3% employee pension contribution (tyoelake.fi) and 0.89% unemployment insurance (Työllisyysrahasto) are the 2026 rates.
+  - The 30% income tax is the user's own flat estimate.
+- **Rental** — rules in `FIRE_RENTAL` (`lib/constants.ts`):
+  - Rent: Income transactions matching IncomeRules whose label starts with "Rental income" (Kela + tenant).
+  - Rent matching uses `matchesAnyIncomeRule`, so each rule's merchant pattern *and* category must match.
+  - Deductible fees:
+    - As Oy Säästötupa (fully rented flat): 100%, paid out of the rent (reduces cash).
+    - As Oy Matela (own home with one Airbnb room): 15%, the user's estimate. It is tax-only: it lowers taxable rent but not cash, because it's an own-home cost.
+  - Taxable rent is floored at 0; a rental loss offsetting sale gains isn't modelled.
+  - Rental loan: payments to FI73 5723 8183 6277 67, at 6-month Euribor + 0.6%. Euribor comes live from the ECB Data Portal (cached a day, falling back to the August 2026 value).
+  - The loan's balance is derived as an annuity from its payment and its end (`mortgageEndAge`). The derived inputs carry the payment and the rate. `rentalLoanInterestInRetirement()` in `fire-service` computes the exact average interest between retirement and loan end for each retirement age tested (including in the earliest-FIRE search). The ECB fetch times out after 3 s and falls back to the cached rate.
+  - Rent cash (rent − fees) offsets withdrawals in all phases. Loan interest only lowers *taxable* rent, and only in Phase 1A, since repayments are already part of Phase 1A spending.
+  - `grossUpAnnual` takes `otherCapitalIncomeTaxable` separately from the cash.
+  - Airbnb income is deliberately excluded.
+- Types: `StoredFireConfig` (saved settings) and `DerivedFireInputs`. `FireConfig` is both combined. `/api/fire` returns the combined `config`, plus `derived` (breakdowns) and `deemedCostPct`. The config panel shows a "Derived from your data" block with sources.
+- The DB columns `deemedCostPct`, `annualGrossEarnings` and `rentalNetMonthly` are kept but no longer read, so deploying causes no downtime. **Follow-up:** add a migration dropping them once this is deployed.
+- Effect on the saved config: earnings accrual lifts the projected pension to ~€3,000/mo net combined, and the target to retire at 52 falls to ~€709k.
+
 ---
 
 ## Next Steps / Future Improvements
