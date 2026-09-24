@@ -7,9 +7,8 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
-import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type StoredFireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type StoredFireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate, ASSUMED_INCOME_TAX_RATE, FI_EMPLOYEE_PENSION_CONTRIBUTION, FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION } from '@/lib/services/fire-service';
 import type { EarningsBreakdown, RentalBreakdown } from '@/lib/services/fire-inputs-service';
-import { ASSUMED_INCOME_TAX_RATE, FI_EMPLOYEE_PENSION_CONTRIBUTION, FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION } from '@/lib/services/fire-inputs-service';
 
 type FireApiResponse = FireCalculationResult & {
   config: FireConfig;

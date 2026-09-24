@@ -74,6 +74,14 @@ export const FI_CAPITAL_TAX_RATE_HIGH = 0.34;   // rate above threshold
 // TyEL accrual from 2026: 1.5% of gross annual earnings, at any age (tyoelake.fi).
 export const FI_TYEL_ACCRUAL_RATE = 0.015;
 
+// Employee contributions deducted from gross pay, 2026: TyEL pension 7.3% (tyoelake.fi)
+// and unemployment insurance 0.89% (Työllisyysrahasto). The 30% income tax is the
+// user's own flat estimate of withholding, not a sourced rate. Used to derive gross
+// earnings from net salary (fire-inputs-service).
+export const FI_EMPLOYEE_PENSION_CONTRIBUTION = 0.073;
+export const FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION = 0.0089;
+export const ASSUMED_INCOME_TAX_RATE = 0.30;
+
 // Hankintameno-olettama (vero.fi): 20% of the sale price for shares held under 10
 // years, 40% for 10+ years. FIFO is mandatory within a securities account, so sales in
 // retirement come from the oldest lots: when retirement is 10+ years away, those are

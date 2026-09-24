@@ -1,13 +1,16 @@
 import { prisma } from '@/lib/db';
 import { FIRE_RENTAL } from '@/lib/constants';
-import { computeCurrentAge, type DerivedFireInputs, type StoredFireConfig } from '@/lib/services/fire-service';
+import {
+  ASSUMED_INCOME_TAX_RATE,
+  FI_EMPLOYEE_PENSION_CONTRIBUTION,
+  FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION,
+  computeCurrentAge,
+  type DerivedFireInputs,
+  type StoredFireConfig,
+} from '@/lib/services/fire-service';
 
-// Employee contributions deducted from gross pay, 2026: TyEL pension 7.3% (tyoelake.fi)
-// and unemployment insurance 0.89% (Työllisyysrahasto). The 30% income tax is the
-// user's own flat estimate of withholding, not a sourced rate.
-export const FI_EMPLOYEE_PENSION_CONTRIBUTION = 0.073;
-export const FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION = 0.0089;
-export const ASSUMED_INCOME_TAX_RATE = 0.30;
+// Server-only: reads transactions through Prisma. Client components must import
+// constants from fire-service (DB-free) and only *types* from here.
 
 // ECB Data Portal: 6-month Euribor, monthly average. Fallback is the August 2026 value
 // (2.713%) from the same series, used if the API is unreachable.
