@@ -176,6 +176,7 @@ model FireConfig {
   mortgageEndAge      Int      @default(60)
   pensionAge          Int      @default(65)
   lifeExpectancy      Int      @default(95)
+  emergencyFundMonths Float    @default(6)
   monthlyContribution Float    @default(3000)
   accumulationReturn  Float    @default(0.06)
   drawdownReturn      Float    @default(0.04)

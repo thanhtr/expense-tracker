@@ -8,6 +8,7 @@ export interface FireConfig {
   mortgageEndAge: number;
   pensionAge: number;
   lifeExpectancy: number;
+  emergencyFundMonths: number;
   monthlyContribution: number;
   accumulationReturn: number;
   drawdownReturn: number;
@@ -24,6 +25,7 @@ export const FIRE_DEFAULTS: FireConfig = {
   mortgageEndAge: 58,
   pensionAge: 65,
   lifeExpectancy: 95,
+  emergencyFundMonths: 6,
   monthlyContribution: 3000,
   accumulationReturn: 0.06,
   drawdownReturn: 0.04,
