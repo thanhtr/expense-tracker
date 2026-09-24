@@ -169,9 +169,6 @@ model BankProfile {
   updatedAt     DateTime @updatedAt
 }
 
-// deemedCostPct, annualGrossEarnings and rentalNetMonthly columns still exist in the
-// database but are no longer read: they are derived (fire-service / fire-inputs-service).
-// Drop them in a follow-up migration once no deployed code reads them.
 model FireConfig {
   id                    Int      @id @default(autoincrement())
   dateOfBirth           String   @default("1990-05-15")

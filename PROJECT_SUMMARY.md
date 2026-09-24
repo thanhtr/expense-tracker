@@ -684,6 +684,8 @@ A second audit checked the model against Finnish rules and the actual household 
 - Cash above the buffer is counted as if invested.
 - Mandatum (partly employer-funded) is taxed like a regular investment.
 - Only one pension age is modelled for both spouses.
+- Pension accrual stops at the target retirement (FIRE) age. Barista income earns no pension (in reality part-time pay accrues 1.5% of gross), so the Barista scenarios slightly understate the pension. Kept deliberately (user decision, 2026-09-24).
+- Future earnings are held at today's derived gross salary in real terms. Real wage growth before FIRE is ignored (conservative).
 - Surplus rent/pension beyond spending is not reinvested.
 - No sequence-of-returns risk and no plan-end buffer (see September 2026 audit above).
 
@@ -706,7 +708,7 @@ Three FIRE inputs were settings but are facts that can be read off the data, so 
   - `grossUpAnnual` takes `otherCapitalIncomeTaxable` separately from the cash.
   - Airbnb income is deliberately excluded.
 - Types: `StoredFireConfig` (saved settings) and `DerivedFireInputs`. `FireConfig` is both combined. `/api/fire` returns the combined `config`, plus `derived` (breakdowns) and `deemedCostPct`. The config panel shows a "Derived from your data" block with sources.
-- The DB columns `deemedCostPct`, `annualGrossEarnings` and `rentalNetMonthly` are kept but no longer read, so deploying causes no downtime. **Follow-up:** add a migration dropping them once this is deployed.
+- The DB columns `deemedCostPct`, `annualGrossEarnings` and `rentalNetMonthly` were kept (unused) for the #156 deploy to avoid downtime, then dropped in a follow-up migration (`20260926000000_drop_derived_fire_columns`). Pattern for future renames and drops: stop reading the column first, deploy, then drop it.
 - Effect on the saved config: earnings accrual lifts the projected pension to ~€3,000/mo net combined, and the target to retire at 52 falls to ~€709k.
 
 ---
