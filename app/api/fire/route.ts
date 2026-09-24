@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { runFireCalculation, FIRE_DEFAULTS, type FireConfig } from '@/lib/services/fire-service';
+import { runFireCalculation, FIRE_DEFAULTS, type StoredFireConfig } from '@/lib/services/fire-service';
+import { deriveFireInputs } from '@/lib/services/fire-inputs-service';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
 
-async function getOrCreateConfig(): Promise<FireConfig & { id: number; updatedAt: Date }> {
+async function getOrCreateConfig(): Promise<StoredFireConfig & { id: number; updatedAt: Date }> {
   return prisma.fireConfig.upsert({
     where: { id: 1 },
     update: {},
@@ -65,14 +66,30 @@ function computeBreakdown(data: PortfolioData, emergencyFundMonths: number): Por
   return { currentPortfolio, ...data, bufferTarget, investableCash };
 }
 
+// Combines the saved settings with inputs derived from transaction data and runs the model.
+async function respond(stored: StoredFireConfig, portfolioData: PortfolioData): Promise<NextResponse> {
+  const derived = await deriveFireInputs(stored);
+  const fireConfig = { ...stored, ...derived.inputs };
+  const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
+  const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
+
+  return NextResponse.json({
+    config: fireConfig,
+    derived: { earnings: derived.earnings, rental: derived.rental },
+    ...breakdown,
+    ...result,
+  });
+}
+
+function storedFields(row: StoredFireConfig & { id: number; updatedAt: Date }): StoredFireConfig {
+  const { id: _id, updatedAt: _ts, ...stored } = row;
+  return stored;
+}
+
 export async function GET(): Promise<NextResponse> {
   try {
     const [config, portfolioData] = await Promise.all([getOrCreateConfig(), fetchPortfolioData()]);
-    const { id: _id, updatedAt: _ts, ...fireConfig } = config;
-    const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
-    const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
-
-    return NextResponse.json({ config: fireConfig, ...breakdown, ...result });
+    return await respond(storedFields(config), portfolioData);
   } catch (err) {
     console.error('[GET /api/fire]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -94,11 +111,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       fetchPortfolioData(),
     ]);
 
-    const { id: _id, updatedAt: _ts, ...fireConfig } = updated;
-    const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
-    const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
-
-    return NextResponse.json({ config: fireConfig, ...breakdown, ...result });
+    return await respond(storedFields(updated), portfolioData);
   } catch (err) {
     console.error('[PUT /api/fire]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

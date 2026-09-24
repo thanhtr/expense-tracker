@@ -7,10 +7,13 @@ import {
 } from 'recharts';
 import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
-import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate } from '@/lib/services/fire-service';
+import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type StoredFireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate } from '@/lib/services/fire-service';
+import type { EarningsBreakdown, RentalBreakdown } from '@/lib/services/fire-inputs-service';
+import { ASSUMED_INCOME_TAX_RATE, FI_EMPLOYEE_PENSION_CONTRIBUTION, FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION } from '@/lib/services/fire-inputs-service';
 
 type FireApiResponse = FireCalculationResult & {
   config: FireConfig;
+  derived: { earnings: EarningsBreakdown; rental: RentalBreakdown };
   investmentTotal: number;
   bankTotal: number;
   avgMonthlyIncome: number;
@@ -70,6 +73,9 @@ const SOURCES = {
   stmCoef: { label: 'STM — Life-expectancy coefficient for 2026', url: 'https://stm.fi/-/tyoelakkeiden-elinaikakerroin-vahvistettu-vuodelle-2026' },
   etkOldAge: { label: 'ETK — Old-age pension', url: 'https://www.etk.fi/en/finnish-pension-system/pensions/earnings-related-pension-benefits/old-age-pension/' },
   retirementAges: { label: 'Apu.fi — retirement ages by birth year (source: ETK)', url: 'https://www.apu.fi/artikkelit/milloin-paasen-elakkeelle-tarkista-tasta-tuoreet-ikarajat' },
+  veroRentalDeductions: { label: 'vero.fi — Rental income deductions', url: 'https://www.vero.fi/en/individuals/property/rental_income/deductions/' },
+  unemployment2026: { label: 'Työllisyysrahasto — 2026 unemployment insurance contributions', url: 'https://www.tyollisyysrahasto.fi/uutiset/vuoden-2026-tyottomyysvakuutusmaksut-on-vahvistettu/' },
+  ecbEuribor: { label: 'ECB Data Portal — 6-month Euribor', url: 'https://data.ecb.europa.eu/data/datasets/FM/FM.M.U2.EUR.RT.MM.EURIBOR6MD_.HSTA' },
 } as const;
 
 type SourceId = keyof typeof SOURCES;
@@ -131,10 +137,13 @@ function ModelExplainer() {
               <li><span className="font-medium">Phase 2</span> — Pension age → plan end. TyEL pension income offsets withdrawals; portfolio draw-down shrinks significantly.</li>
             </ul>
             <p>
-              Rent, if entered, offsets withdrawals in every phase. Rental income from an investment property is
-              taxed as capital income, after deductible rental costs.
+              Rent offsets withdrawals in every phase. Rental income is taxed as capital income, after deductible
+              costs such as housing-company maintenance charges and the interest on a loan taken to buy the rental
+              property. The model reads rent and these costs from your transactions (see Derived from your data in
+              Configuration). The loan&apos;s repayments are already part of your Phase 1A spending, so only its
+              interest is used, and only as a tax deduction while the loan runs (until the mortgage-end age).
             </p>
-            <SourceLinks ids={['veroRental']} />
+            <SourceLinks ids={['veroRental', 'veroRentalDeductions']} />
           </section>
 
           <section className="space-y-2">
@@ -144,6 +153,14 @@ function ModelExplainer() {
               at 1.5% of gross annual earnings, so the model starts from the combined pension accrued so far and
               adds 1.5% of your combined gross earnings for each remaining year of work until the target
               retirement age. Nothing is added after you stop working.
+            </p>
+            <p>
+              Gross earnings are derived from the net salary paid into your accounts over the last 12 months. The
+              employee pension contribution (7.3%) and unemployment-insurance contribution (0.89%) are 2026 rates.
+              The 30% income tax is your own flat estimate, not a sourced rate.
+            </p>
+            <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded whitespace-pre-wrap">
+{`gross earnings = net salary ÷ (1 − 30% tax − 7.3% pension − 0.89% unemployment)`}
             </p>
             <p>
               The total is multiplied by the life-expectancy coefficient. The coefficient is set for each birth
@@ -169,7 +186,7 @@ net   = gross × (1 − pension tax %)`}
               earnings changes at 80% and price changes at 20%. The model ignores this uplift, which makes the
               estimate conservative.
             </p>
-            <SourceLinks ids={['tyelAmount', 'tyel2026', 'stmCoef', 'etkOldAge', 'retirementAges', 'wageCoef', 'veroPensionTax', 'veroCalculator']} />
+            <SourceLinks ids={['tyelAmount', 'tyel2026', 'unemployment2026', 'stmCoef', 'etkOldAge', 'retirementAges', 'wageCoef', 'veroPensionTax', 'veroCalculator']} />
           </section>
 
           <section className="space-y-2">
@@ -199,9 +216,10 @@ net   = gross × (1 − pension tax %)`}
               securities account must always follow FIFO (first in, first out).
             </p>
             <p>
-              From these rules the model concludes: in retirement you sell your oldest lots first. When
-              retirement is 10+ years away, those lots have been held over 10 years, so it uses 40%. At most 60%
-              of a sale is then taxable. The Years-to-FIRE search uses 20% for retirement ages under 10 years away.
+              From these rules the model sets the deemed cost itself; it isn&apos;t a setting. In retirement you sell
+              your oldest lots first. When retirement is 10+ years away, those lots have been held over 10 years, so
+              40% applies and at most 60% of a sale is taxable. For a retirement age under 10 years away (including
+              ages tested by the Years-to-FIRE search), early sales may include younger lots, so 20% is used.
             </p>
             <p>
               Second, the taxable part is taxed at 30% up to €30,000 a year and 34% above. Finland taxes each
@@ -211,7 +229,7 @@ net   = gross × (1 − pension tax %)`}
             <SourceLinks ids={['veroShares', 'veroSpouses', 'veroRental']} />
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded whitespace-pre-wrap">
 {`per taxpayer:
-taxable = sale × (1 − deemed cost %) + rent
+taxable = sale × (1 − deemed cost %) + rent − rental loan interest
 tax     = 30% × min(taxable, €30k) + 34% × max(0, taxable − €30k)
 need    = sale + rent − tax   (solved for sale, annually, then ÷ 12)`}
             </p>
@@ -557,7 +575,7 @@ function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
 
 // ── Config panel ─────────────────────────────────────────────────────────────
 
-interface ConfigField { key: keyof FireConfig; label: string; min: number; max: number; step: number; pct?: boolean; tip?: string; sources?: SourceId[] }
+interface ConfigField { key: keyof StoredFireConfig; label: string; min: number; max: number; step: number; pct?: boolean; tip?: string; sources?: SourceId[] }
 
 const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
   {
@@ -584,15 +602,9 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
   {
     group: 'Capital income tax',
     fields: [
-      { key: 'deemedCostPct', label: 'Deemed acquisition cost %', min: 0, max: 40, step: 0.5, pct: true,
-        tip: 'Finnish hankintameno-olettama: 40% of the sale price for shares held 10+ years, 20% otherwise. FIFO is mandatory within a securities account, so retirement sales come from your oldest lots — held well over 10 years if retirement is 10+ years away — making 40% the applicable rate. You deduct whichever of the actual cost or the deemed cost gives the lower profit, so at most 60% of a sale is taxed. Use 20% only if retirement is under 10 years away.',
-        sources: ['veroShares'] },
       { key: 'taxpayers', label: 'Taxpayers sharing withdrawals', min: 1, max: 2, step: 1,
         tip: 'Finland taxes each person individually, capital income included, so each spouse has their own €30,000/yr threshold for the 30% rate. With 2, withdrawals and rent are split evenly between you, which fits if investments are held in both names.',
         sources: ['veroSpouses', 'veroShares'] },
-      { key: 'rentalNetMonthly', label: 'Rental income net of costs (€/mo)', min: 0, max: 10000, step: 50,
-        tip: 'Rent after deductible rental costs, before tax. Applied from retirement onward: it reduces portfolio withdrawals, is taxed as capital income, and uses up part of the €30k threshold. Leave 0 if the property may be sold.',
-        sources: ['veroRental'] },
     ],
   },
   {
@@ -615,9 +627,6 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
     fields: [
       { key: 'pensionAccruedMonthly', label: 'Accrued so far, gross/mo (€)', min: 0, max: 10000, step: 10,
         tip: 'Combined monthly pension you have both earned to date, as shown on your työeläkeote (pension company statement or tyoelake.fi) — before life-expectancy coefficient and tax.' },
-      { key: 'annualGrossEarnings', label: 'Combined gross earnings (€/yr)', min: 0, max: 500000, step: 1000,
-        tip: 'Your combined gross salary per year. Pension accrues at 1.5% of gross annual earnings, so the model adds that for each year worked until the target retirement age. Nothing is added after you stop working.',
-        sources: ['tyelAmount', 'tyel2026'] },
       { key: 'lifeExpectancyCoef', label: 'Life-expectancy coefficient', min: 0.5, max: 1, step: 0.01,
         tip: 'Elinaikakerroin: cuts the pension when it starts. It is 0.94643 for the 1964 cohort. The 1990 cohort\'s isn\'t set yet (it is fixed at age 62), so 0.90 is this model\'s own estimate.',
         sources: ['stmCoef', 'tyel2026'] },
@@ -628,25 +637,90 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
   },
 ];
 
-function ConfigPanel({ config, onSave, saving }: {
+function DerivedRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <tr>
+      <td className="py-[4px] pr-3 text-[var(--fg-3)] align-top">{label}</td>
+      <td className="py-[4px] text-right mono align-top">
+        {value}
+        {sub && <div className="text-[10px] text-[var(--fg-3)] font-sans">{sub}</div>}
+      </td>
+    </tr>
+  );
+}
+
+function DerivedInputs({ data }: { data: FireApiResponse }) {
+  const { earnings, rental } = data.derived;
+  const yearsAway = data.config.retirementAge - computeCurrentAge(data.config.dateOfBirth);
+  const deductionPct = (ASSUMED_INCOME_TAX_RATE + FI_EMPLOYEE_PENSION_CONTRIBUTION + FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION) * 100;
+  const pct = (n: number, d = 2) => `${(n * 100).toFixed(d)}%`;
+
+  return (
+    <div>
+      <div className="tool-label text-[var(--fg-3)] mb-1">Derived from your data</div>
+      <div className="text-[11px] text-[var(--fg-3)] mb-3">
+        Worked out from your age and the last 12 months of transactions, not typed in.
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-[12px]">
+        <div>
+          <div className="font-medium mb-1">Deemed acquisition cost</div>
+          <table className="w-full"><tbody className="divide-y divide-[var(--border)]">
+            <DerivedRow label="Retirement in" value={`${yearsAway.toFixed(1)} yrs`} />
+            <DerivedRow label="Rate used" value={pct(data.deemedCostPct, 0)} sub={yearsAway >= 10 ? '10+ years away → 40%' : 'under 10 years away → 20%'} />
+          </tbody></table>
+          <SourceLinks ids={['veroShares']} />
+        </div>
+        <div>
+          <div className="font-medium mb-1">Gross earnings (pension accrual)</div>
+          <table className="w-full"><tbody className="divide-y divide-[var(--border)]">
+            <DerivedRow label="Net salary" value={`${fmtEUR(Math.round(earnings.netMonthly))}/mo`} sub={`avg over ${earnings.months} month${earnings.months === 1 ? '' : 's'}`} />
+            <DerivedRow label="Gross" value={`${fmtEUR(Math.round(earnings.grossAnnual))}/yr`} sub={`net ÷ (1 − ${deductionPct.toFixed(2)}%)`} />
+          </tbody></table>
+          <SourceLinks ids={['tyel2026', 'unemployment2026']} />
+          <div className="text-[10px] text-[var(--fg-3)]">30% income tax is your own estimate.</div>
+        </div>
+        <div>
+          <div className="font-medium mb-1">Rental</div>
+          <table className="w-full"><tbody className="divide-y divide-[var(--border)]">
+            <DerivedRow label="Rent received" value={`${fmtEUR(Math.round(rental.rentMonthly))}/mo`} sub={`avg over ${rental.rentMonths} month${rental.rentMonths === 1 ? '' : 's'}`} />
+            {rental.fees.map(f => (
+              <DerivedRow key={f.merchant} label={`${f.merchant} fee${f.share < 1 ? ` (${Math.round(f.share * 100)}%)` : ''}`} value={`−${fmtEUR(Math.round(f.deductibleMonthly))}/mo`} />
+            ))}
+            <DerivedRow label="Net rent (cash)" value={`${fmtEUR(Math.round(rental.netMonthly))}/mo`} />
+            <DerivedRow
+              label="Loan interest (tax only)"
+              value={`${fmtEUR(Math.round(rental.loanInterestMonthly))}/mo`}
+              sub={`avg in retirement until mortgage end · ${pct(rental.loanRate)} = Euribor 6m ${pct(rental.euribor.rate)} (${rental.euribor.period}${rental.euribor.live ? '' : ', cached'}) + 0.60%`}
+            />
+          </tbody></table>
+          <SourceLinks ids={['veroRentalDeductions', 'ecbEuribor']} />
+          <div className="text-[10px] text-[var(--fg-3)]">The 15% Matela share is your own estimate.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfigPanel({ data, config, onSave, saving }: {
+  data: FireApiResponse;
   config: FireConfig;
-  onSave: (draft: Partial<FireConfig>) => void;
+  onSave: (draft: Partial<StoredFireConfig>) => void;
   saving: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState<Partial<FireConfig>>({});
+  const [draft, setDraft] = useState<Partial<StoredFireConfig>>({});
 
-  function set(key: keyof FireConfig, value: number) {
+  function set(key: keyof StoredFireConfig, value: number) {
     setDraft(prev => ({ ...prev, [key]: value }));
   }
 
-  function getVal(key: keyof FireConfig, pct?: boolean): number {
+  function getVal(key: keyof StoredFireConfig, pct?: boolean): number {
     const raw = (draft[key] ?? config[key]) as number;
     return pct ? raw * 100 : raw;
   }
 
   function handleSave() {
-    const toSave: Partial<FireConfig> = { ...draft };
+    const toSave: Partial<StoredFireConfig> = { ...draft };
     for (const group of CONFIG_FIELDS) {
       for (const f of group.fields) {
         if (f.pct && draft[f.key] !== undefined) {
@@ -692,6 +766,7 @@ function ConfigPanel({ config, onSave, saving }: {
               />
             </label>
           </div>
+          <DerivedInputs data={data} />
           {CONFIG_FIELDS.map(group => (
             <div key={group.group}>
               <div className="tool-label text-[var(--fg-3)] mb-3">{group.group}</div>
@@ -760,7 +835,7 @@ export function FireDashboard() {
 
   useEffect(() => { void load(); }, []);
 
-  async function handleSave(draft: Partial<FireConfig>) {
+  async function handleSave(draft: Partial<StoredFireConfig>) {
     setSaving(true);
     try {
       const res = await fetch('/api/fire', {
@@ -840,7 +915,7 @@ export function FireDashboard() {
 
       <PhaseCards phases={phases} pension={pension} />
       <BaristaTable variants={[pureFire, barista33, barista50]} />
-      <ConfigPanel config={config} onSave={handleSave} saving={saving} />
+      <ConfigPanel data={data} config={config} onSave={handleSave} saving={saving} />
       <div className="text-right">
         <Link href="/settings?tab=assets" className="text-[12px] text-[var(--fg-3)] hover:text-[var(--fg-2)]">
           Manage assets in Settings →

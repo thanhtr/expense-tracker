@@ -211,16 +211,13 @@ export const fireConfigSchema = z.object({
   monthlyContribution: z.number().min(0).finite().optional(),
   accumulationReturn:  z.number().min(0).max(0.20).optional(),
   drawdownReturn:      z.number().min(0).max(0.15).optional(),
-  deemedCostPct:       z.number().min(0).max(0.40).optional(),
   taxpayers:           z.number().int().min(1).max(2).optional(),
   phase1aNetMonthly:   z.number().min(0).finite().optional(),
   phase1bNetMonthly:   z.number().min(0).finite().optional(),
   phase2NetMonthly:    z.number().min(0).finite().optional(),
   pensionAccruedMonthly: z.number().min(0).finite().optional(),
-  annualGrossEarnings: z.number().min(0).finite().optional(),
   lifeExpectancyCoef:  z.number().min(0.5).max(1).optional(),
   pensionTaxRate:      z.number().min(0).max(0.6).optional(),
-  rentalNetMonthly:    z.number().min(0).finite().optional(),
 }).superRefine((d, ctx) => {
   // Age ordering must be monotonically increasing to keep simulation loops valid.
   // Only validate fields that are present in this partial update.
