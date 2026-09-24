@@ -13,64 +13,117 @@ export interface FireConfig {
   accumulationReturn: number;
   drawdownReturn: number;
   deemedCostPct: number;
+  taxpayers: number;
   phase1aNetMonthly: number;
   phase1bNetMonthly: number;
   phase2NetMonthly: number;
-  pensionNetMonthly: number;
+  pensionAccruedMonthly: number;
+  annualGrossEarnings: number;
+  lifeExpectancyCoef: number;
+  pensionTaxRate: number;
+  rentalNetMonthly: number;
 }
 
 export const FIRE_DEFAULTS: FireConfig = {
   dateOfBirth: '1990-05-15',
   retirementAge: 55,
   mortgageEndAge: 58,
-  pensionAge: 65,
+  // Lowest statutory retirement age is tied to cohort life expectancy for those born
+  // 1965+; ETK's estimate for the 1990 cohort is 67y 9m, rounded up here.
+  pensionAge: 68,
   lifeExpectancy: 95,
   emergencyFundMonths: 6,
   monthlyContribution: 3000,
   accumulationReturn: 0.06,
   drawdownReturn: 0.04,
-  // Worst-case hankintameno-olettama: 20% deemed acquisition cost applies to any
-  // holding period; the more generous 40% requires 10+ years and is never assumed
-  // (no per-lot cost-basis tracking exists to prove it). See FI_CAPITAL_TAX_* below
-  // for the actual progressive tax applied to the resulting taxable gain.
-  deemedCostPct: 0.20,
+  // Hankintameno-olettama: 40% for holdings of 10+ years, 20% otherwise. FIFO is
+  // mandatory within a securities account, so retirement sales always come from the
+  // oldest lots — bought well over 10 years earlier when retirement is 10+ years away.
+  // Taxable = sale − max(actual cost, 40%), so at most 60% of any sale is taxable.
+  deemedCostPct: 0.40,
+  // Each spouse has their own capital-income bracket threshold.
+  taxpayers: 2,
   phase1aNetMonthly: 4400,
   phase1bNetMonthly: 4100,
   phase2NetMonthly: 4100,
-  pensionNetMonthly: 1580,
+  pensionAccruedMonthly: 1330,
+  annualGrossEarnings: 0,
+  // Confirmed coefficient for the 1964 cohort is 0.94643 (STM, 2026) and keeps
+  // falling for later cohorts; 0.90 is a conservative estimate for the 1990 cohort.
+  lifeExpectancyCoef: 0.90,
+  pensionTaxRate: 0.20,
+  rentalNetMonthly: 0,
 };
 
 // Finnish capital income tax (pääomatulovero), 2026 rates — update if vero.fi changes.
-// 30% up to the annual threshold of taxable capital income, 34% above it.
-// Source: vero.fi / Veronmaksajain Keskusliitto. Applied here to the taxable *gain*
-// after the deemed-cost reduction above, not to the gross withdrawal — a flat "20%
-// tax rate" (as this model used to assume) understates the real liability by
-// conflating the deemed-cost percentage with the tax rate itself.
-export const FI_CAPITAL_TAX_THRESHOLD = 30_000; // € annual taxable-gain threshold
-export const FI_CAPITAL_TAX_RATE_LOW = 0.30;    // rate on gain up to threshold
-export const FI_CAPITAL_TAX_RATE_HIGH = 0.34;   // rate on gain above threshold
+// 30% up to the annual threshold of taxable capital income, 34% above it, per taxpayer.
+export const FI_CAPITAL_TAX_THRESHOLD = 30_000; // € annual taxable capital income threshold
+export const FI_CAPITAL_TAX_RATE_LOW = 0.30;    // rate up to threshold
+export const FI_CAPITAL_TAX_RATE_HIGH = 0.34;   // rate above threshold
 
-// Grosses up a desired net annual withdrawal into the pre-tax amount that must be
-// sold, given a deemed-cost percentage and Finland's two-bracket progressive rate
-// on the resulting taxable gain. Assumes the full withdrawal is realized gain
-// (no proof of a higher cost basis) and that all of it is taxed as a single
-// taxpayer's capital income for the year (no benefit assumed from splitting
-// withdrawals across spouses' individual €30k thresholds).
-export function grossUpAnnual(netAnnual: number, deemedCostPct: number): number {
+// TyEL accrual from 2026: 1.5% of gross annual earnings, at any age (tyoelake.fi).
+export const FI_TYEL_ACCRUAL_RATE = 0.015;
+
+// Deemed acquisition cost for shares held under 10 years (vero.fi).
+export const FI_DEEMED_COST_SHORT_HOLD = 0.20;
+
+export function capitalIncomeTax(taxable: number): number {
+  if (taxable <= 0) return 0;
+  const low = Math.min(taxable, FI_CAPITAL_TAX_THRESHOLD);
+  const high = Math.max(0, taxable - FI_CAPITAL_TAX_THRESHOLD);
+  return FI_CAPITAL_TAX_RATE_LOW * low + FI_CAPITAL_TAX_RATE_HIGH * high;
+}
+
+export interface GrossUpOptions {
+  taxpayers?: number;
+  // Other annual capital income (e.g. net rent) received as cash alongside the sale;
+  // it offsets the need but also uses up the bracket threshold.
+  otherCapitalIncome?: number;
+}
+
+// Grosses up a desired net annual cash need into the portfolio sale required, given a
+// deemed-cost percentage and Finland's two-bracket rate on taxable capital income.
+// Need and other income are split evenly across taxpayers, each with their own
+// threshold. Solves per taxpayer: sale + other − tax((1 − deemed) × sale + other) = need.
+export function grossUpAnnual(netAnnual: number, deemedCostPct: number, opts: GrossUpOptions = {}): number {
   if (netAnnual <= 0) return 0;
 
+  const taxpayers = Math.max(1, opts.taxpayers ?? 1);
+  const need = netAnnual / taxpayers;
+  const other = (opts.otherCapitalIncome ?? 0) / taxpayers;
+  if (need <= other - capitalIncomeTax(other)) return 0;
+
   const taxableFraction = 1 - deemedCostPct;
-  const lowBracketFactor = 1 - FI_CAPITAL_TAX_RATE_LOW * taxableFraction;
-  const grossAtThreshold = FI_CAPITAL_TAX_THRESHOLD / taxableFraction;
-  const netAtThreshold = grossAtThreshold * lowBracketFactor;
+  const low = (need - other * (1 - FI_CAPITAL_TAX_RATE_LOW)) / (1 - FI_CAPITAL_TAX_RATE_LOW * taxableFraction);
+  if (taxableFraction * low + other <= FI_CAPITAL_TAX_THRESHOLD) return low * taxpayers;
 
-  if (netAnnual <= netAtThreshold) {
-    return netAnnual / lowBracketFactor;
-  }
-
-  const highBracketFactor = 1 - FI_CAPITAL_TAX_RATE_HIGH * taxableFraction;
   const bracketIntercept = FI_CAPITAL_TAX_THRESHOLD * (FI_CAPITAL_TAX_RATE_HIGH - FI_CAPITAL_TAX_RATE_LOW);
-  return (netAnnual - bracketIntercept) / highBracketFactor;
+  const high = (need - other * (1 - FI_CAPITAL_TAX_RATE_HIGH) - bracketIntercept) / (1 - FI_CAPITAL_TAX_RATE_HIGH * taxableFraction);
+  return high * taxpayers;
+}
+
+export interface PensionEstimate {
+  accruedMonthly: number;
+  futureAccrualMonthly: number;
+  grossMonthly: number;
+  netMonthly: number;
+}
+
+// Projects the combined TyEL pension in today's euros: what's accrued so far plus
+// accrual on current earnings until retirementAge (none after), reduced by the
+// life-expectancy coefficient and earned-income tax. Ignores the wage-index uplift
+// on accrued pension before it starts (conservative).
+export function computePension(config: FireConfig): PensionEstimate {
+  const yearsWorked = Math.max(0, config.retirementAge - computeCurrentAge(config.dateOfBirth));
+  const accrualPerYearMonthly = config.annualGrossEarnings * FI_TYEL_ACCRUAL_RATE / 12;
+  const futureAccrualMonthly = accrualPerYearMonthly * yearsWorked;
+  const grossMonthly = (config.pensionAccruedMonthly + futureAccrualMonthly) * config.lifeExpectancyCoef;
+  return {
+    accruedMonthly: config.pensionAccruedMonthly,
+    futureAccrualMonthly,
+    grossMonthly,
+    netMonthly: grossMonthly * (1 - config.pensionTaxRate),
+  };
 }
 
 export interface ProjectionPoint {
@@ -85,10 +138,17 @@ export interface PhaseInfo {
   ageTo: number;
   netMonthly: number;
   pensionOffset: number;
+  rentalIncome: number;
   portfolioShortfall: number;
   grossWithdrawal: number;
   grossAnnual: number;
   durationYears: number;
+}
+
+export interface EarliestFire {
+  yearsToFire: number;
+  retirementAge: number;
+  fireTarget: number;
 }
 
 export interface BaristaVariant {
@@ -97,6 +157,7 @@ export interface BaristaVariant {
   fireTarget: number;
   yearsToFire: number | null;
   projectedRetirementAge: number | null;
+  earliestFireTarget: number | null;
   projection: ProjectionPoint[];
   portfolioAtDeath: number;
 }
@@ -107,6 +168,9 @@ export interface FireCalculationResult {
   progressPct: number;
   yearsToFire: number | null;
   projectedRetirementAge: number | null;
+  earliestFireTarget: number | null;
+  pension: PensionEstimate;
+  warnings: string[];
   phases: PhaseInfo[];
   pureFire: BaristaVariant;
   barista33: BaristaVariant;
@@ -118,30 +182,39 @@ function monthlyRate(annualRate: number): number {
   return Math.pow(1 + annualRate, 1 / 12) - 1;
 }
 
+function grossUpMonthly(netMonthly: number, config: FireConfig): number {
+  return grossUpAnnual(netMonthly * 12, config.deemedCostPct, {
+    taxpayers: config.taxpayers,
+    otherCapitalIncome: config.rentalNetMonthly * 12,
+  }) / 12;
+}
+
 // Pre-computes the monthly gross withdrawal for each spending phase.
 // Net spend is constant within a phase, so this only needs to run once per simulation.
 function computePhaseGrossWithdrawals(
-  config: Pick<FireConfig, 'deemedCostPct' | 'phase1aNetMonthly' | 'phase1bNetMonthly' | 'phase2NetMonthly' | 'pensionNetMonthly'>,
+  config: FireConfig,
   activeIncomeMonthly: number,
 ): { gross1a: number; gross1b: number; gross2: number } {
-  const { deemedCostPct, phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
+  const pension = computePension(config).netMonthly;
   return {
-    gross1a: grossUpAnnual(Math.max(0, phase1aNetMonthly - activeIncomeMonthly) * 12, deemedCostPct) / 12,
-    gross1b: grossUpAnnual(phase1bNetMonthly * 12, deemedCostPct) / 12,
-    gross2: grossUpAnnual(Math.max(0, phase2NetMonthly - pensionNetMonthly) * 12, deemedCostPct) / 12,
+    gross1a: grossUpMonthly(Math.max(0, config.phase1aNetMonthly - activeIncomeMonthly), config),
+    gross1b: grossUpMonthly(config.phase1bNetMonthly, config),
+    gross2: grossUpMonthly(Math.max(0, config.phase2NetMonthly - pension), config),
   };
 }
 
 // Simulates drawdown from retirementAge to lifeExpectancy.
 // Returns the portfolio value at lifeExpectancy (positive = surplus, negative = depleted).
-function simulateDrawdown(config: FireConfig, startPortfolio: number, activeIncomeMonthly: number): number {
+function simulateDrawdown(
+  config: FireConfig,
+  startPortfolio: number,
+  { gross1a, gross1b, gross2 }: { gross1a: number; gross1b: number; gross2: number },
+): number {
   const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy, drawdownReturn } = config;
 
   const mRate = monthlyRate(drawdownReturn);
   let portfolio = startPortfolio;
   const totalMonths = (lifeExpectancy - retirementAge) * 12;
-
-  const { gross1a, gross1b, gross2 } = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
 
   for (let m = 0; m < totalMonths; m++) {
     const currentAge = retirementAge + m / 12;
@@ -168,10 +241,11 @@ function simulateDrawdown(config: FireConfig, startPortfolio: number, activeInco
 export function computeFireTarget(config: FireConfig, activeIncomeMonthly = 0): number {
   let lo = 0;
   let hi = 50_000_000;
+  const withdrawals = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
 
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
-    const endValue = simulateDrawdown(config, mid, activeIncomeMonthly);
+    const endValue = simulateDrawdown(config, mid, withdrawals);
     if (endValue > 0) {
       hi = mid;
     } else {
@@ -184,15 +258,14 @@ export function computeFireTarget(config: FireConfig, activeIncomeMonthly = 0): 
 
 export function computePhases(config: FireConfig): PhaseInfo[] {
   const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy,
-    deemedCostPct, phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, pensionNetMonthly } = config;
+    phase1aNetMonthly, phase1bNetMonthly, phase2NetMonthly, rentalNetMonthly } = config;
 
+  const pension = computePension(config).netMonthly;
   const phase1aShortfall = phase1aNetMonthly;
   const phase1bShortfall = phase1bNetMonthly;
-  const phase2Shortfall = Math.max(0, phase2NetMonthly - pensionNetMonthly);
+  const phase2Shortfall = Math.max(0, phase2NetMonthly - pension);
 
-  const phase1aGrossAnnual = grossUpAnnual(phase1aShortfall * 12, deemedCostPct);
-  const phase1bGrossAnnual = grossUpAnnual(phase1bShortfall * 12, deemedCostPct);
-  const phase2GrossAnnual = grossUpAnnual(phase2Shortfall * 12, deemedCostPct);
+  const { gross1a: phase1aGross, gross1b: phase1bGross, gross2: phase2Gross } = computePhaseGrossWithdrawals(config, 0);
 
   return [
     {
@@ -201,9 +274,10 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       ageTo: mortgageEndAge,
       netMonthly: phase1aNetMonthly,
       pensionOffset: 0,
+      rentalIncome: rentalNetMonthly,
       portfolioShortfall: phase1aShortfall,
-      grossWithdrawal: phase1aGrossAnnual / 12,
-      grossAnnual: phase1aGrossAnnual,
+      grossWithdrawal: phase1aGross,
+      grossAnnual: phase1aGross * 12,
       durationYears: mortgageEndAge - retirementAge,
     },
     {
@@ -212,9 +286,10 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       ageTo: pensionAge,
       netMonthly: phase1bNetMonthly,
       pensionOffset: 0,
+      rentalIncome: rentalNetMonthly,
       portfolioShortfall: phase1bShortfall,
-      grossWithdrawal: phase1bGrossAnnual / 12,
-      grossAnnual: phase1bGrossAnnual,
+      grossWithdrawal: phase1bGross,
+      grossAnnual: phase1bGross * 12,
       durationYears: pensionAge - mortgageEndAge,
     },
     {
@@ -222,10 +297,11 @@ export function computePhases(config: FireConfig): PhaseInfo[] {
       ageFrom: pensionAge,
       ageTo: lifeExpectancy,
       netMonthly: phase2NetMonthly,
-      pensionOffset: pensionNetMonthly,
+      pensionOffset: pension,
+      rentalIncome: rentalNetMonthly,
       portfolioShortfall: phase2Shortfall,
-      grossWithdrawal: phase2GrossAnnual / 12,
-      grossAnnual: phase2GrossAnnual,
+      grossWithdrawal: phase2Gross,
+      grossAnnual: phase2Gross * 12,
       durationYears: lifeExpectancy - pensionAge,
     },
   ];
@@ -297,27 +373,65 @@ export function simulateProjection(
   return points;
 }
 
-export function computeYearsToFire(
+// Sales in the first years of a retirement under 10 years away may include lots held
+// < 10 years, which only get the 20% deemed cost, so cap the rate for such ages.
+export function withHoldingPeriodRule(config: FireConfig, retirementAge = config.retirementAge): FireConfig {
+  const yearsAway = retirementAge - computeCurrentAge(config.dateOfBirth);
+  const deemedCostPct = yearsAway < 10 ? Math.min(config.deemedCostPct, FI_DEEMED_COST_SHORT_HOLD) : config.deemedCostPct;
+  return { ...config, deemedCostPct, retirementAge };
+}
+
+// Finds the earliest month at which the accumulated portfolio covers the FIRE target
+// *for retiring at that age* — retiring earlier means a longer drawdown and less
+// pension accrual, so the target itself moves with the candidate age. Candidate ages
+// under 10 years away use at most the 20% deemed cost (early sales may hit lots held
+// < 10 years). Funded-ness is usually monotonic in age but not guaranteed (e.g. a
+// drawdown return above the accumulation return can make the target grow), so this
+// scans year by year for the first funded year, then refines by month within it.
+// Searches up to pensionAge; returns null if not reachable by then.
+export function computeEarliestFire(
   config: FireConfig,
   currentPortfolio: number,
-  fireTarget: number,
-): number | null {
-  const { dateOfBirth, retirementAge, accumulationReturn, monthlyContribution } = config;
-  const currentAge = computeCurrentAge(dateOfBirth);
-  const accRate = monthlyRate(accumulationReturn);
-  let portfolio = currentPortfolio;
-  const maxMonths = (retirementAge - currentAge) * 12;
+  activeIncomeMonthly = 0,
+): EarliestFire | null {
+  const currentAge = computeCurrentAge(config.dateOfBirth);
+  const accRate = monthlyRate(config.accumulationReturn);
+  const maxMonths = Math.floor((config.pensionAge - currentAge) * 12);
+  if (maxMonths < 0) return null;
 
-  if (portfolio >= fireTarget) return 0;
-
-  for (let m = 1; m <= maxMonths; m++) {
-    portfolio = portfolio * (1 + accRate) + monthlyContribution;
-    if (portfolio >= fireTarget) {
-      return m / 12;
+  const portfolioAt = (m: number) => {
+    const growth = Math.pow(1 + accRate, m);
+    const contributions = accRate > 0 ? config.monthlyContribution * (growth - 1) / accRate : config.monthlyContribution * m;
+    return currentPortfolio * growth + contributions;
+  };
+  const targets = new Map<number, number>();
+  const targetAt = (m: number) => {
+    let t = targets.get(m);
+    if (t === undefined) {
+      t = computeFireTarget(withHoldingPeriodRule(config, currentAge + m / 12), activeIncomeMonthly);
+      targets.set(m, t);
     }
-  }
+    return t;
+  };
+  const funded = (m: number) => portfolioAt(m) >= targetAt(m);
+  const result = (m: number): EarliestFire => ({
+    yearsToFire: m / 12,
+    retirementAge: currentAge + m / 12,
+    fireTarget: targetAt(m),
+  });
 
-  return null;
+  if (funded(0)) return result(0);
+
+  let prev = 0;
+  for (let m = 12; ; m += 12) {
+    const year = Math.min(m, maxMonths);
+    if (funded(year)) {
+      for (let k = prev + 1; k < year; k++) if (funded(k)) return result(k);
+      return result(year);
+    }
+    if (year === maxMonths) return null;
+    prev = year;
+  }
 }
 
 export function baristaVariants(config: FireConfig, currentPortfolio: number): {
@@ -331,36 +445,60 @@ export function baristaVariants(config: FireConfig, currentPortfolio: number): {
     { label: 'Barista 50%', activeIncomeMonthly: config.phase1aNetMonthly * 0.50 },
   ];
 
+  const planned = withHoldingPeriodRule(config);
   const [pure, barista33, barista50] = variants.map(({ label, activeIncomeMonthly }) => {
-    const fireTarget = computeFireTarget(config, activeIncomeMonthly);
-    const yearsToFire = computeYearsToFire(config, currentPortfolio, fireTarget);
-    const projectedRetirementAge = yearsToFire !== null
-      ? computeCurrentAge(config.dateOfBirth) + yearsToFire
-      : null;
-    const projection = simulateProjection(config, currentPortfolio, activeIncomeMonthly);
+    const fireTarget = computeFireTarget(planned, activeIncomeMonthly);
+    const earliest = computeEarliestFire(config, currentPortfolio, activeIncomeMonthly);
+    const projection = simulateProjection(planned, currentPortfolio, activeIncomeMonthly);
     const portfolioAtDeath = projection[projection.length - 1]?.portfolio ?? 0;
 
-    return { label, activeIncomeMonthly, fireTarget, yearsToFire, projectedRetirementAge, projection, portfolioAtDeath };
+    return {
+      label,
+      activeIncomeMonthly,
+      fireTarget,
+      yearsToFire: earliest?.yearsToFire ?? null,
+      projectedRetirementAge: earliest?.retirementAge ?? null,
+      earliestFireTarget: earliest?.fireTarget ?? null,
+      projection,
+      portfolioAtDeath,
+    };
   });
 
   return { pure: pure!, barista33: barista33!, barista50: barista50! };
 }
 
+function computeWarnings(config: FireConfig): string[] {
+  const warnings: string[] = [];
+  const yearsToRetirement = config.retirementAge - computeCurrentAge(config.dateOfBirth);
+  if (config.deemedCostPct > FI_DEEMED_COST_SHORT_HOLD && yearsToRetirement < 10) {
+    warnings.push(
+      `Retirement is under 10 years away, so early sales may include shares held under 10 years. The 20% deemed acquisition cost is used instead of your ${Math.round(config.deemedCostPct * 100)}%.`,
+    );
+  }
+  if (config.annualGrossEarnings <= 0) {
+    warnings.push(
+      'Pension uses only what is accrued so far — enter combined gross annual earnings to include accrual until retirement.',
+    );
+  }
+  return warnings;
+}
+
 export function runFireCalculation(config: FireConfig, currentPortfolio: number): FireCalculationResult {
-  const phases = computePhases(config);
+  const phases = computePhases(withHoldingPeriodRule(config));
   const { pure, barista33, barista50 } = baristaVariants(config, currentPortfolio);
 
   const fireTarget = pure.fireTarget;
   const progressPct = fireTarget > 0 ? Math.min(100, (currentPortfolio / fireTarget) * 100) : 0;
-  const yearsToFire = pure.yearsToFire;
-  const projectedRetirementAge = pure.projectedRetirementAge;
 
   return {
     fireTarget,
     currentPortfolio,
     progressPct,
-    yearsToFire,
-    projectedRetirementAge,
+    yearsToFire: pure.yearsToFire,
+    projectedRetirementAge: pure.projectedRetirementAge,
+    earliestFireTarget: pure.earliestFireTarget,
+    pension: computePension(config),
+    warnings: computeWarnings(config),
     phases,
     pureFire: pure,
     barista33,
