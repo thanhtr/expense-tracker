@@ -190,9 +190,23 @@ describe('computePhases', () => {
     expect(phases[2]!.grossWithdrawal).toBeCloseTo(1731.71, 1);
   });
 
+  it('own-home fee share lowers taxable rent in every phase', () => {
+    const rent = { ...MATH_CONFIG, rentalNetMonthly: 500 };
+    const withFee = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 50 });
+    const without = computePhases(rent);
+    withFee.forEach((p, i) => expect(p.grossWithdrawal).toBeLessThan(without[i]!.grossWithdrawal));
+  });
+
+  it('taxable rent is floored at 0 (no rental loss offsets sale gains)', () => {
+    const rent = { ...MATH_CONFIG, rentalNetMonthly: 100 };
+    const huge = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 1000 });
+    const exact = computePhases({ ...rent, rentalTaxOnlyDeductionsMonthly: 100 });
+    huge.forEach((p, i) => expect(p.grossWithdrawal).toBeCloseTo(exact[i]!.grossWithdrawal, 6));
+  });
+
   it('rental loan interest lowers Phase 1A only (loan ends at mortgage end)', () => {
     const rent = { ...MATH_CONFIG, rentalNetMonthly: 500 };
-    const withLoan = computePhases({ ...rent, rentalLoanInterestMonthly: 150 });
+    const withLoan = computePhases({ ...rent, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033 });
     const without = computePhases(rent);
     expect(withLoan[0]!.grossWithdrawal).toBeLessThan(without[0]!.grossWithdrawal);
     expect(withLoan[1]!.grossWithdrawal).toBeCloseTo(without[1]!.grossWithdrawal, 6);

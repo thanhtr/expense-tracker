@@ -682,14 +682,22 @@ function DerivedInputs({ data }: { data: FireApiResponse }) {
           <div className="font-medium mb-1">Rental</div>
           <table className="w-full"><tbody className="divide-y divide-[var(--border)]">
             <DerivedRow label="Rent received" value={`${fmtEUR(Math.round(rental.rentMonthly))}/mo`} sub={`avg over ${rental.rentMonths} month${rental.rentMonths === 1 ? '' : 's'}`} />
-            {rental.fees.map(f => (
-              <DerivedRow key={f.merchant} label={`${f.merchant} fee${f.share < 1 ? ` (${Math.round(f.share * 100)}%)` : ''}`} value={`−${fmtEUR(Math.round(f.deductibleMonthly))}/mo`} />
+            {rental.fees.filter(f => f.cash).map(f => (
+              <DerivedRow key={f.merchant} label={`${f.merchant} fee`} value={`−${fmtEUR(Math.round(f.deductibleMonthly))}/mo`} />
             ))}
             <DerivedRow label="Net rent (cash)" value={`${fmtEUR(Math.round(rental.netMonthly))}/mo`} />
+            {rental.fees.filter(f => !f.cash).map(f => (
+              <DerivedRow
+                key={f.merchant}
+                label={`${f.merchant} fee ${Math.round(f.share * 100)}% (tax only)`}
+                value={`${fmtEUR(Math.round(f.deductibleMonthly))}/mo`}
+                sub="own-home cost; lowers taxable rent, not cash"
+              />
+            ))}
             <DerivedRow
               label="Loan interest (tax only)"
               value={`${fmtEUR(Math.round(rental.loanInterestMonthly))}/mo`}
-              sub={`avg in retirement until mortgage end · ${pct(rental.loanRate)} = Euribor 6m ${pct(rental.euribor.rate)} (${rental.euribor.period}${rental.euribor.live ? '' : ', cached'}) + 0.60%`}
+              sub={`avg from retirement at ${data.config.retirementAge} to mortgage end (recomputed for each age tested) · ${pct(rental.loanRate)} = Euribor 6m ${pct(rental.euribor.rate)} (${rental.euribor.period}${rental.euribor.live ? '' : ', cached'}) + 0.60%`}
             />
           </tbody></table>
           <SourceLinks ids={['veroRentalDeductions', 'ecbEuribor']} />

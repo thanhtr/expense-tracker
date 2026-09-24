@@ -695,9 +695,13 @@ Three FIRE inputs were settings but are facts that can be read off the data, so 
   - The 30% income tax is the user's own flat estimate.
 - **Rental** — rules in `FIRE_RENTAL` (`lib/constants.ts`):
   - Rent: Income transactions matching IncomeRules whose label starts with "Rental income" (Kela + tenant).
-  - Deductible fees: As Oy Säästötupa (fully rented flat, 100%) and As Oy Matela (own home with one Airbnb room, 15%, the user's estimate).
+  - Rent matching uses `matchesAnyIncomeRule`, so each rule's merchant pattern *and* category must match.
+  - Deductible fees:
+    - As Oy Säästötupa (fully rented flat): 100%, paid out of the rent (reduces cash).
+    - As Oy Matela (own home with one Airbnb room): 15%, the user's estimate. It is tax-only: it lowers taxable rent but not cash, because it's an own-home cost.
+  - Taxable rent is floored at 0; a rental loss offsetting sale gains isn't modelled.
   - Rental loan: payments to FI73 5723 8183 6277 67, at 6-month Euribor + 0.6%. Euribor comes live from the ECB Data Portal (cached a day, falling back to the August 2026 value).
-  - The loan's balance is derived as an annuity from its payment and its end (`mortgageEndAge`). Its deductible interest is the exact average between retirement and loan end.
+  - The loan's balance is derived as an annuity from its payment and its end (`mortgageEndAge`). The derived inputs carry the payment and the rate. `rentalLoanInterestInRetirement()` in `fire-service` computes the exact average interest between retirement and loan end for each retirement age tested (including in the earliest-FIRE search). The ECB fetch times out after 3 s and falls back to the cached rate.
   - Rent cash (rent − fees) offsets withdrawals in all phases. Loan interest only lowers *taxable* rent, and only in Phase 1A, since repayments are already part of Phase 1A spending.
   - `grossUpAnnual` takes `otherCapitalIncomeTaxable` separately from the cash.
   - Airbnb income is deliberately excluded.

@@ -46,16 +46,18 @@ export const TAGS = [
 export type Tag = typeof TAGS[number];
 
 // FIRE: how rental income and its deductible costs are recognised in transactions.
-// Rent = Income transactions matching IncomeRules whose label starts with the prefix.
-// Costs = housing-company fees (share = deductible fraction) and the rental loan.
+// Rent = Income transactions matching (merchant pattern and category, as in
+// matchesAnyIncomeRule) IncomeRules whose label starts with the prefix.
+// Fees: share = deductible fraction; cash = whether the fee is paid out of the rent
+// (a rented flat's fee) or is an own-home cost that only lowers taxable rent.
 export const FIRE_RENTAL = {
   incomeRuleLabelPrefix: 'Rental income',
   deductibleFees: [
     // Fully rented flat.
-    { merchant: 'Säästötupa', share: 1 },
+    { merchant: 'Säästötupa', share: 1, cash: true },
     // Own home with one short-term (Airbnb) room: the user's estimate of the
     // rented share of the maintenance fee.
-    { merchant: 'Matela', share: 0.15 },
+    { merchant: 'Matela', share: 0.15, cash: false },
   ],
   loanPayee: 'FI73 5723 8183 6277 67',
   // Loan rate = 6-month Euribor + this margin.

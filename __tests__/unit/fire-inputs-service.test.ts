@@ -8,8 +8,8 @@ vi.mock('../../lib/db', () => ({
 }));
 
 import { prisma } from '../../lib/db';
-import { annuityBalance, deriveFireInputs, fetchEuribor6m, grossFromNet } from '../../lib/services/fire-inputs-service';
-import { computeCurrentAge } from '../../lib/services/fire-service';
+import { deriveFireInputs, fetchEuribor6m, grossFromNet } from '../../lib/services/fire-inputs-service';
+import { annuityBalance, computeCurrentAge, rentalLoanInterestInRetirement } from '../../lib/services/fire-service';
 
 const tx = (date: string, amount: number) => ({ date: new Date(date), amount });
 
@@ -64,12 +64,19 @@ describe('deriveFireInputs', () => {
     vi.clearAllMocks();
     mockEcb(ECB_CSV);
     vi.mocked(prisma.incomeRule.findMany).mockResolvedValue([
-      { merchantPattern: 'KELA' }, { merchantPattern: 'TENANT' },
+      { merchantPattern: 'KELA', category: 'Capital income' }, { merchantPattern: 'TENANT', category: null },
     ] as never);
     vi.mocked(prisma.transaction.findMany).mockImplementation((async (args: { where: Record<string, unknown> }) => {
-      const w = args.where as { category?: string; OR?: unknown[]; merchant?: { contains: string } };
+      const w = args.where as { type?: string; category?: string; merchant?: { contains: string } };
       if (w.category === 'Salary') return [tx('2026-07-05', 3000), tx('2026-07-20', 3000), tx('2026-08-05', 6000)];
-      if (w.OR) return [tx('2026-07-10', 700), tx('2026-08-10', 700)];
+      if (w.type === 'Income') return [
+        { ...tx('2026-07-10', 500), merchant: 'KELA/FPA', category: 'Capital income' },
+        { ...tx('2026-08-10', 500), merchant: 'KELA/FPA', category: 'Capital income' },
+        // Kela child benefit: same merchant, different category — not rent
+        { ...tx('2026-08-12', 94), merchant: 'KELA/FPA', category: 'Benefits' },
+        { ...tx('2026-07-11', 200), merchant: 'TENANT OY', category: 'Other' },
+        { ...tx('2026-08-11', 200), merchant: 'TENANT OY', category: 'Other' },
+      ];
       if (w.merchant?.contains === 'FI73 5723 8183 6277 67') return [tx('2026-07-15', -300), tx('2026-08-15', -300)];
       if (w.merchant?.contains === 'Säästötupa') return [tx('2026-07-01', -200), tx('2026-08-01', -200)];
       if (w.merchant?.contains === 'Matela') return [tx('2026-07-01', -100), tx('2026-08-01', -100)];
@@ -89,25 +96,53 @@ describe('deriveFireInputs', () => {
     expect(inputs.annualGrossEarnings).toBeCloseTo(grossFromNet(72_000), 6);
   });
 
-  it('nets rent against full and partial housing-company fees', async () => {
-    const { rental, inputs } = await deriveFireInputs(cfg);
+  it('counts only income matching a rental rule\'s pattern and category', async () => {
+    const { rental } = await deriveFireInputs(cfg);
+    // Kela rent 500 + tenant 200; the Kela child benefit (other category) is excluded
     expect(rental.rentMonthly).toBe(700);
-    // 700 − 200 × 100% − 100 × 15%
-    expect(inputs.rentalNetMonthly).toBeCloseTo(485, 6);
   });
 
-  it('uses the average loan interest between retirement and loan end', async () => {
+  it('subtracts the rented flat\'s fee from cash, and the own-home share only from taxable rent', async () => {
+    const { inputs } = await deriveFireInputs(cfg);
+    // cash: 700 − 200 × 100%; tax-only: 100 × 15%
+    expect(inputs.rentalNetMonthly).toBeCloseTo(500, 6);
+    expect(inputs.rentalTaxOnlyDeductionsMonthly).toBeCloseTo(15, 6);
+  });
+
+  it('carries the rental loan payment and Euribor-based rate', async () => {
     const { rental, inputs } = await deriveFireInputs(cfg);
-    expect(rental.loanRate).toBeCloseTo(0.027133333 + 0.006, 9);
+    expect(inputs.rentalLoanPaymentMonthly).toBe(300);
+    expect(inputs.rentalLoanRate).toBeCloseTo(0.027133333 + 0.006, 9);
     const monthsInRetirement = Math.round((cfg.mortgageEndAge - cfg.retirementAge) * 12);
     const balanceAtRetirement = annuityBalance(300, rental.loanRate, monthsInRetirement);
-    expect(inputs.rentalLoanInterestMonthly).toBeCloseTo((300 * monthsInRetirement - balanceAtRetirement) / monthsInRetirement, 6);
-    // Less than the interest today: the loan will be smaller by then
-    expect(inputs.rentalLoanInterestMonthly).toBeLessThan(rental.loanBalance * rental.loanRate / 12);
+    expect(rental.loanInterestMonthly).toBeCloseTo((300 * monthsInRetirement - balanceAtRetirement) / monthsInRetirement, 6);
+    expect(rental.loanInterestMonthly).toBeLessThan(rental.loanBalance * rental.loanRate / 12);
   });
 
-  it('has no loan interest when the loan ends before retirement', async () => {
-    const { inputs } = await deriveFireInputs({ ...cfg, mortgageEndAge: cfg.retirementAge - 1 });
-    expect(inputs.rentalLoanInterestMonthly).toBe(0);
+  it('times out the ECB fetch so /api/fire can\'t hang', async () => {
+    const spy = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return { ok: true, text: async () => ECB_CSV };
+    });
+    vi.stubGlobal('fetch', spy);
+    await fetchEuribor6m();
+    expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('rentalLoanInterestInRetirement', () => {
+  const dob = '1990-05-05';
+  const currentAge = computeCurrentAge(dob);
+  const loan = { dateOfBirth: dob, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033, mortgageEndAge: Math.round(currentAge + 22) };
+
+  it('is 0 when the loan ends before retirement', () => {
+    expect(rentalLoanInterestInRetirement({ ...loan, retirementAge: loan.mortgageEndAge + 1 })).toBe(0);
+  });
+
+  it('is lower for a later retirement age, since the loan is smaller by then', () => {
+    const early = rentalLoanInterestInRetirement({ ...loan, retirementAge: loan.mortgageEndAge - 6 });
+    const late = rentalLoanInterestInRetirement({ ...loan, retirementAge: loan.mortgageEndAge - 1 });
+    expect(early).toBeGreaterThan(late);
+    expect(late).toBeGreaterThan(0);
   });
 });

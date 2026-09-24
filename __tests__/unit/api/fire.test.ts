@@ -26,11 +26,11 @@ import { FIRE_DEFAULTS } from '../../../lib/services/fire-service';
 import { deriveFireInputs } from '../../../lib/services/fire-inputs-service';
 
 const DERIVED = {
-  inputs: { annualGrossEarnings: 120_000, rentalNetMonthly: 300, rentalLoanInterestMonthly: 50 },
+  inputs: { annualGrossEarnings: 120_000, rentalNetMonthly: 300, rentalTaxOnlyDeductionsMonthly: 15, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033 },
   earnings: { netMonthly: 6200, months: 9, grossAnnual: 120_000 },
   rental: {
     rentMonthly: 450, rentMonths: 9,
-    fees: [{ merchant: 'Säästötupa', share: 1, paidMonthly: 150, deductibleMonthly: 150 }],
+    fees: [{ merchant: 'Säästötupa', share: 1, cash: true, paidMonthly: 150, deductibleMonthly: 150 }],
     netMonthly: 300, loanPaymentMonthly: 300, loanRate: 0.033,
     euribor: { rate: 0.027, period: '2026-08', live: true },
     loanBalance: 50_000, loanInterestMonthly: 50,

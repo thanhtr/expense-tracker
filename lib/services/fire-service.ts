@@ -26,11 +26,14 @@ export interface StoredFireConfig {
 // not typed in: they are facts that can be read off the recorded history.
 export interface DerivedFireInputs {
   annualGrossEarnings: number;
-  // Rent received minus deductible running costs, as cash per month.
+  // Rent received minus the rented flat's running costs, as cash per month.
   rentalNetMonthly: number;
-  // Deductible interest on the rental-property loan, per month. Applies only while
-  // the loan runs (retirement → mortgageEndAge); lowers taxable rent, not cash.
-  rentalLoanInterestMonthly: number;
+  // Other deductible costs (e.g. share of own home's fee) that lower taxable rent only.
+  rentalTaxOnlyDeductionsMonthly: number;
+  // Rental-property annuity loan, ending at mortgageEndAge. Its interest lowers
+  // taxable rent while it runs; repayments are already part of Phase 1A spending.
+  rentalLoanPaymentMonthly: number;
+  rentalLoanRate: number;
 }
 
 export type FireConfig = StoredFireConfig & DerivedFireInputs;
@@ -38,8 +41,31 @@ export type FireConfig = StoredFireConfig & DerivedFireInputs;
 export const NO_DERIVED_INPUTS: DerivedFireInputs = {
   annualGrossEarnings: 0,
   rentalNetMonthly: 0,
-  rentalLoanInterestMonthly: 0,
+  rentalTaxOnlyDeductionsMonthly: 0,
+  rentalLoanPaymentMonthly: 0,
+  rentalLoanRate: 0,
 };
+
+// Outstanding balance of an annuity loan, from its payment, rate and months left.
+export function annuityBalance(paymentMonthly: number, annualRate: number, monthsLeft: number): number {
+  if (monthsLeft <= 0 || paymentMonthly <= 0) return 0;
+  const r = annualRate / 12;
+  if (r === 0) return paymentMonthly * monthsLeft;
+  return paymentMonthly * (1 - Math.pow(1 + r, -monthsLeft)) / r;
+}
+
+// Average monthly interest on the rental loan between retirement and loan end: the
+// payments made in that window minus the principal they repay (the balance at
+// retirement). 0 if the loan ends before retirement.
+export function rentalLoanInterestInRetirement(
+  config: Pick<FireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge' | 'rentalLoanPaymentMonthly' | 'rentalLoanRate'>,
+): number {
+  const currentAge = computeCurrentAge(config.dateOfBirth);
+  const months = Math.round((config.mortgageEndAge - Math.max(currentAge, config.retirementAge)) * 12);
+  if (months <= 0) return 0;
+  const balanceAtRetirement = annuityBalance(config.rentalLoanPaymentMonthly, config.rentalLoanRate, months);
+  return (config.rentalLoanPaymentMonthly * months - balanceAtRetirement) / months;
+}
 
 export const FIRE_DEFAULTS: StoredFireConfig = {
   dateOfBirth: '1990-05-15',
@@ -223,11 +249,13 @@ function monthlyRate(annualRate: number): number {
   return Math.pow(1 + annualRate, 1 / 12) - 1;
 }
 
+// Taxable rent never goes below 0 here: a rental loss offsetting sale gains isn't modelled.
 function grossUpMonthly(netMonthly: number, config: FireConfig, loanInterestMonthly = 0): number {
+  const taxableRent = Math.max(0, config.rentalNetMonthly - config.rentalTaxOnlyDeductionsMonthly - loanInterestMonthly);
   return grossUpAnnual(netMonthly * 12, deemedCostPct(config), {
     taxpayers: config.taxpayers,
     otherCapitalIncome: config.rentalNetMonthly * 12,
-    otherCapitalIncomeTaxable: (config.rentalNetMonthly - loanInterestMonthly) * 12,
+    otherCapitalIncomeTaxable: taxableRent * 12,
   }) / 12;
 }
 
@@ -240,7 +268,7 @@ function computePhaseGrossWithdrawals(
 ): { gross1a: number; gross1b: number; gross2: number } {
   const pension = computePension(config).netMonthly;
   return {
-    gross1a: grossUpMonthly(Math.max(0, config.phase1aNetMonthly - activeIncomeMonthly), config, config.rentalLoanInterestMonthly),
+    gross1a: grossUpMonthly(Math.max(0, config.phase1aNetMonthly - activeIncomeMonthly), config, rentalLoanInterestInRetirement(config)),
     gross1b: grossUpMonthly(config.phase1bNetMonthly, config),
     gross2: grossUpMonthly(Math.max(0, config.phase2NetMonthly - pension), config),
   };
