@@ -93,4 +93,15 @@ describe('parseFinnair', () => {
     expect(result[1].merchant).toBe('Store B');
     expect(result[2].merchant).toBe('Store C');
   });
+
+  it('should skip rows with unparseable amounts instead of storing NaN', async () => {
+    const csv = `Date,Location of purchase,Amount
+2026-04-10,Garbled Row,not-a-number
+2026-04-11,Store A,-100.00`;
+
+    const result = await parseFinnair(csv);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].merchant).toBe('Store A');
+  });
 });

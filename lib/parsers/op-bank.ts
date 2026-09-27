@@ -64,6 +64,11 @@ export async function parseOPBank(fileContent: string): Promise<ParsedTransactio
                 continue;
               }
 
+              if (isNaN(amount)) {
+                console.warn(`Skipping OP Bank row with unparseable amount: "${amountStr}" (${merchant})`);
+                continue;
+              }
+
               rows.push({
                 date,
                 account: 'OP Bank',
