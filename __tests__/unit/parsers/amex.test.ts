@@ -88,4 +88,26 @@ describe('parseAmex', () => {
     expect(result).toHaveLength(1);
     expect(result[0].merchant).toBe('Unknown');
   });
+
+  it('should skip rows with unparseable amounts instead of storing NaN', async () => {
+    const csv = `Date,Description,Amount
+2026-04-10,Garbled Row,not-a-number
+2026-04-11,Valid Purchase,45.67`;
+
+    const result = await parseAmex(csv);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].merchant).toBe('Valid Purchase');
+  });
+
+  it('should correctly parse a real Amex refund row using a unicode minus sign', async () => {
+    const csv = `Päivämäärä,Kuvaus,Summa
+09/25/2026,PAYTRAIL OYJ*HTTPWWWKAL KOUVOLA,"−339,90"`;
+
+    const result = await parseAmex(csv);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].amount).toBe(339.9);
+    expect(result[0].type).toBe('Income');
+  });
 });

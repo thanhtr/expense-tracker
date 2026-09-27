@@ -19,6 +19,7 @@ export function parseFinnishAmount(s: string): number {
     s.trim()
       .replace(/\xa0/g, '')  // non-breaking space
       .replace(/ /g, '')
+      .replace(/[‐-―−]/g, '-')  // unicode dashes/minus (e.g. Amex's "−339,90") to ASCII hyphen
       .replace(',', '.')      // comma to dot
   );
 }
