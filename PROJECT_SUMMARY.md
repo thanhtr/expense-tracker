@@ -711,6 +711,28 @@ Three FIRE inputs were settings but are facts that can be read off the data, so 
 - The DB columns `deemedCostPct`, `annualGrossEarnings` and `rentalNetMonthly` were kept (unused) for the #156 deploy to avoid downtime, then dropped in a follow-up migration (`20260926000000_drop_derived_fire_columns`). Pattern for future renames and drops: stop reading the column first, deploy, then drop it.
 - Effect on the saved config: earnings accrual lifts the projected pension to ~€3,000/mo net combined, and the target to retire at 52 falls to ~€709k.
 
+### Amex refund/credit rows silently corrupted with NaN amount (branch: `fix/amex-unicode-minus-nan-amount`, PR #158)
+A Paytrail refund and a card-payment-received line weren't showing up anywhere on the
+dashboard (not in expenses, income, or reimbursement netting) and were dragging the
+Spending Guidelines panel's "this month" figures wrong.
+- **Root cause**: Amex's Finnish CSV export writes credit/refund amounts with **U+2212
+  MINUS SIGN** (`−339,90`), not an ASCII hyphen. `parseFinnishAmount` (`lib/parsers/utils.ts`)
+  only replaced comma→dot, so `parseFloat` returned `NaN` for these rows. `amex.ts` had no
+  guard (unlike `generic.ts`, which already skips unparseable amounts), so the `NaN` was
+  written straight into Postgres as a literal float `NaN` — which fails every `<`/`>`/`=`
+  comparison, so the row became invisible to every aggregation query instead of erroring
+  loudly. Two production rows were corrupted this way before it was caught.
+- **Fix**: `parseFinnishAmount` now normalizes unicode dash/minus variants to `-` before
+  parsing; `amex.ts` now skips (with a console warning) any row that still fails to parse,
+  matching `generic.ts`'s existing guard.
+- **Debugging note for future sessions**: when inspecting `Transaction.amount` via Prisma
+  and it prints as `null`, check `amount <> amount` (SQL NaN test) before assuming it's a
+  real SQL `NULL` — `JSON.stringify(NaN)` silently renders as `null`, which is exactly what
+  masked this for a while.
+- The two corrupted rows were fixed directly against the DB, not via migration: one deleted
+  and re-imported from its original statement CSV (now that the parser handles it), one
+  amount-corrected in place after the user confirmed it was a genuine €0 transaction.
+
 ---
 
 ## Next Steps / Future Improvements
