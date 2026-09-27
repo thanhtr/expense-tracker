@@ -32,6 +32,12 @@ export async function parseFinnair(fileContent: string): Promise<ParsedTransacti
             if (isNaN(date.getTime())) {
               continue;
             }
+
+            if (isNaN(amount)) {
+              console.warn(`Skipping Finnair row with unparseable amount: "${amountStr}" (${merchant})`);
+              continue;
+            }
+
             rows.push({
               date,
               account: 'Finnair Visa',

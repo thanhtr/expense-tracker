@@ -33,6 +33,11 @@ export async function parseAmex(fileContent: string): Promise<ParsedTransaction[
               continue;
             }
 
+            if (isNaN(amount)) {
+              console.warn(`Skipping Amex row with unparseable amount: "${amountStr}" (${merchant})`);
+              continue;
+            }
+
             rows.push({
               date,
               account: 'Amex',

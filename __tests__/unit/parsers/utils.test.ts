@@ -32,6 +32,14 @@ describe('parseFinnishAmount', () => {
     expect(parseFinnishAmount('-100')).toBe(-100);
   });
 
+  it('should normalize unicode minus/dash signs to ASCII hyphen (Amex credit rows)', () => {
+    // U+2212 MINUS SIGN, as seen in real Amex CSV exports for refunds/credits
+    expect(parseFinnishAmount('−339,90')).toBe(-339.9);
+    // En dash / em dash variants, for robustness
+    expect(parseFinnishAmount('–10,50')).toBe(-10.5);
+    expect(parseFinnishAmount('—10,50')).toBe(-10.5);
+  });
+
   it('should preserve scientific notation edge cases', () => {
     // This tests the actual behavior - parseFloat handles it
     const result = parseFinnishAmount('1e2');

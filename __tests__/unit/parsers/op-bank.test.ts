@@ -163,4 +163,15 @@ describe('parseOPBank', () => {
     expect(result[2].type).toBe('Expense');
     expect(result[2].merchant).toBe('As Oy Matela');
   });
+
+  it('should skip rows with unparseable amounts instead of storing NaN', async () => {
+    const csv = `Kirjauspäivä;Määrä EUROA;Saaja;Viesti
+2026-04-10;not-a-number;Garbled Row;Bad data
+2026-04-11;-45,67;Amazon;Online purchase`;
+
+    const result = await parseOPBank(csv);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].merchant).toBe('Amazon');
+  });
 });
