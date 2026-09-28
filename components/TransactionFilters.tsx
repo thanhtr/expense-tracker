@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ACCOUNT_NAMES, TAGS, TRANSACTION_TYPES } from '@/lib/constants';
 import { useCategories } from '@/components/CategoriesProvider';
+import { MultiSelectDropdown } from '@/components/MultiSelectDropdown';
 import type { TransactionFilterValues } from '@/lib/types';
 
 export type { TransactionFilterValues };
@@ -49,7 +50,9 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '');
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '');
   const [account, setAccount] = useState(initialFilters?.account ?? '');
-  const [category, setCategory] = useState(initialFilters?.category ?? '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() =>
+    initialFilters?.category ? initialFilters.category.split(',').filter(Boolean) : []
+  );
   const [merchant, setMerchant] = useState(initialFilters?.merchant ?? '');
   const [type, setType] = useState(initialFilters?.type ?? '');
   const [paidBy, setPaidBy] = useState(initialFilters?.paidBy ?? '');
@@ -108,7 +111,8 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       account: account || undefined,
-      category: uncategorizedOnly ? '__uncategorized__' : (category || undefined),
+      category: selectedCategories.length ? selectedCategories.join(',') : undefined,
+      uncategorizedOnly: uncategorizedOnly || undefined,
       merchant: debouncedMerchant || undefined,
       type: type || undefined,
       paidBy: paidBy || undefined,
@@ -116,13 +120,13 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
       amountMax: debouncedAmountMax || undefined,
       tag: tag || undefined,
     });
-  }, [dateFrom, dateTo, account, type, category, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, tag]);
+  }, [dateFrom, dateTo, account, type, selectedCategories, paidBy, uncategorizedOnly, debouncedMerchant, debouncedAmountMin, debouncedAmountMax, tag]);
 
   const handleReset = () => {
     setDateFrom('');
     setDateTo('');
     setAccount('');
-    setCategory('');
+    setSelectedCategories([]);
     setMerchant('');
     setType('');
     setPaidBy('');
@@ -147,7 +151,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     setAmountMin('amountMin' in vals ? vals.amountMin : '');
     setAmountMax('');
     setAccount('');
-    setCategory('');
+    setSelectedCategories([]);
     setMerchant('');
     setType('');
     setPaidBy('');
@@ -155,7 +159,7 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
     setActivePreset(preset.label);
   };
 
-  const activeCount = [dateFrom, dateTo, account, type, category, paidBy, merchant, amountMin, amountMax, tag, uncategorizedOnly ? 'x' : ''].filter(Boolean).length;
+  const activeCount = [dateFrom, dateTo, account, type, paidBy, merchant, amountMin, amountMax, tag, uncategorizedOnly ? 'x' : '', selectedCategories.length ? 'x' : ''].filter(Boolean).length;
 
   return (
     <div className="bg-surface rounded-lg border border-border-soft p-4 mb-6 space-y-4">
@@ -225,20 +229,16 @@ export function TransactionFilters({ onFilter, initialFilters }: TransactionFilt
         </div>
         <div>
           <label htmlFor="filter-category" className="block text-xs font-medium text-fg-2 mb-1">Category</label>
-          <select
+          <MultiSelectDropdown
             id="filter-category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            label="categories"
+            options={categories}
+            selected={selectedCategories}
+            onChange={setSelectedCategories}
             disabled={categoriesLoading || uncategorizedOnly}
-          >
-            <option value="">All</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+            className="w-full"
+            buttonClassName="w-full px-3 py-2 border border-border-soft rounded-md bg-surface text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          />
         </div>
         <div>
           <label htmlFor="filter-paid-by" className="block text-xs font-medium text-fg-2 mb-1">Paid By</label>

@@ -189,13 +189,37 @@ describe('getDashboardStats', () => {
       topTx: [{ merchant: 'Amazon', amount: -45.67, category: 'Shopping', date: new Date('2026-04-10') }],
     });
 
-    const stats = await getDashboardStats(undefined, undefined, 'Shopping');
+    const stats = await getDashboardStats(undefined, undefined, ['Shopping']);
 
     expect(stats.totalExpenses).toBeCloseTo(45.67);
     expect(stats.transactionCount).toBe(1);
     expect(stats.byCategory[0].category).toBe('Shopping');
     expect(vi.mocked(prisma.transaction.groupBy).mock.calls[0][0]).toMatchObject({
       where: { category: 'Shopping' },
+    });
+  });
+
+  it('should filter by multiple categories using { in } (passed to prisma where)', async () => {
+    setupMocks({
+      byCategoryGroups: [
+        { category: 'Shopping', _sum: { amount: -45.67 } },
+        { category: 'Dining Out', _sum: { amount: -5.50 } },
+      ],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -(45.67 + 5.50) } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -(45.67 + 5.50) } }],
+      byDayCatGroups: [
+        { date: new Date('2026-04-10'), category: 'Shopping', _sum: { amount: -45.67 } },
+        { date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: -5.50 } },
+      ],
+      totalAmount: -(45.67 + 5.50),
+      totalCount: 2,
+    });
+
+    const stats = await getDashboardStats(undefined, undefined, ['Shopping', 'Dining Out']);
+
+    expect(stats.totalExpenses).toBeCloseTo(45.67 + 5.50);
+    expect(vi.mocked(prisma.transaction.groupBy).mock.calls[0][0]).toMatchObject({
+      where: { category: { in: ['Shopping', 'Dining Out'] } },
     });
   });
 

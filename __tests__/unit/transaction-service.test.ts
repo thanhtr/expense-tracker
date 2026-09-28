@@ -8,6 +8,7 @@ vi.mock('../../lib/db', () => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
+      aggregate: vi.fn(),
     },
     transactionLink: {
       findMany: vi.fn(),
@@ -39,6 +40,7 @@ const makeRow = (overrides: Partial<{
 describe('getTransactions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as never);
   });
 
   it('should return all transactions without filters', async () => {
@@ -83,13 +85,44 @@ describe('getTransactions', () => {
     vi.mocked(prisma.transaction.count).mockResolvedValueOnce(0);
     vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([]);
 
-    await getTransactions({ accounts: ['OP Bank'], category: 'Shopping', type: 'Expense', paidBy: 'tung' });
+    await getTransactions({ accounts: ['OP Bank'], categories: ['Shopping'], type: 'Expense', paidBy: 'tung' });
 
     const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
     expect(whereArg?.account).toBe('OP Bank'); // single account → string equality, not { in }
-    expect(whereArg?.category).toBe('Shopping');
+    expect(whereArg?.category).toBe('Shopping'); // single category → string equality, not { in }
     expect(whereArg?.type).toBe('Expense');
     expect(whereArg?.paidBy).toBe('tung');
+  });
+
+  it('should use { in } for multiple categories', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(0);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([]);
+
+    await getTransactions({ categories: ['Shopping', 'Dining Out'] });
+
+    const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
+    expect(whereArg?.category).toEqual({ in: ['Shopping', 'Dining Out'] });
+  });
+
+  it('should filter to only uncategorized rows when uncategorizedOnly is set, ignoring categories', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(0);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([]);
+
+    await getTransactions({ uncategorizedOnly: true, categories: ['Shopping'] });
+
+    const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
+    expect(whereArg?.category).toBe('');
+  });
+
+  it('should return the DB-side sum of the filtered where clause', async () => {
+    vi.mocked(prisma.transaction.count).mockResolvedValueOnce(2);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValueOnce([makeRow({ id: 1 }), makeRow({ id: 2 })]);
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValueOnce({ _sum: { amount: -71.17 } } as never);
+
+    const result = await getTransactions({});
+
+    expect(result.sum).toBe(-71.17);
+    expect(vi.mocked(prisma.transaction.aggregate).mock.calls[0][0]).toMatchObject({ _sum: { amount: true } });
   });
 
   it('should pass merchant as insensitive contains filter', async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseId,
   parseBody,
+  parseQuery,
   createGoalSchema,
   updateGoalSchema,
   createAssetSchema,
@@ -12,6 +13,10 @@ import {
   updateSplitsSchema,
   bulkCategorizeSchema,
   updateGuidelinesSchema,
+  dashboardQuerySchema,
+  transactionQuerySchema,
+  exportQuerySchema,
+  splitCommaParam,
 } from '../../lib/validation';
 
 
@@ -294,5 +299,61 @@ describe('updateGuidelinesSchema', () => {
   it('rejects targetPct > 100', () => {
     const bad = { buckets: [{ ...valid.buckets[0], targetPct: 110 }, ...valid.buckets.slice(1)] };
     expect(updateGuidelinesSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
+describe('categoryParam (via dashboardQuerySchema/transactionQuerySchema)', () => {
+  it('passes through a single category unchanged', () => {
+    const result = parseQuery(dashboardQuerySchema, new URLSearchParams({ category: 'Shopping' }));
+    expect('data' in result && result.data.category).toBe('Shopping');
+  });
+
+  it('keeps a comma-separated list of categories as-is', () => {
+    const result = parseQuery(dashboardQuerySchema, new URLSearchParams({ category: 'Shopping,Dining Out' }));
+    expect('data' in result && result.data.category).toBe('Shopping,Dining Out');
+  });
+
+  it('trims whitespace and drops empty entries', () => {
+    const result = parseQuery(dashboardQuerySchema, new URLSearchParams({ category: ' Shopping , ,Dining Out ,' }));
+    expect('data' in result && result.data.category).toBe('Shopping,Dining Out');
+  });
+
+  it('dedupes repeated categories', () => {
+    const result = parseQuery(dashboardQuerySchema, new URLSearchParams({ category: 'Shopping,Shopping' }));
+    expect('data' in result && result.data.category).toBe('Shopping');
+  });
+
+  it('caps the list at 30 entries', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `Cat${i}`).join(',');
+    const result = parseQuery(dashboardQuerySchema, new URLSearchParams({ category: many }));
+    const parsedCategory = 'data' in result ? result.data.category : undefined;
+    expect(parsedCategory?.split(',')).toHaveLength(30);
+  });
+
+  it('accepts an uncategorized sentinel value unchanged on transactionQuerySchema', () => {
+    const result = parseQuery(transactionQuerySchema, new URLSearchParams({ uncategorized: '1' }));
+    expect('data' in result && result.data.uncategorized).toBe('1');
+  });
+
+  it('also accepts the uncategorized param on exportQuerySchema', () => {
+    // Regression: CSV export previously silently ignored "Uncategorized only" because
+    // exportQuerySchema had no `uncategorized` field, so zod stripped it before the
+    // route ever saw it.
+    const result = parseQuery(exportQuerySchema, new URLSearchParams({ uncategorized: '1' }));
+    expect('data' in result && result.data.uncategorized).toBe('1');
+  });
+});
+
+describe('splitCommaParam', () => {
+  it('splits a comma-joined string into an array', () => {
+    expect(splitCommaParam('Shopping,Dining Out')).toEqual(['Shopping', 'Dining Out']);
+  });
+
+  it('returns undefined for undefined input', () => {
+    expect(splitCommaParam(undefined)).toBeUndefined();
+  });
+
+  it('drops empty segments', () => {
+    expect(splitCommaParam('Shopping,,Dining Out')).toEqual(['Shopping', 'Dining Out']);
   });
 });

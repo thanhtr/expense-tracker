@@ -11,6 +11,7 @@ import {
 import { NetWorthCard } from './NetWorthCard';
 import { NetWorthChart } from './NetWorthChart';
 import { GuidelinePanel } from './GuidelinePanel';
+import { MultiSelectDropdown } from './MultiSelectDropdown';
 import { useCategories } from '@/components/CategoriesProvider';
 import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 import { fmtEUR } from '@/lib/utils';
@@ -858,7 +859,13 @@ export function DashboardStats() {
   const [preset, setPreset] = useState<Preset>(initPreset);
   const [dateFrom, setDateFrom] = useState(initRange.from);
   const [dateTo, setDateTo] = useState(initRange.to);
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') ?? '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => {
+    const c = searchParams.get('category');
+    return c ? c.split(',').filter(Boolean) : [];
+  });
+  const toggleCategory = useCallback((cat: string) => {
+    setSelectedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  }, []);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(() => {
     const a = searchParams.get('account');
     return a ? a.split(',').filter(Boolean) : [];
@@ -934,13 +941,13 @@ export function DashboardStats() {
       if (isRefresh) shouldRefresh.current = false;
       try {
         const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-        if (selectedCategory) params.set('category', selectedCategory);
+        if (selectedCategories.length) params.set('category', selectedCategories.join(','));
         if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
         if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
         if (isRefresh) params.set('refresh', '1');
 
         const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
-        if (selectedCategory) prevParams.set('category', selectedCategory);
+        if (selectedCategories.length) prevParams.set('category', selectedCategories.join(','));
         if (selectedAccounts.length) prevParams.set('account', selectedAccounts.join(','));
         if (selectedPaidBy) prevParams.set('paid_by', selectedPaidBy);
         if (isRefresh) prevParams.set('refresh', '1');
@@ -958,7 +965,7 @@ export function DashboardStats() {
         setRefreshing(false);
       }
     })();
-  }, [dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy, compareRange, refreshNonce]);
+  }, [dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy, compareRange, refreshNonce]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -984,14 +991,14 @@ export function DashboardStats() {
       params.set('from', dateFrom);
       params.set('to', dateTo);
     }
-    if (selectedCategory) params.set('category', selectedCategory);
+    if (selectedCategories.length) params.set('category', selectedCategories.join(','));
     if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
     if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
     if (compareMode !== 'prev') params.set('compare', compareMode);
     if (chartStyle !== 'bars') params.set('chart', chartStyle);
     const qs = params.toString();
     router.replace(qs ? `/?${qs}` : '/', { scroll: false });
-  }, [preset, dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy, compareMode, chartStyle, router]);
+  }, [preset, dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy, compareMode, chartStyle, router]);
 
   const biggestChange = useMemo(() => {
     if (!data || !prevData) return null;
@@ -1055,11 +1062,11 @@ export function DashboardStats() {
 
   const exportUrl = useMemo(() => {
     const p = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-    if (selectedCategory) p.set('category', selectedCategory);
+    if (selectedCategories.length) p.set('category', selectedCategories.join(','));
     if (selectedAccounts.length) p.set('account', selectedAccounts.join(','));
     if (selectedPaidBy) p.set('paid_by', selectedPaidBy);
     return `/api/export?${p}`;
-  }, [dateFrom, dateTo, selectedCategory, selectedAccounts, selectedPaidBy]);
+  }, [dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy]);
 
   if (loading && !data) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
@@ -1102,7 +1109,7 @@ export function DashboardStats() {
   // the panel's surplus) can legitimately exceed 100% of income in a month where you
   // invested from savings — that's real, useful information, not something to hide.
   const investmentsInjection: Record<string, number> =
-    data.totalInvestments > 0 && selectedCategory !== 'Investments'
+    data.totalInvestments > 0 && !selectedCategories.includes('Investments')
       ? { Investments: data.totalInvestments }
       : {};
 
@@ -1118,7 +1125,7 @@ export function DashboardStats() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
-          {unfilteredByCategory && unfilteredByCategory.uncategorizedCount > 0 && !selectedCategory && (
+          {unfilteredByCategory && unfilteredByCategory.uncategorizedCount > 0 && selectedCategories.length === 0 && (
             <span className="warn-pill">
               <span className="dot" />
               {unfilteredByCategory.uncategorizedCount} transaction{unfilteredByCategory.uncategorizedCount === 1 ? '' : 's'} need a category
@@ -1157,14 +1164,12 @@ export function DashboardStats() {
         </div>
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Category</span>
-        <select
-          className="select-plain"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          <option value="">All categories</option>
-          {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="categories"
+          options={allCategories}
+          selected={selectedCategories}
+          onChange={setSelectedCategories}
+        />
         <div className="w-px h-5 bg-[var(--border)] mx-[4px]" />
         <span className="tool-label mr-[4px]">Account</span>
         <div className="seg">
@@ -1363,7 +1368,7 @@ export function DashboardStats() {
                             key={i}
                             fill={CAT_COLORS[i % CAT_COLORS.length]}
                             style={{ cursor: 'pointer' }}
-                            onClick={() => setSelectedCategory(entry.category === selectedCategory ? '' : entry.category)}
+                            onClick={() => toggleCategory(entry.category)}
                           />
                         ))}
                       </Pie>
@@ -1371,10 +1376,10 @@ export function DashboardStats() {
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={(cat) => setSelectedCategory(cat === selectedCategory ? '' : cat)} />
+                <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={toggleCategory} />
               </div>
             ) : (
-              <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={(cat) => setSelectedCategory(cat === selectedCategory ? '' : cat)} />
+              <CategoryBarList byCategory={data.byCategory} byCategoryPrev={byCategoryPrevMap} total={data.totalExpenses} onCategoryClick={toggleCategory} />
             )}
           </div>
         </div>

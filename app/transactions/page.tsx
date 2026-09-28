@@ -18,6 +18,7 @@ function TransactionsContent() {
     const account = searchParams.get('account');
     const type = searchParams.get('type');
     const category = searchParams.get('category');
+    const uncategorized = searchParams.get('uncategorized');
     const paidBy = searchParams.get('paid_by');
     const merchant = searchParams.get('merchant');
     const amountMin = searchParams.get('amt_min');
@@ -28,6 +29,7 @@ function TransactionsContent() {
     if (account) f.account = account;
     if (type) f.type = type;
     if (category) f.category = category;
+    if (uncategorized === '1') f.uncategorizedOnly = true;
     if (paidBy) f.paidBy = paidBy;
     if (merchant) f.merchant = merchant;
     if (amountMin) f.amountMin = amountMin;
@@ -44,6 +46,7 @@ function TransactionsContent() {
     if (newFilters.account) params.set('account', newFilters.account);
     if (newFilters.type) params.set('type', newFilters.type);
     if (newFilters.category) params.set('category', newFilters.category);
+    if (newFilters.uncategorizedOnly) params.set('uncategorized', '1');
     if (newFilters.paidBy) params.set('paid_by', newFilters.paidBy);
     if (newFilters.merchant) params.set('merchant', newFilters.merchant);
     if (newFilters.amountMin) params.set('amt_min', newFilters.amountMin);
