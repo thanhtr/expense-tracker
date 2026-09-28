@@ -53,7 +53,8 @@ export async function getTransactions(filters: {
   dateFrom?: string;
   dateTo?: string;
   accounts?: string[];
-  category?: string;
+  categories?: string[];
+  uncategorizedOnly?: boolean;
   merchant?: string;
   type?: string;
   paidBy?: string;
@@ -70,6 +71,7 @@ export async function getTransactions(filters: {
   total: number;
   limit: number;
   offset: number;
+  sum: number;
 }> {
   const where: Prisma.TransactionWhereInput = {};
 
@@ -79,10 +81,10 @@ export async function getTransactions(filters: {
     if (filters.dateTo) (where.date as Prisma.DateTimeFilter).lte = new Date(filters.dateTo);
   }
   if (filters.accounts?.length) where.account = filters.accounts.length === 1 ? filters.accounts[0] : { in: filters.accounts };
-  if (filters.category === '__uncategorized__') {
+  if (filters.uncategorizedOnly) {
     where.category = '';
-  } else if (filters.category) {
-    where.category = filters.category;
+  } else if (filters.categories?.length) {
+    where.category = filters.categories.length === 1 ? filters.categories[0] : { in: filters.categories };
   }
   if (filters.type) where.type = filters.type;
   if (filters.paidBy) where.paidBy = filters.paidBy;
@@ -114,7 +116,7 @@ export async function getTransactions(filters: {
   const limit = Math.max(1, Math.min(filters.limit ?? 50, 10_000));
   const offset = Math.max(0, filters.offset ?? 0);
 
-  const [total, rows] = await Promise.all([
+  const [total, rows, sumAgg] = await Promise.all([
     prisma.transaction.count({ where }),
     prisma.transaction.findMany({
       where,
@@ -122,7 +124,9 @@ export async function getTransactions(filters: {
       skip: offset,
       take: limit,
     }),
+    prisma.transaction.aggregate({ where, _sum: { amount: true } }),
   ]);
+  const sum = sumAgg._sum.amount ?? 0;
 
   // Batch-fetch linked reimbursement totals for this page's expense rows, so the list
   // can show a net amount without a per-row round trip. Wrapped in try-catch: table
@@ -164,5 +168,5 @@ export async function getTransactions(filters: {
     };
   });
 
-  return { transactions, total, limit, offset };
+  return { transactions, total, limit, offset, sum };
 }

@@ -10,8 +10,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 // show real numbers when the user explicitly filters to one of them.
 const NON_SPENDING_CATEGORIES = ['Investments', 'Internal Transfer'];
 
-function cacheKey(dateFrom?: Date, dateTo?: Date, category?: string, paidBy?: string, accounts?: string[]): string {
-  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', category ?? '', paidBy ?? '', (accounts ?? []).slice().sort().join(',')].join('|');
+function cacheKey(dateFrom?: Date, dateTo?: Date, categories?: string[], paidBy?: string, accounts?: string[]): string {
+  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', (categories ?? []).slice().sort().join(','), paidBy ?? '', (accounts ?? []).slice().sort().join(',')].join('|');
 }
 
 export function invalidateDashboardCache(): void {
@@ -21,12 +21,12 @@ export function invalidateDashboardCache(): void {
 export async function getDashboardStats(
   dateFrom?: Date,
   dateTo?: Date,
-  category?: string,
+  categories?: string[],
   paidBy?: string,
   accounts?: string[],
   forceRefresh = false,
 ): Promise<DashboardAggregation> {
-  const key = cacheKey(dateFrom, dateTo, category, paidBy, accounts);
+  const key = cacheKey(dateFrom, dateTo, categories, paidBy, accounts);
   const cached = _cache.get(key);
   if (!forceRefresh && cached && Date.now() < cached.expiry) return cached.data;
 
@@ -43,15 +43,15 @@ export async function getDashboardStats(
   if (accounts?.length) baseWhere.account = accounts.length === 1 ? accounts[0] : { in: accounts };
 
   const where: Prisma.TransactionWhereInput = { ...baseWhere };
-  if (category) where.category = category;
+  if (categories?.length) where.category = categories.length === 1 ? categories[0] : { in: categories };
 
   // Exclude non-spending categories (Investments, Internal Transfer, ...) from expense
   // queries so charts/totals reflect living costs only.
-  // Exception: if the user explicitly filtered to one of them, pass through as-is.
+  // Exception: if the user explicitly filtered to one or more of them, pass through as-is.
   const expenseWhere: Prisma.TransactionWhereInput = {
     ...where,
     type: 'Expense',
-    ...(category ? {} : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
+    ...(categories?.length ? {} : { NOT: { category: { in: NON_SPENDING_CATEGORIES } } }),
   };
 
   const outflowWhere: Prisma.TransactionWhereInput = { ...expenseWhere, amount: { lt: 0 } };
@@ -63,14 +63,15 @@ export async function getDashboardStats(
 
   // Income is not filtered by the active spending-category selector, but non-spending
   // categories (e.g. savings→checking credits tagged "Internal Transfer") must be excluded
-  // so they don't inflate totalIncome. Exception: if the user explicitly filters to one of
-  // those categories, let the income rows through so they can inspect the real data.
-  // NOTE: uses NON_SPENDING_CATEGORIES.includes() rather than `category ?` — incomeWhere
-  // starts from baseWhere (unscoped), so `category ?` would drop the exclusion whenever any
-  // spending category is active, letting capital-movement income credits slip back in.
+  // so they don't inflate totalIncome. Exception: if the user explicitly filters to only
+  // non-spending categories, let the income rows through so they can inspect the real data
+  // — a mixed or all-spending selection keeps the default exclusion.
+  // NOTE: uses NON_SPENDING_CATEGORIES.includes() rather than `categories?.length` — incomeWhere
+  // starts from baseWhere (unscoped), so `categories?.length` would drop the exclusion whenever
+  // any spending category is active, letting capital-movement income credits slip back in.
   // categoryFilterIsNonSpending is also reused by matchesIncomeWhere() below, which
   // re-checks these same conditions against a single row — keep the two in sync.
-  const categoryFilterIsNonSpending = NON_SPENDING_CATEGORIES.includes(category ?? '');
+  const categoryFilterIsNonSpending = !!categories?.length && categories.every(c => NON_SPENDING_CATEGORIES.includes(c));
   const incomeWhere: Prisma.TransactionWhereInput = {
     ...baseWhere,
     type: 'Income',
@@ -195,11 +196,11 @@ export async function getDashboardStats(
 
   // Force-include NON_SPENDING_CATEGORIES that have activity so they appear in budget
   // dropdowns even though outflowWhere excludes them from byCategoryGroups.
-  // Skip each when it's the active category filter (already present in byCategoryGroups).
+  // Skip each when it's already part of the active category filter (already present in byCategoryGroups).
   const allCategories = [
     ...byCategoryGroups.map(g => g.category).filter(Boolean),
-    ...(totalInvestments > 0 && category !== 'Investments' ? ['Investments'] : []),
-    ...(totalInternalTransfers > 0 && category !== 'Internal Transfer' ? ['Internal Transfer'] : []),
+    ...(totalInvestments > 0 && !categories?.includes('Investments') ? ['Investments'] : []),
+    ...(totalInternalTransfers > 0 && !categories?.includes('Internal Transfer') ? ['Internal Transfer'] : []),
   ].sort();
 
   const byAccount = Object.fromEntries(

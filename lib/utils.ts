@@ -23,6 +23,7 @@ export function buildTransactionFilterParams(filters: TransactionFilterValues): 
   if (filters.dateTo) params.set('date_to', filters.dateTo);
   if (filters.account) params.set('account', filters.account);
   if (filters.category) params.set('category', filters.category);
+  if (filters.uncategorizedOnly) params.set('uncategorized', '1');
   if (filters.merchant) params.set('merchant', filters.merchant);
   if (filters.type) params.set('type', filters.type);
   if (filters.paidBy) params.set('paid_by', filters.paidBy);

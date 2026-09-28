@@ -6,7 +6,7 @@ import { TransactionRow } from './TransactionRow';
 import { TransactionMobileCard } from './TransactionMobileCard';
 import { useCategories } from '@/components/CategoriesProvider';
 import type { Transaction, TransactionFilterValues } from '@/lib/types';
-import { buildTransactionFilterParams } from '@/lib/utils';
+import { buildTransactionFilterParams, fmtEUR } from '@/lib/utils';
 
 function TransactionTableSkeleton() {
   return (
@@ -76,6 +76,7 @@ interface TransactionTableProps {
 export function TransactionTable({ filters = {} }: TransactionTableProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
+  const [sum, setSum] = useState(0);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
@@ -225,6 +226,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           transactionsRef.current = data.transactions;
           setTransactions(data.transactions);
           setTotal(data.total);
+          setSum(data.sum ?? 0);
         }
       } catch (error) {
         console.error('Failed to fetch transactions:', error);
@@ -285,6 +287,7 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
           {total === 0
             ? '0 transactions'
             : `Showing ${offset + 1} to ${Math.min(offset + limit, total)} of ${total} transactions`}
+          {total > 0 && <span className="mono ml-2">· Net {fmtEUR(sum, { cents: true })}</span>}
         </div>
         <button
           onClick={handleExport}

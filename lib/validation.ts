@@ -13,6 +13,21 @@ const accountParam = z
     return valid.length ? valid.join(',') : undefined;
   });
 
+// Validates a comma-separated list of categories. Unlike accountParam, categories are
+// free-form/dynamic (no fixed enum), so this only trims, dedupes, and caps length/count
+// rather than validating against a known list.
+const categoryParam = z
+  .string()
+  .max(500)
+  .optional()
+  .transform(s => {
+    if (!s) return undefined;
+    const valid = Array.from(new Set(
+      s.split(',').map(v => v.trim()).filter(v => v.length > 0 && v.length <= 100)
+    )).slice(0, 30);
+    return valid.length ? valid.join(',') : undefined;
+  });
+
 const dateParam = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
@@ -22,7 +37,7 @@ const dateParam = z
 export const dashboardQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
-  category: z.string().max(100).optional(),
+  category: categoryParam,
   paid_by: z.enum(PAID_BY).optional(),
   account: accountParam,
   refresh: z.literal('1').optional(),
@@ -32,7 +47,8 @@ export const transactionQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
   account: z.string().max(100).optional(),
-  category: z.string().max(100).optional(),
+  category: categoryParam,
+  uncategorized: z.literal('1').optional(),
   merchant: z.string().max(200).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),
   paid_by: z.enum(PAID_BY).optional(),
@@ -72,7 +88,7 @@ export const exportQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
   account: accountParam,
-  category: z.string().max(100).optional(),
+  category: categoryParam,
   merchant: z.string().max(200).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),
   paid_by: z.enum(PAID_BY).optional(),

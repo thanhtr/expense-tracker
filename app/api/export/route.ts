@@ -25,13 +25,14 @@ export async function GET(request: NextRequest) {
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, account, category, merchant, type, paid_by } = parsed.data;
   const accounts = account ? account.split(',').filter(Boolean) : undefined;
+  const categories = category ? category.split(',').filter(Boolean) : undefined;
 
   try {
     const result = await getTransactions({
       dateFrom: date_from,
       dateTo: date_to,
       accounts,
-      category,
+      categories,
       merchant,
       type,
       paidBy: paid_by,

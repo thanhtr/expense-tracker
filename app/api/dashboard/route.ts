@@ -7,12 +7,13 @@ export async function GET(request: NextRequest) {
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, category, paid_by, account, refresh } = parsed.data;
   const accounts = account ? account.split(',').filter(Boolean) : undefined;
+  const categories = category ? category.split(',').filter(Boolean) : undefined;
 
   try {
     const stats = await getDashboardStats(
       date_from ? new Date(date_from) : undefined,
       date_to ? new Date(date_to) : undefined,
-      category,
+      categories,
       paid_by,
       accounts,
       refresh === '1',
