@@ -525,13 +525,32 @@ function InfoTip({ text, sources }: { text: string; sources?: SourceId[] }) {
     left = Math.max(margin, Math.min(left, window.innerWidth - popupRect.width - margin));
 
     const fitsAbove = btnRect.top - popupRect.height - margin > 0;
-    const top = fitsAbove ? btnRect.top - popupRect.height - 6 : btnRect.bottom + 6;
+    let top = fitsAbove ? btnRect.top - popupRect.height - 6 : btnRect.bottom + 6;
+    // Clamp vertically too: on a short viewport where neither "above" nor "below" fully
+    // fits, the fitsAbove/else fallback above can still place the popup partly off the
+    // bottom (or, in the !fitsAbove case, its own height could exceed the space below) —
+    // same class of bug as the horizontal overflow this component exists to fix.
+    top = Math.max(margin, Math.min(top, window.innerHeight - popupRect.height - margin));
 
     setStyle({ position: 'fixed', left, top, visibility: 'visible' });
   }, [open]);
   // No effect to reset `style` back to hidden on close: the popup unmounts entirely
   // ({open && ...} below), and on the next open this same effect reruns synchronously
   // before paint, so a stale leftover position is never actually visible.
+
+  // The popup is `position: fixed` and computed once at open time, so it doesn't track
+  // its trigger if the page (or an inner scroll container, e.g. BaristaTable) scrolls
+  // while open — close it instead of trying to keep it glued to a moving target.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, { capture: true, passive: true });
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, { capture: true });
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
 
   return (
     <span className="relative inline-flex items-center ml-[5px] align-middle">
