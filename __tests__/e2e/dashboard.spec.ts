@@ -41,8 +41,10 @@ test.describe('Dashboard', () => {
     ]);
     await page.goto('/');
     await expect(page.locator('text=Total expenses').first()).toBeVisible();
-    const categorySelect = page.locator('select').first();
-    await categorySelect.selectOption('Shopping');
+    // Category filter is a dropdown-with-checkboxes (MultiSelectDropdown), not a native <select>.
+    await page.locator('button', { hasText: 'All categories' }).click();
+    await page.locator('[role="listbox"] label', { hasText: 'Shopping' }).click();
+    await page.keyboard.press('Escape');
     await page.waitForLoadState('networkidle');
     const valueText = await page.locator('text=Total expenses').first()
       .locator('..').locator('div').nth(1).textContent();
