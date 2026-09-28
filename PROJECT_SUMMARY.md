@@ -800,6 +800,27 @@ situation, as well as inconsistent").
   guideline" test (which asserted the old capping behavior) was replaced with "investments
   beyond the income surplus show as overspent, not silently excluded".
 
+### InfoTip ("?" popover) overflowing off-screen on mobile (branch: `fix/infotip-mobile-overflow`)
+Audited every tooltip-like pattern in the app (custom components, native `title` attrs,
+Recharts chart tooltips) for mobile overflow. Recharts tooltips already clamp correctly
+(verified on a 390px viewport). The one real bug: `InfoTip` in `components/FireDashboard.tsx`
+(the "?" info popover, FIRE page only) positioned itself with static Tailwind classes
+(`left-0`/`right-0`, chosen per call site via a manual `align` prop) with no actual
+viewport measurement — on a 390px screen, 2 of 3 call sites ran off the right edge with
+text cut off mid-sentence.
+- `InfoTip` now measures itself via `getBoundingClientRect()` on the trigger button and its
+  own popup (in `useLayoutEffect`, so there's no visible flash of the wrong position), and
+  renders as `position: fixed` with `left` clamped to an 8px margin from both screen edges,
+  flipping to render below the trigger instead of above it if there isn't enough vertical
+  room. This replaced the `align` prop entirely — removed from all call sites.
+- Verified empirically (Playwright, not a unit test — jsdom's `getBoundingClientRect` always
+  returns zeros, so this class of layout bug can only be caught with a real browser/viewport)
+  at 320px, 390px, and 1280px: all 16 `InfoTip` instances across the FIRE page (3 always-visible
+  + 13 inside the expandable Configuration panel) stay within the viewport at every width.
+- No dedicated e2e spec exists for `/fire` (it needs a nontrivial `/api/fire` mock), so no
+  automated regression test was added for this specific fix — a known gap, flagged rather
+  than silently skipped.
+
 ---
 
 ## Next Steps / Future Improvements

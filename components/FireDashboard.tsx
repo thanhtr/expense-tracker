@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
@@ -507,12 +507,36 @@ function PhaseCards({ phases, pension }: { phases: PhaseInfo[]; pension: Pension
   );
 }
 
-function InfoTip({ text, sources, align = 'left' }: { text: string; sources?: SourceId[]; align?: 'left' | 'right' }) {
+function InfoTip({ text, sources }: { text: string; sources?: SourceId[] }) {
   const [open, setOpen] = useState(false);
-  const pos = align === 'right' ? 'right-0' : 'left-0';
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLSpanElement>(null);
+  // Popup starts hidden (not just unpositioned) so the unmeasured, wrongly-placed first
+  // paint is never visible — useLayoutEffect below repositions it before the browser paints.
+  const [style, setStyle] = useState<React.CSSProperties>({ visibility: 'hidden' });
+
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current || !popupRef.current) return;
+    const margin = 8;
+    const btnRect = btnRef.current.getBoundingClientRect();
+    const popupRect = popupRef.current.getBoundingClientRect();
+
+    let left = btnRect.left + btnRect.width / 2 - popupRect.width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - popupRect.width - margin));
+
+    const fitsAbove = btnRect.top - popupRect.height - margin > 0;
+    const top = fitsAbove ? btnRect.top - popupRect.height - 6 : btnRect.bottom + 6;
+
+    setStyle({ position: 'fixed', left, top, visibility: 'visible' });
+  }, [open]);
+  // No effect to reset `style` back to hidden on close: the popup unmounts entirely
+  // ({open && ...} below), and on the next open this same effect reruns synchronously
+  // before paint, so a stale leftover position is never actually visible.
+
   return (
     <span className="relative inline-flex items-center ml-[5px] align-middle">
       <button
+        ref={btnRef}
         type="button"
         onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
         className="cursor-pointer text-[var(--fg-3)] text-[9px] border border-[var(--fg-3)] rounded-full w-[13px] h-[13px] inline-flex items-center justify-center leading-none select-none"
@@ -521,7 +545,11 @@ function InfoTip({ text, sources, align = 'left' }: { text: string; sources?: So
       {open && (
         <>
           <button type="button" aria-label="Close" className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} />
-          <span className={`absolute bottom-full ${pos} mb-[6px] w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg z-20 leading-relaxed`}>
+          <span
+            ref={popupRef}
+            style={{ ...style, maxWidth: 'calc(100vw - 16px)' }}
+            className="w-[230px] p-[7px_9px] rounded bg-[var(--surface)] border border-[var(--border)] text-[11px] text-[var(--fg-2)] shadow-lg z-20 leading-relaxed"
+          >
             {text}
             {sources && sources.length > 0 && <span className="mt-[5px]"><SourceLinks ids={sources} /></span>}
           </span>
@@ -545,7 +573,7 @@ function BaristaTable({ variants }: { variants: BaristaVariant[] }) {
               <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">Retire age</th>
               <th className="text-right px-5 py-[8px] font-medium text-[var(--fg-3)] whitespace-nowrap">
                 Plan-end balance
-                <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." align="right" />
+                <InfoTip text="Portfolio balance at the end of the 95-year planning horizon. Positive = surplus; negative = depleted before plan end." />
               </th>
             </tr>
           </thead>
@@ -778,9 +806,9 @@ function ConfigPanel({ data, config, onSave, saving }: {
             <div key={group.group}>
               <div className="tool-label text-[var(--fg-3)] mb-3">{group.group}</div>
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {group.fields.map((f, fi) => (
+                {group.fields.map(f => (
                   <label key={f.key} className="flex flex-col gap-[4px]">
-                    <span className="text-[11px] text-[var(--fg-2)]">{f.label}{f.tip && <InfoTip text={f.tip} sources={f.sources} align={fi % 2 === 1 ? 'right' : 'left'} />}</span>
+                    <span className="text-[11px] text-[var(--fg-2)]">{f.label}{f.tip && <InfoTip text={f.tip} sources={f.sources} />}</span>
                     <input
                       type="number"
                       className="date-input text-right"
