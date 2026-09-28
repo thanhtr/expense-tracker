@@ -821,6 +821,31 @@ text cut off mid-sentence.
   automated regression test was added for this specific fix — a known gap, flagged rather
   than silently skipped.
 
+### Theme now actually follows "System" live, ThemeToggle gained a way back to it (branch: `fix/theme-follow-system`)
+The app's dark/light theme (both plain web and installed PWA) didn't track the OS's live
+"System" setting, per user report (2026-09-28) — installed PWAs especially, since they can
+stay resident for hours without a full reload.
+- **Root cause**: the flash-prevention bootstrap script in `app/layout.tsx` eagerly added a
+  static `.dark` class whenever it detected the system was in dark mode *at that page load*,
+  even with no explicit user preference saved. `globals.css` already had a correct
+  `@media (prefers-color-scheme: dark) { :root:not(.light) {...} }` fallback that would
+  track OS changes live with zero JS — the eager class-add defeated it by freezing the
+  snapshot from cold-launch.
+- **Fix**: the script now only adds a class when there's an *explicit* saved `'dark'` or
+  `'light'` choice; with no saved preference ("System"), it does nothing and lets the CSS
+  media query (and the already-correct media-conditioned `<meta name="theme-color">` tags
+  from the `viewport` export) drive live updates.
+- **Related gap, also fixed**: `ThemeToggle.tsx` was a plain light/dark toggle with no way
+  back to "System" once clicked — any user who ever tried it got permanently stuck
+  overriding their OS setting. It's now a 3-way System → Light → Dark → System cycle
+  (monitor/sun/moon icons), reading/writing the same `localStorage.theme` key the bootstrap
+  script uses (`removeItem` for "System").
+- Verified with Playwright: with no explicit preference, switching the emulated OS color
+  scheme from dark to light *without reloading* updates the rendered background live; an
+  explicit preference correctly stays pinned even when the OS also changes to match it
+  later; the full 3-click toggle cycle (including back to System) works with the correct
+  `localStorage` state and aria-label at each step.
+
 ---
 
 ## Next Steps / Future Improvements
