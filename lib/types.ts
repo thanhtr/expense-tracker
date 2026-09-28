@@ -34,6 +34,7 @@ export interface TransactionFilterValues {
   account?: string;
   type?: string;
   category?: string;
+  uncategorizedOnly?: boolean;
   paidBy?: string;
   merchant?: string;
   amountMin?: string;
