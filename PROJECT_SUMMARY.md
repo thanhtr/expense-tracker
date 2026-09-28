@@ -733,6 +733,26 @@ Spending Guidelines panel's "this month" figures wrong.
   and re-imported from its original statement CSV (now that the parser handles it), one
   amount-corrected in place after the user confirmed it was a genuine €0 transaction.
 
+### Multi-select category filter + transactions sum (branch: `feat/multi-select-category-filter`, PR #160)
+The single-category `<select>` filter on both the dashboard and the transactions page is
+now a multi-select, following the same shape already used for `accounts` end-to-end:
+comma-joined query param → route splits into an array → service takes `categories?: string[]`
+→ Prisma `{ in: categories }`. New shared `components/MultiSelectDropdown.tsx` (a
+dropdown-with-checkboxes control) backs both pages — categories are a long, dynamic list, so
+the toggle-button pattern `ACCOUNT_NAMES` uses doesn't fit.
+- `lib/validation.ts`'s new `categoryParam` mirrors `accountParam` but doesn't validate
+  against a fixed list (categories are free-form): comma-split, trim, dedupe, cap at 30.
+- The transactions page's "Uncategorized only" checkbox is now a proper `uncategorizedOnly`
+  filter field end-to-end (query param `uncategorized=1`), replacing a `'__uncategorized__'`
+  sentinel that used to be smuggled through the `category` field.
+- `aggregation-service.ts`'s non-spending-category income exclusion escape hatch
+  (`categoryFilterIsNonSpending`) generalizes to: true only when every selected category is
+  non-spending — a mixed or all-spending selection keeps the default exclusion.
+- Transactions page also gained a signed net sum of the filtered result set (`· Net €X`, next
+  to "Showing X to Y of Z"), computed via one `prisma.transaction.aggregate({ where, _sum })`
+  alongside the existing count/findMany — not summed client-side, since pagination means the
+  client only ever holds one page of rows.
+
 ---
 
 ## Next Steps / Future Improvements
