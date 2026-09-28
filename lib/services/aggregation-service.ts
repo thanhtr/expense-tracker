@@ -104,7 +104,7 @@ export async function getDashboardStats(
     incomeSourceGroups,
     topTx,
     incomeRows,
-    reimbByDayCatGroups,
+    reimbByCategoryGroups,
     reimbAggregate,
   ] = await Promise.all([
     prisma.transaction.groupBy({
@@ -168,10 +168,9 @@ export async function getDashboardStats(
       take: 10000,
     }),
     prisma.transaction.groupBy({
-      by: ['date', 'category'],
+      by: ['category'],
       where: reimbWhere,
       _sum: { amount: true },
-      orderBy: { date: 'asc' },
     }),
     prisma.transaction.aggregate({
       where: reimbWhere,
@@ -328,25 +327,24 @@ export async function getDashboardStats(
     }
   }
 
-  // Net reimbursements against each category's gross expense total — and, unlike the
-  // category-only netting this replaced, also against the day/month it landed on, so
-  // byMonth/byDay/byCategoryMonth (the trend charts) reflect refunds too, not just
-  // byCategory/net. reimbWhere already excludes explicitly-linked reimbursements (see its
-  // definition above), so this can't double-count against the precise per-expense netting
-  // below. reimbWhere is date-scoped the same as outflowWhere, so every row here already
-  // falls inside the current view's date range.
-  for (const r of reimbByDayCatGroups) {
-    const day = r.date.toISOString().slice(0, 10);
-    const month = day.slice(0, 7);
+  // Net reimbursements against each category's gross expense total. reimbWhere already
+  // excludes explicitly-linked reimbursements (see its definition above), so this can't
+  // double-count against the precise per-expense netting below.
+  //
+  // Deliberately NOT netted into byMonthMap/dayMap/monthMap (byMonth/byDay/byCategoryMonth):
+  // an unlinked/blanket reimbursement has no known originating expense, only its own
+  // posting date, which frequently doesn't fall in the same month/day as any matching
+  // spend — netting it in at that granularity risks creating a new negative-only entry
+  // (e.g. a refund posted in a month with zero prior spend at all), which would render as
+  // a negative-height segment in the daily/monthly trend charts. byCategory is a
+  // period-total aggregate where "which day" doesn't matter, so netting there is safe;
+  // date-keyed breakdowns need real day-level attribution, which only the
+  // linked-reimbursement path below actually has (via its expense's own date, which is
+  // guaranteed to already have a positive entry in these maps since it's a real expense
+  // inside the current filtered view).
+  for (const r of reimbByCategoryGroups) {
     const cat = r.category || '⚠ Uncategorized';
-    const amt = r._sum.amount ?? 0;
-
-    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - amt;
-    byMonthMap[month] = (byMonthMap[month] ?? 0) - amt;
-    if (!dayMap[day]) dayMap[day] = {};
-    dayMap[day][cat] = (dayMap[day][cat] ?? 0) - amt;
-    if (!monthMap[month]) monthMap[month] = {};
-    monthMap[month][cat] = (monthMap[month][cat] ?? 0) - amt;
+    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
   }
 
   // Net each explicitly linked reimbursement against its own expense's category (and that

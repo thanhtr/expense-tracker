@@ -733,6 +733,28 @@ Spending Guidelines panel's "this month" figures wrong.
   and re-imported from its original statement CSV (now that the parser handles it), one
   amount-corrected in place after the user confirmed it was a genuine €0 transaction.
 
+### Reimbursements netted into byMonth/byDay/byCategoryMonth, linked-only (branch: `fix/net-reimbursements-in-trend-charts`, PR #159)
+`byCategory`/`net` already netted reimbursements (both unlinked/"blanket" positive-amount
+Expense rows and explicitly `TransactionLink`-linked ones) against a category's gross
+total, but the trend series — `byMonth`, `byDay`, `byCategoryMonth` — were built purely
+from raw negative outflows and never got refunds subtracted, so any period containing a
+refund showed an inflated total in the trend charts even though `byCategory`/`net` were
+already correct.
+- **Linked reimbursements** (a `TransactionLink` row pointing at a specific expense) are
+  now netted into `byMonth`/`byDay`/`byCategoryMonth` too, keyed to that expense's own
+  date — safe, since the expense is guaranteed to already have a positive entry in those
+  maps (it's a real transaction inside the current filtered view).
+- **Unlinked/"blanket" reimbursements** (a category-level refund with no specific
+  originating expense) are deliberately **not** netted into the date-keyed breakdowns — an
+  earlier version of this fix tried attributing them to their own posting date, but that
+  can create a brand-new negative-only entry when that day/month/category had no matching
+  spend at all, which renders as a negative-height segment in the daily/monthly trend
+  charts. They're still netted into `byCategory` (a period-total aggregate, where "which
+  day" doesn't matter) as before.
+- Caught in code review before merge — a useful pattern: a "net this into every
+  time-bucketed view" fix needs to ask whether the thing being netted actually has a known
+  time it belongs to, or only a period-total total.
+
 ---
 
 ## Next Steps / Future Improvements

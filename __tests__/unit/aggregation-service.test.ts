@@ -54,7 +54,7 @@ function setupMocks(opts: {
   investmentsAmount?: number;
   internalTransfersAmount?: number;
   topTx?: typeof DEFAULT_TOP_TX;
-  reimbByDayCatGroups?: { date: Date; category: string; _sum: { amount: number } }[];
+  reimbByCategoryGroups?: { category: string; _sum: { amount: number } }[];
   reimbAmount?: number;
 } = {}) {
   const {
@@ -69,7 +69,7 @@ function setupMocks(opts: {
     investmentsAmount = 0,
     internalTransfersAmount = 0,
     topTx = DEFAULT_TOP_TX,
-    reimbByDayCatGroups = [],
+    reimbByCategoryGroups = [],
     reimbAmount = 0,
   } = opts;
 
@@ -80,7 +80,7 @@ function setupMocks(opts: {
     .mockResolvedValueOnce(byPersonGroups as never)
     .mockResolvedValueOnce(byDayCatGroups as never)
     .mockResolvedValueOnce([] as never) // income sources (empty by default)
-    .mockResolvedValueOnce(reimbByDayCatGroups as never); // reimb by date+category (empty by default)
+    .mockResolvedValueOnce(reimbByCategoryGroups as never); // reimb by category (empty by default)
 
   vi.mocked(prisma.transaction.aggregate)
     .mockResolvedValueOnce({ _sum: { amount: totalAmount }, _count: { id: totalCount } } as never)
@@ -295,7 +295,7 @@ describe('getDashboardStats', () => {
       totalAmount: -80,
       totalCount: 1,
       topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
-      reimbByDayCatGroups: [{ date: new Date('2026-04-10'), category: 'Dining Out', _sum: { amount: 10 } }],
+      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 10 } }],
       reimbAmount: 10,
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
@@ -309,17 +309,46 @@ describe('getDashboardStats', () => {
 
     expect(stats.totalReimbursements).toBe(40); // 10 blanket + 30 linked
     expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(40); // 80 - 10 - 30
-    // Regression: byMonth/byDay/byCategoryMonth must net both reimbursements too, not
-    // just byCategory — previously only byCategory was adjusted, so the trend charts
-    // kept showing the gross €80 even after a refund reduced the real spend to €40.
-    expect(stats.byMonth.find(m => m.month === '2026-04')?.amount).toBeCloseTo(40);
-    expect(stats.byDay.find(d => d.day === '2026-04-10')?.['Dining Out']).toBeCloseTo(40);
-    expect(stats.byCategoryMonth.find(m => m.month === '2026-04')?.['Dining Out']).toBeCloseTo(40);
+    // Regression: byMonth/byDay/byCategoryMonth must net the *linked* reimbursement too,
+    // not just byCategory — it has a real originating expense date to attribute to, so
+    // 80 - 30 = 50.
+    expect(stats.byMonth.find(m => m.month === '2026-04')?.amount).toBeCloseTo(50);
+    expect(stats.byDay.find(d => d.day === '2026-04-10')?.['Dining Out']).toBeCloseTo(50);
+    expect(stats.byCategoryMonth.find(m => m.month === '2026-04')?.['Dining Out']).toBeCloseTo(50);
+  });
+
+  it('should not net an unlinked blanket reimbursement into byMonth/byDay/byCategoryMonth even when it lands on a month with no matching spend', async () => {
+    // Regression test for a real bug: an earlier version of this netting attributed an
+    // unlinked reimbursement to its own posting date, which created a brand-new negative
+    // entry when that day/month/category had no existing spend — rendering as a
+    // negative-height segment in the daily/monthly trend charts. Unlinked reimbursements
+    // have no known originating expense to attribute to, so they're only netted into the
+    // period-total byCategory aggregate, never into any date-keyed breakdown.
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-03-15'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-15') }],
+      // Blanket refund with no date attribution, in a category with zero recorded spend
+      // this period other than the March expense above.
+      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 30 } }],
+      reimbAmount: 30,
+    });
+
+    const stats = await getDashboardStats();
+
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30, netted at the category level
+    expect(stats.byMonth.find(m => m.month === '2026-04')).toBeUndefined(); // no negative-only month entry
+    expect(stats.byDay.find(d => d.day === '2026-03-15')?.['Dining Out']).toBeCloseTo(80); // day/month breakdowns keep the gross amount
+    expect(stats.byCategoryMonth.find(m => m.month === '2026-03')?.['Dining Out']).toBeCloseTo(80);
   });
 
   it('should not double-net a linked reimbursement already excluded from the blanket bucket at the query level', async () => {
     // reimbWhere excludes linked reimbursements (reimbursementLink: null) at the DB layer,
-    // so reimbByDayCatGroups never includes them in the first place — simulated here by
+    // so reimbByCategoryGroups never includes them in the first place — simulated here by
     // leaving it empty. The link-based netting should still apply exactly once.
     setupMocks({
       byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
@@ -329,7 +358,7 @@ describe('getDashboardStats', () => {
       totalAmount: -80,
       totalCount: 1,
       topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-04-10') }],
-      reimbByDayCatGroups: [],
+      reimbByCategoryGroups: [],
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
