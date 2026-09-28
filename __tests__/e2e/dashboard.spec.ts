@@ -236,9 +236,10 @@ test.describe('Dashboard', () => {
     await expect(surplusRow).toContainText('40%');
   });
 
-  test('transfer-funded investments are excluded from savings guideline', async ({ page }) => {
-    // Income €3 000, expenses €3 000 → income surplus = 0 → all investments are transfer-funded
-    // incomeFundedInvestments = min(5000, max(0, 3000-3000)) = 0
+  test('investments beyond the income surplus show as overspent, not silently excluded', async ({ page }) => {
+    // Income €3 000, expenses €3 000, investments €5 000 → the guideline no longer guesses
+    // whether investments were income- or savings-funded; it shows the real amount and lets
+    // totals exceed 100% of income, surfacing the shortfall as "overspent" instead of hiding it.
     await setupGuidelineRoutes(page, {
       totalIncome: 3000,
       totalExpenses: 3000,
@@ -254,12 +255,15 @@ test.describe('Dashboard', () => {
     const panel = page.locator('.dash-card').filter({ has: page.locator('h3', { hasText: 'Spending Guidelines' }) });
     await expect(panel).toBeVisible({ timeout: 10000 });
 
-    // Savings bucket must show 0% — investments funded by internal transfer, not income
+    // Savings bucket shows the full real amount: 5000/3000 = 167%
     const savingsRow = panel.locator('[data-testid="guideline-bucket-savings"]');
-    await expect(savingsRow.locator('span', { hasText: /0% actual/ })).toBeVisible();
+    await expect(savingsRow.locator('span', { hasText: /167% actual/ })).toBeVisible();
 
-    // No surplus row (income is fully consumed by expenses)
-    await expect(panel.locator('[data-testid="guideline-surplus"]')).not.toBeVisible();
+    // Overspent row: (2000+1000+5000-3000)/3000 = 167%
+    const surplusRow = panel.locator('[data-testid="guideline-surplus"]');
+    await expect(surplusRow).toBeVisible();
+    await expect(surplusRow).toContainText('Overspent');
+    await expect(surplusRow).toContainText('167%');
   });
 
   test('income-funded investments count toward savings guideline at correct percentage', async ({ page }) => {

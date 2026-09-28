@@ -64,10 +64,14 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
   // Compute the total assigned spend (sum of all bucket spends)
   const totalAssigned = computed.reduce((s, b) => s + b.spent, 0);
 
-  // Surplus: income not yet allocated to any bucket (income-based denominator makes this visible)
-  const surplus = total > 0 ? Math.max(0, total - totalAssigned) : 0;
+  // Surplus: income not yet allocated to any bucket (income-based denominator makes this
+  // visible). Deliberately not clamped to 0 — a negative surplus means bucket spend (most
+  // often Investments) exceeded income for the period, i.e. money came from savings, not
+  // a computation error to paper over.
+  const surplus = total > 0 ? total - totalAssigned : 0;
   const surplusPct = total > 0 ? (surplus / total) * 100 : 0;
   const hasUnspent = surplusPct > 0.5;
+  const isOverspent = surplusPct < -0.5;
 
   return (
     <>
@@ -174,14 +178,18 @@ export function GuidelinePanel({ spentByCategory, total }: GuidelinePanelProps) 
               </div>
             ))}
 
-            {/* Surplus row: income not yet accounted for by any bucket */}
-            {hasUnspent && (
-              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-soft)] text-[12px] text-[var(--fg-3)]" data-testid="guideline-surplus">
+            {/* Surplus / overspent row: income not accounted for by any bucket, either
+                direction. Same data-testid either way — only the sign and label differ. */}
+            {(hasUnspent || isOverspent) && (
+              <div
+                className={`flex items-center justify-between pt-2 border-t border-[var(--border-soft)] text-[12px] ${isOverspent ? 'text-red-600 dark:text-red-400' : 'text-[var(--fg-3)]'}`}
+                data-testid="guideline-surplus"
+              >
                 <div className="flex items-center gap-2">
-                  <span className="inline-block w-[8px] h-[8px] rounded-full flex-shrink-0 bg-[var(--border)]" />
-                  <span>Surplus</span>
+                  <span className={`inline-block w-[8px] h-[8px] rounded-full flex-shrink-0 ${isOverspent ? 'bg-red-500' : 'bg-[var(--border)]'}`} />
+                  <span className={isOverspent ? 'font-semibold' : ''}>{isOverspent ? 'Overspent (from savings)' : 'Surplus'}</span>
                 </div>
-                <span className="mono">{surplusPct.toFixed(0)}% · {fmtEUR(surplus)}</span>
+                <span className={`mono ${isOverspent ? 'font-semibold' : ''}`}>{Math.abs(surplusPct).toFixed(0)}% · {fmtEUR(Math.abs(surplus))}</span>
               </div>
             )}
           </div>
