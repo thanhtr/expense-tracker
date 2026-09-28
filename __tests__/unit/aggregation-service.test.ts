@@ -262,7 +262,7 @@ describe('getDashboardStats', () => {
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
-        expenseTransaction: { category: 'Dining Out' },
+        expenseTransaction: { category: 'Dining Out', date: new Date('2026-04-10') },
         reimbursementTransaction: { type: 'Income', amount: 30, category: '', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
       },
     ] as never);
@@ -293,7 +293,7 @@ describe('getDashboardStats', () => {
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
-        expenseTransaction: { category: 'Dining Out' },
+        expenseTransaction: { category: 'Dining Out', date: new Date('2026-04-10') },
         // reimbursement's own category deliberately differs from the expense's
         reimbursementTransaction: { type: 'Expense', amount: 30, category: '', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
       },
@@ -324,7 +324,7 @@ describe('getDashboardStats', () => {
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
-        expenseTransaction: { category: 'Dining Out' },
+        expenseTransaction: { category: 'Dining Out', date: new Date('2026-04-10') },
         reimbursementTransaction: { type: 'Expense', amount: 30, category: '', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
       },
     ] as never);
@@ -333,6 +333,41 @@ describe('getDashboardStats', () => {
 
     expect(stats.totalReimbursements).toBe(40); // 10 blanket + 30 linked
     expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(40); // 80 - 10 - 30
+    // Regression: byMonth/byDay/byCategoryMonth must net the *linked* reimbursement too,
+    // not just byCategory — it has a real originating expense date to attribute to, so
+    // 80 - 30 = 50.
+    expect(stats.byMonth.find(m => m.month === '2026-04')?.amount).toBeCloseTo(50);
+    expect(stats.byDay.find(d => d.day === '2026-04-10')?.['Dining Out']).toBeCloseTo(50);
+    expect(stats.byCategoryMonth.find(m => m.month === '2026-04')?.['Dining Out']).toBeCloseTo(50);
+  });
+
+  it('should not net an unlinked blanket reimbursement into byMonth/byDay/byCategoryMonth even when it lands on a month with no matching spend', async () => {
+    // Regression test for a real bug: an earlier version of this netting attributed an
+    // unlinked reimbursement to its own posting date, which created a brand-new negative
+    // entry when that day/month/category had no existing spend — rendering as a
+    // negative-height segment in the daily/monthly trend charts. Unlinked reimbursements
+    // have no known originating expense to attribute to, so they're only netted into the
+    // period-total byCategory aggregate, never into any date-keyed breakdown.
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-03-15'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-15') }],
+      // Blanket refund with no date attribution, in a category with zero recorded spend
+      // this period other than the March expense above.
+      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 30 } }],
+      reimbAmount: 30,
+    });
+
+    const stats = await getDashboardStats();
+
+    expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50); // 80 - 30, netted at the category level
+    expect(stats.byMonth.find(m => m.month === '2026-04')).toBeUndefined(); // no negative-only month entry
+    expect(stats.byDay.find(d => d.day === '2026-03-15')?.['Dining Out']).toBeCloseTo(80); // day/month breakdowns keep the gross amount
+    expect(stats.byCategoryMonth.find(m => m.month === '2026-03')?.['Dining Out']).toBeCloseTo(80);
   });
 
   it('should not double-net a linked reimbursement already excluded from the blanket bucket at the query level', async () => {
@@ -351,7 +386,7 @@ describe('getDashboardStats', () => {
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
-        expenseTransaction: { category: 'Dining Out' },
+        expenseTransaction: { category: 'Dining Out', date: new Date('2026-04-10') },
         reimbursementTransaction: { type: 'Expense', amount: 30, category: 'Dining Out', date: new Date('2026-04-11'), account: 'OP Bank', paidBy: 'tung' },
       },
     ] as never);
@@ -377,7 +412,7 @@ describe('getDashboardStats', () => {
     });
     vi.mocked(prisma.transactionLink.findMany).mockResolvedValueOnce([
       {
-        expenseTransaction: { category: 'Dining Out' },
+        expenseTransaction: { category: 'Dining Out', date: new Date('2026-03-28') },
         // dated in April, outside the March filter applied below
         reimbursementTransaction: { type: 'Income', amount: 30, category: '', date: new Date('2026-04-03'), account: 'OP Bank', paidBy: 'tung' },
       },
