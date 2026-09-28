@@ -774,6 +774,31 @@ the toggle-button pattern `ACCOUNT_NAMES` uses doesn't fit.
   to "Showing X to Y of Z"), computed via one `prisma.transaction.aggregate({ where, _sum })`
   alongside the existing count/findMany — not summed client-side, since pagination means the
   client only ever holds one page of rows.
+- A code-review pass before merge found the CSV export silently ignoring "Uncategorized
+  only" (`exportQuerySchema` was missing the `uncategorized` field zod would otherwise
+  strip) and a stale e2e test still targeting the old native `<select>` — both fixed; the
+  duplicated `category.split(',').filter(Boolean)` pattern across all three route files was
+  also extracted into a shared `splitCommaParam()` helper in `lib/validation.ts`.
+
+### Spending Guidelines surplus no longer guesses income-vs-savings funding (branch: `fix/guideline-surplus-stability`)
+The guideline panel (`components/GuidelinePanel.tsx`) used to cap "Investments" spend at
+`max(0, totalIncome - totalExpenses)` before folding it into the Savings bucket — a guess at
+whether investments were funded by that period's income or by drawing on existing savings.
+The guess recomputed on every render, making "surplus" feel unstable (per user feedback,
+2026-09-28: "it shouldn't be so dynamic... the surplus is not reflective of the real
+situation, as well as inconsistent").
+- `components/DashboardStats.tsx`'s `investmentsInjection` now injects the real, full
+  `data.totalInvestments` amount, not a capped/guessed one.
+- `GuidelinePanel.tsx`'s `surplus` is no longer clamped to 0 — it can go negative when bucket
+  spend (most often Investments) exceeds income for the period, rendered as a red "Overspent
+  (from savings)" row instead of a grey "Surplus" one (same `data-testid="guideline-surplus"`,
+  differs only in sign/label).
+- Trade-off accepted deliberately: bucket totals (and thus the panel) can now legitimately
+  exceed 100% of income in a month where you invested from savings, instead of always
+  reconciling to ~100% via an unverifiable assumption.
+- `__tests__/e2e/dashboard.spec.ts`'s "transfer-funded investments are excluded from savings
+  guideline" test (which asserted the old capping behavior) was replaced with "investments
+  beyond the income surplus show as overspent, not silently excluded".
 
 ---
 

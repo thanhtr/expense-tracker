@@ -1100,14 +1100,17 @@ export function DashboardStats() {
 
   const displayCategories = data.byCategory.map(c => c.category);
 
-  // Guidelines reflect income distribution only. Cap investments at the income surplus
-  // so that investments funded by savings draws / internal transfers are excluded from
-  // the guideline savings bucket (they still appear in FIRE / net worth tracking).
-  const incomeSurplus = Math.max(0, data.totalIncome - data.totalExpenses);
-  const incomeFundedInvestments = Math.min(data.totalInvestments, incomeSurplus);
+  // Guidelines reflect income distribution. "Investments" isn't normally in
+  // data.byCategory (aggregation-service excludes non-spending categories by default),
+  // so inject the real total here — previously this was capped at the income surplus
+  // to guess whether investments were funded by this period's income or by drawing on
+  // savings, but that guess made the guideline "surplus" swing unpredictably whenever
+  // any input changed. Showing the true amount instead means bucket totals (and thus
+  // the panel's surplus) can legitimately exceed 100% of income in a month where you
+  // invested from savings — that's real, useful information, not something to hide.
   const investmentsInjection: Record<string, number> =
-    incomeFundedInvestments > 0 && !selectedCategories.includes('Investments')
-      ? { Investments: incomeFundedInvestments }
+    data.totalInvestments > 0 && !selectedCategories.includes('Investments')
+      ? { Investments: data.totalInvestments }
       : {};
 
   return (
