@@ -104,7 +104,7 @@ export async function getDashboardStats(
     incomeSourceGroups,
     topTx,
     incomeRows,
-    reimbByCategoryGroups,
+    reimbByDayCatGroups,
     reimbAggregate,
   ] = await Promise.all([
     prisma.transaction.groupBy({
@@ -168,9 +168,10 @@ export async function getDashboardStats(
       take: 10000,
     }),
     prisma.transaction.groupBy({
-      by: ['category'],
+      by: ['date', 'category'],
       where: reimbWhere,
       _sum: { amount: true },
+      orderBy: { date: 'asc' },
     }),
     prisma.transaction.aggregate({
       where: reimbWhere,
@@ -221,7 +222,7 @@ export async function getDashboardStats(
     transaction: { date: Date; amount: number; category: string | null };
   };
   type LinkRecord = {
-    expenseTransaction: { category: string | null };
+    expenseTransaction: { category: string | null; date: Date };
     reimbursementTransaction: {
       type: string;
       amount: number;
@@ -255,7 +256,7 @@ export async function getDashboardStats(
         const raw = await prisma.transactionLink.findMany({
           where: { expenseTransaction: expenseWhere },
           select: {
-            expenseTransaction: { select: { category: true } },
+            expenseTransaction: { select: { category: true, date: true } },
             reimbursementTransaction: {
               select: { type: true, amount: true, category: true, date: true, account: true, paidBy: true },
             },
@@ -327,23 +328,40 @@ export async function getDashboardStats(
     }
   }
 
-  // Net reimbursements against each category's gross expense total. reimbWhere already
-  // excludes explicitly-linked reimbursements (see its definition above), so this can't
-  // double-count against the precise per-expense netting below.
-  for (const r of reimbByCategoryGroups) {
+  // Net reimbursements against each category's gross expense total — and, unlike the
+  // category-only netting this replaced, also against the day/month it landed on, so
+  // byMonth/byDay/byCategoryMonth (the trend charts) reflect refunds too, not just
+  // byCategory/net. reimbWhere already excludes explicitly-linked reimbursements (see its
+  // definition above), so this can't double-count against the precise per-expense netting
+  // below. reimbWhere is date-scoped the same as outflowWhere, so every row here already
+  // falls inside the current view's date range.
+  for (const r of reimbByDayCatGroups) {
+    const day = r.date.toISOString().slice(0, 10);
+    const month = day.slice(0, 7);
     const cat = r.category || '⚠ Uncategorized';
-    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
+    const amt = r._sum.amount ?? 0;
+
+    adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - amt;
+    byMonthMap[month] = (byMonthMap[month] ?? 0) - amt;
+    if (!dayMap[day]) dayMap[day] = {};
+    dayMap[day][cat] = (dayMap[day][cat] ?? 0) - amt;
+    if (!monthMap[month]) monthMap[month] = {};
+    monthMap[month][cat] = (monthMap[month][cat] ?? 0) - amt;
   }
 
-  // Net each explicitly linked reimbursement against its own expense's category — this
-  // is what lets a fronted expense's true net cost show correctly even when the
-  // repayment has a different category or merchant than the expense itself. A linked
-  // Income-type reimbursement (the common case: a friend's Mobilepay credit) also moves
-  // out of totalIncome and into totalReimbursements — net is unaffected since both terms
-  // shift by the same amount — but only when the reimbursement's own row would actually
-  // have been counted in totalIncome for this view (matching the same period/account/
-  // paidBy/non-spending-category rules as incomeWhere above); otherwise its own date
-  // falls outside the current view and was never in totalIncome to begin with.
+  // Net each explicitly linked reimbursement against its own expense's category (and that
+  // expense's day/month, so byMonth/byDay/byCategoryMonth stay consistent with byCategory
+  // here too) — this is what lets a fronted expense's true net cost show correctly even
+  // when the repayment has a different category, date or merchant than the expense
+  // itself. expenseTransaction is selected via expenseWhere (see linkRecords query above),
+  // which is date-scoped the same as outflowWhere, so its date always falls inside the
+  // current view. A linked Income-type reimbursement (the common case: a friend's
+  // Mobilepay credit) also moves out of totalIncome and into totalReimbursements — net is
+  // unaffected since both terms shift by the same amount — but only when the
+  // reimbursement's own row would actually have been counted in totalIncome for this view
+  // (matching the same period/account/paidBy/non-spending-category rules as incomeWhere
+  // above); otherwise its own date falls outside the current view and was never in
+  // totalIncome to begin with.
   const matchesIncomeWhere = (r: { date: Date; account: string; paidBy: string; category: string | null }) => {
     if (dateFrom && r.date < dateFrom) return false;
     if (dateTo && r.date > dateTo) return false;
@@ -363,6 +381,8 @@ export async function getDashboardStats(
   for (const link of linkRecords) {
     const { type, amount } = link.reimbursementTransaction;
     const expenseCat = link.expenseTransaction.category || '⚠ Uncategorized';
+    const day = link.expenseTransaction.date.toISOString().slice(0, 10);
+    const month = day.slice(0, 7);
 
     linkedReimbursementTotal += amount;
     if (type === 'Income' && matchesIncomeWhere(link.reimbursementTransaction)) {
@@ -370,6 +390,11 @@ export async function getDashboardStats(
     }
 
     adjustedByCat[expenseCat] = (adjustedByCat[expenseCat] ?? 0) - amount;
+    byMonthMap[month] = (byMonthMap[month] ?? 0) - amount;
+    if (!dayMap[day]) dayMap[day] = {};
+    dayMap[day][expenseCat] = (dayMap[day][expenseCat] ?? 0) - amount;
+    if (!monthMap[month]) monthMap[month] = {};
+    monthMap[month][expenseCat] = (monthMap[month][expenseCat] ?? 0) - amount;
   }
 
   const finalByCategoryArray = Object.entries(adjustedByCat)
