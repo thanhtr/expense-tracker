@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
-import { exportQuerySchema, parseQuery } from '@/lib/validation';
+import { exportQuerySchema, parseQuery, splitCommaParam } from '@/lib/validation';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function convertToCSV(data: any[]): string {
@@ -23,9 +23,9 @@ function convertToCSV(data: any[]): string {
 export async function GET(request: NextRequest) {
   const parsed = parseQuery(exportQuerySchema, new URL(request.url).searchParams);
   if ('error' in parsed) return parsed.error;
-  const { date_from, date_to, account, category, merchant, type, paid_by } = parsed.data;
-  const accounts = account ? account.split(',').filter(Boolean) : undefined;
-  const categories = category ? category.split(',').filter(Boolean) : undefined;
+  const { date_from, date_to, account, category, uncategorized, merchant, type, paid_by } = parsed.data;
+  const accounts = splitCommaParam(account);
+  const categories = splitCommaParam(category);
 
   try {
     const result = await getTransactions({
@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       dateTo: date_to,
       accounts,
       categories,
+      uncategorizedOnly: uncategorized === '1',
       merchant,
       type,
       paidBy: paid_by,

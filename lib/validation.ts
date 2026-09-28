@@ -34,6 +34,14 @@ const dateParam = z
   .refine(s => !isNaN(new Date(s).getTime()), 'must be a valid date')
   .optional();
 
+// Splits the comma-joined string accountParam/categoryParam produce back into an array,
+// right before handing it to a service's `accounts`/`categories` filter. Every route that
+// accepts one of these params must call this — a route that instead reads the raw string
+// (or forgets the param entirely) silently drops the filter instead of erroring.
+export function splitCommaParam(value: string | undefined): string[] | undefined {
+  return value ? value.split(',').filter(Boolean) : undefined;
+}
+
 export const dashboardQuerySchema = z.object({
   date_from: dateParam,
   date_to: dateParam,
@@ -89,6 +97,7 @@ export const exportQuerySchema = z.object({
   date_to: dateParam,
   account: accountParam,
   category: categoryParam,
+  uncategorized: z.literal('1').optional(),
   merchant: z.string().max(200).optional(),
   type: z.enum(TRANSACTION_TYPES).optional(),
   paid_by: z.enum(PAID_BY).optional(),

@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 import { prisma } from '@/lib/db';
 import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
-import { transactionQuerySchema, bulkDeleteQuerySchema, parseQuery } from '@/lib/validation';
+import { transactionQuerySchema, bulkDeleteQuerySchema, parseQuery, splitCommaParam } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   const parsed = parseQuery(transactionQuerySchema, new URL(request.url).searchParams);
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, account, category, uncategorized, merchant, type, paid_by,
     amount_min, amount_max, positive_only, tag, sort_by, order, limit, offset } = parsed.data;
-  const categories = category ? category.split(',').filter(Boolean) : undefined;
+  const categories = splitCommaParam(category);
 
   try {
     const result = await getTransactions({

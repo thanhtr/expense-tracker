@@ -15,6 +15,8 @@ import {
   updateGuidelinesSchema,
   dashboardQuerySchema,
   transactionQuerySchema,
+  exportQuerySchema,
+  splitCommaParam,
 } from '../../lib/validation';
 
 
@@ -331,5 +333,27 @@ describe('categoryParam (via dashboardQuerySchema/transactionQuerySchema)', () =
   it('accepts an uncategorized sentinel value unchanged on transactionQuerySchema', () => {
     const result = parseQuery(transactionQuerySchema, new URLSearchParams({ uncategorized: '1' }));
     expect('data' in result && result.data.uncategorized).toBe('1');
+  });
+
+  it('also accepts the uncategorized param on exportQuerySchema', () => {
+    // Regression: CSV export previously silently ignored "Uncategorized only" because
+    // exportQuerySchema had no `uncategorized` field, so zod stripped it before the
+    // route ever saw it.
+    const result = parseQuery(exportQuerySchema, new URLSearchParams({ uncategorized: '1' }));
+    expect('data' in result && result.data.uncategorized).toBe('1');
+  });
+});
+
+describe('splitCommaParam', () => {
+  it('splits a comma-joined string into an array', () => {
+    expect(splitCommaParam('Shopping,Dining Out')).toEqual(['Shopping', 'Dining Out']);
+  });
+
+  it('returns undefined for undefined input', () => {
+    expect(splitCommaParam(undefined)).toBeUndefined();
+  });
+
+  it('drops empty segments', () => {
+    expect(splitCommaParam('Shopping,,Dining Out')).toEqual(['Shopping', 'Dining Out']);
   });
 });

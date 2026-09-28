@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
-import { dashboardQuerySchema, parseQuery } from '@/lib/validation';
+import { dashboardQuerySchema, parseQuery, splitCommaParam } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
   const parsed = parseQuery(dashboardQuerySchema, new URL(request.url).searchParams);
   if ('error' in parsed) return parsed.error;
   const { date_from, date_to, category, paid_by, account, refresh } = parsed.data;
-  const accounts = account ? account.split(',').filter(Boolean) : undefined;
-  const categories = category ? category.split(',').filter(Boolean) : undefined;
+  const accounts = splitCommaParam(account);
+  const categories = splitCommaParam(category);
 
   try {
     const stats = await getDashboardStats(
