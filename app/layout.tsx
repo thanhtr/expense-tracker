@@ -51,8 +51,17 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        {/* Flash prevention: apply saved theme before first paint */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');var dark=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(t==='dark'){document.documentElement.classList.add('dark')}else if(t==='light'){document.documentElement.classList.add('light')}else if(dark){document.documentElement.classList.add('dark')}if(t==='dark'||t==='light'){var c=dark?'#141418':'#f9f9f3';var metas=document.querySelectorAll('meta[name="theme-color"]');if(metas.length){metas[0].setAttribute('content',c);metas[0].removeAttribute('media');for(var i=1;i<metas.length;i++){metas[i].remove()}}else{var m=document.createElement('meta');m.name='theme-color';m.content=c;document.head.appendChild(m)}}}catch(e){}})();` }} />
+        {/*
+          Flash prevention: apply an EXPLICIT saved theme before first paint.
+          When the user has never chosen light/dark ('theme' unset — "System"), this
+          deliberately does nothing: no class is added, and the default media-conditioned
+          <meta name="theme-color"> tags from the `viewport` export below are left alone.
+          globals.css already has a `@media (prefers-color-scheme: dark)` fallback for the
+          no-class case, so system theme changes are followed live by the browser itself —
+          no JS needed, and no risk of an installed PWA (which can stay resident for hours
+          without a full reload) getting stuck on whatever the OS theme was at cold launch.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.classList.add(t);var c=t==='dark'?'#141418':'#f9f9f3';document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.remove()});var m=document.createElement('meta');m.name='theme-color';m.content=c;document.head.appendChild(m)}}catch(e){}})();` }} />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         {/* Register service worker */}
         <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js',{scope:'/'});})}` }} />
