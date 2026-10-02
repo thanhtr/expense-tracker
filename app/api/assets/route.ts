@@ -6,31 +6,67 @@ export async function GET(request: NextRequest) {
   const history = new URL(request.url).searchParams.get('history') === '1';
   if (history) {
     try {
-      const snapshots = await prisma.assetSnapshot.findMany({ orderBy: { recordedAt: 'asc' } });
-      // For each (month, assetId), keep only the latest snapshot to avoid double-counting
-      // assets updated multiple times in the same month.
-      const monthAssetMap: Record<string, Record<number, typeof snapshots[0]>> = {};
+      const [snapshots, liveAssets] = await Promise.all([
+        prisma.assetSnapshot.findMany({ orderBy: { recordedAt: 'asc' } }),
+        prisma.asset.findMany({ select: { id: true } }),
+      ]);
+      if (snapshots.length === 0) return NextResponse.json([]);
+
+      const liveIds = new Set(liveAssets.map((a) => a.id));
+      const toMonth = (d: Date) => d.toISOString().slice(0, 7);
+      const nextMonth = (m: string) => {
+        const y = Number(m.slice(0, 4));
+        const mo = Number(m.slice(5, 7)); // 1-indexed current month => 0-indexed next month
+        return toMonth(new Date(Date.UTC(y, mo, 1)));
+      };
+
+      const snapshotsByAsset = new Map<number, typeof snapshots>();
       for (const s of snapshots) {
-        const month = s.recordedAt instanceof Date
-          ? s.recordedAt.toISOString().slice(0, 7)
-          : String(s.recordedAt).slice(0, 7);
-        if (!monthAssetMap[month]) monthAssetMap[month] = {};
-        monthAssetMap[month][s.assetId] = s; // later snapshot overwrites earlier one
+        const arr = snapshotsByAsset.get(s.assetId) ?? [];
+        arr.push(s);
+        snapshotsByAsset.set(s.assetId, arr);
       }
-      const monthMap: Record<string, { assets: number; liabilities: number }> = {};
-      for (const [month, assetSnapshots] of Object.entries(monthAssetMap)) {
-        monthMap[month] = { assets: 0, liabilities: 0 };
-        for (const s of Object.values(assetSnapshots)) {
-          if (s.balance >= 0) {
-            monthMap[month].assets += s.balance;
+
+      const minMonth = toMonth(snapshots[0]!.recordedAt);
+      const currentMonth = toMonth(new Date());
+
+      // Build the full month range so assets with no activity in a given
+      // month still carry forward their last known balance into it.
+      const months: string[] = [];
+      for (let m = minMonth; m <= currentMonth; m = nextMonth(m)) {
+        months.push(m);
+      }
+
+      const monthMap = new Map<string, { assets: number; liabilities: number }>();
+      for (const m of months) monthMap.set(m, { assets: 0, liabilities: 0 });
+
+      for (const [assetId, assetSnaps] of snapshotsByAsset) {
+        const isLive = liveIds.has(assetId);
+        const lastSnapMonth = toMonth(assetSnaps[assetSnaps.length - 1]!.recordedAt);
+        let snapIdx = 0;
+        let balance: number | null = null;
+        for (const month of months) {
+          while (snapIdx < assetSnaps.length && toMonth(assetSnaps[snapIdx]!.recordedAt) <= month) {
+            balance = assetSnaps[snapIdx]!.balance;
+            snapIdx++;
+          }
+          if (balance === null) continue; // before this asset's first snapshot
+          // A deleted asset's balance is only carried through the month of
+          // its last snapshot, not forward-filled indefinitely.
+          if (!isLive && month > lastSnapMonth) continue;
+          const totals = monthMap.get(month)!;
+          if (balance >= 0) {
+            totals.assets += balance;
           } else {
-            monthMap[month].liabilities += Math.abs(s.balance);
+            totals.liabilities += Math.abs(balance);
           }
         }
       }
-      const historyData = Object.entries(monthMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, { assets, liabilities }]) => ({ month, assets, liabilities, netWorth: assets - liabilities }));
+
+      const historyData = months.map((month) => {
+        const totals = monthMap.get(month)!;
+        return { month, assets: totals.assets, liabilities: totals.liabilities, netWorth: totals.assets - totals.liabilities };
+      });
       return NextResponse.json(historyData);
     } catch (error) {
       console.error('Failed to fetch asset history:', error);
