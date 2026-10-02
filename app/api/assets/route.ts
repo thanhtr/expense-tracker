@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createAssetSchema, parseBody } from '@/lib/validation';
+import { LIQUID_ASSET_TYPES } from '@/lib/constants';
+import type { AssetHistoryPoint } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   const history = new URL(request.url).searchParams.get('history') === '1';
@@ -37,17 +39,19 @@ export async function GET(request: NextRequest) {
         months.push(m);
       }
 
-      const monthMap = new Map<string, { assets: number; liabilities: number }>();
-      for (const m of months) monthMap.set(m, { assets: 0, liabilities: 0 });
+      const monthMap = new Map<string, { assets: number; liabilities: number; liquidAssets: number }>();
+      for (const m of months) monthMap.set(m, { assets: 0, liabilities: 0, liquidAssets: 0 });
 
       for (const [assetId, assetSnaps] of snapshotsByAsset) {
         const isLive = liveIds.has(assetId);
         const lastSnapMonth = toMonth(assetSnaps[assetSnaps.length - 1]!.recordedAt);
         let snapIdx = 0;
         let balance: number | null = null;
+        let type: string | null = null;
         for (const month of months) {
           while (snapIdx < assetSnaps.length && toMonth(assetSnaps[snapIdx]!.recordedAt) <= month) {
             balance = assetSnaps[snapIdx]!.balance;
+            type = assetSnaps[snapIdx]!.type;
             snapIdx++;
           }
           if (balance === null) continue; // before this asset's first snapshot
@@ -57,15 +61,22 @@ export async function GET(request: NextRequest) {
           const totals = monthMap.get(month)!;
           if (balance >= 0) {
             totals.assets += balance;
+            if (type && LIQUID_ASSET_TYPES.has(type)) totals.liquidAssets += balance;
           } else {
             totals.liabilities += Math.abs(balance);
           }
         }
       }
 
-      const historyData = months.map((month) => {
+      const historyData: AssetHistoryPoint[] = months.map((month) => {
         const totals = monthMap.get(month)!;
-        return { month, assets: totals.assets, liabilities: totals.liabilities, netWorth: totals.assets - totals.liabilities };
+        return {
+          month,
+          assets: totals.assets,
+          liabilities: totals.liabilities,
+          netWorth: totals.assets - totals.liabilities,
+          liquidAssets: totals.liquidAssets,
+        };
       });
       return NextResponse.json(historyData);
     } catch (error) {

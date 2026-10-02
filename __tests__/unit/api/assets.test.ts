@@ -128,6 +128,28 @@ describe('GET /api/assets?history=1', () => {
     expect(body).toHaveLength(1);
     expect(body[0].assets).toBe(12000);
   });
+
+  it('separates liquidAssets (bank/investment/crypto) from property and liabilities', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 5000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+      { id: 2, assetId: 2, name: 'House', type: 'property', balance: 300000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+      { id: 3, assetId: 3, name: 'Mortgage', type: 'liability', balance: -200000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+      { id: 4, assetId: 4, name: 'Nordnet', type: 'investment', balance: 1000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+    ]);
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([
+      makeAsset({ id: 1 }), makeAsset({ id: 2 }), makeAsset({ id: 3 }), makeAsset({ id: 4 }),
+    ]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    const aug = body.find((m: { month: string }) => m.month === '2026-08');
+    expect(aug.assets).toBe(306000);
+    expect(aug.liabilities).toBe(200000);
+    expect(aug.netWorth).toBe(106000);
+    expect(aug.liquidAssets).toBe(6000);
+  });
 });
 
 describe('POST /api/assets', () => {
