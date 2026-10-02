@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createAssetSchema, parseBody } from '@/lib/validation';
+import { LIQUID_ASSET_TYPES } from '@/lib/constants';
+import type { AssetHistoryPoint } from '@/lib/types';
 
 export async function GET(request: NextRequest) {
   const history = new URL(request.url).searchParams.get('history') === '1';
@@ -37,7 +39,6 @@ export async function GET(request: NextRequest) {
         months.push(m);
       }
 
-      const LIQUID_TYPES = new Set(['bank', 'investment', 'crypto']);
       const monthMap = new Map<string, { assets: number; liabilities: number; liquidAssets: number }>();
       for (const m of months) monthMap.set(m, { assets: 0, liabilities: 0, liquidAssets: 0 });
 
@@ -60,14 +61,14 @@ export async function GET(request: NextRequest) {
           const totals = monthMap.get(month)!;
           if (balance >= 0) {
             totals.assets += balance;
-            if (type && LIQUID_TYPES.has(type)) totals.liquidAssets += balance;
+            if (type && LIQUID_ASSET_TYPES.has(type)) totals.liquidAssets += balance;
           } else {
             totals.liabilities += Math.abs(balance);
           }
         }
       }
 
-      const historyData = months.map((month) => {
+      const historyData: AssetHistoryPoint[] = months.map((month) => {
         const totals = monthMap.get(month)!;
         return {
           month,

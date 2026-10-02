@@ -81,3 +81,11 @@ export interface DashboardAggregation {
   transactionCount: number;
   byIncomeSource: { merchant: string; amount: number }[];
 }
+
+export interface AssetHistoryPoint {
+  month: string;
+  assets: number;
+  liabilities: number;
+  netWorth: number;
+  liquidAssets: number;
+}

@@ -3,22 +3,28 @@
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { fmtEUR } from '@/lib/utils';
-
-interface HistoryPoint {
-  month: string;
-  assets: number;
-  liabilities: number;
-  netWorth: number;
-  liquidAssets: number;
-}
+import type { AssetHistoryPoint } from '@/lib/types';
 
 function fmtMonth(m: string) {
   const [y, mo] = m.split('-');
   return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
 
+const fmtKEuro = (v: number) => `€${Math.round(v / 1000)}k`;
+const tooltipFormatter = (value: unknown) => fmtEUR(Number(value ?? 0));
+const tooltipLabelFormatter = (m: unknown) => fmtMonth(String(m));
+const tooltipContentStyle = {
+  background: 'oklch(0.22 0.012 260)',
+  border: 'none',
+  borderRadius: 6,
+  color: '#fff',
+  fontSize: 11,
+  padding: '8px 10px',
+} as const;
+const tooltipLabelStyle = { color: '#fff', fontWeight: 600, marginBottom: 4 } as const;
+
 export function NetWorthChart() {
-  const [data, setData] = useState<HistoryPoint[]>([]);
+  const [data, setData] = useState<AssetHistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,21 +63,14 @@ export function NetWorthChart() {
               tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v: number) => `€${Math.round(v / 1000)}k`}
+              tickFormatter={fmtKEuro}
               width={44}
             />
             <Tooltip
-              contentStyle={{
-                background: 'oklch(0.22 0.012 260)',
-                border: 'none',
-                borderRadius: 6,
-                color: '#fff',
-                fontSize: 11,
-                padding: '8px 10px',
-              }}
-              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
-              labelFormatter={(m) => fmtMonth(String(m))}
-              formatter={(value) => fmtEUR(Number(value ?? 0))}
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              labelFormatter={tooltipLabelFormatter}
+              formatter={tooltipFormatter}
             />
             <Legend
               wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
@@ -104,21 +103,14 @@ export function NetWorthChart() {
               tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v: number) => `€${Math.round(v / 1000)}k`}
+              tickFormatter={fmtKEuro}
               width={44}
             />
             <Tooltip
-              contentStyle={{
-                background: 'oklch(0.22 0.012 260)',
-                border: 'none',
-                borderRadius: 6,
-                color: '#fff',
-                fontSize: 11,
-                padding: '8px 10px',
-              }}
-              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
-              labelFormatter={(m) => fmtMonth(String(m))}
-              formatter={(value) => fmtEUR(Number(value ?? 0))}
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              labelFormatter={tooltipLabelFormatter}
+              formatter={tooltipFormatter}
             />
             <Line type="monotone" dataKey="liquidAssets" stroke="oklch(0.58 0.14 300)" strokeWidth={2.5} dot={{ r: 3 }} />
           </LineChart>

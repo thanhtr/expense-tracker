@@ -34,6 +34,10 @@ export type TransactionType = typeof TRANSACTION_TYPES[number];
 export const ASSET_TYPES = ['bank', 'investment', 'property', 'crypto', 'liability'] as const;
 export type AssetType = typeof ASSET_TYPES[number];
 
+// Asset types counted as "liquid" for net worth history breakdowns — excludes
+// property (illiquid, rarely revalued) and liability (netted separately).
+export const LIQUID_ASSET_TYPES: ReadonlySet<string> = new Set<AssetType>(['bank', 'investment', 'crypto']);
+
 export const TAGS = [
   'reimbursable',
   'work',
