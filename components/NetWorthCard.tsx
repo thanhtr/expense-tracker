@@ -36,7 +36,7 @@ export function NetWorthCard() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<{ month: string; netWorth: number }[]>([]);
+  const [history, setHistory] = useState<{ month: string; netWorth: number; liquidAssets: number }[]>([]);
 
   useEffect(() => {
     fetch('/api/assets')
@@ -49,7 +49,7 @@ export function NetWorthCard() {
     if (!showHistory) return;
     fetch('/api/assets?history=1')
       .then(r => r.ok ? r.json() : [])
-      .then((data: { month: string; netWorth: number }[]) => setHistory(data))
+      .then((data: { month: string; netWorth: number; liquidAssets: number }[]) => setHistory(data))
       .catch(() => {});
   }, [showHistory]);
 
@@ -168,6 +168,46 @@ export function NetWorthCard() {
                     />
                   </LineChart>
                 </ResponsiveContainer>
+              )}
+
+              {history.length >= 2 && (
+                <>
+                  <div className="text-[12px] font-medium text-[var(--fg-2)] mt-[10px] mb-[8px]">
+                    Liquid assets (cash &amp; investments only)
+                  </div>
+                  <ResponsiveContainer width="100%" height={100}>
+                    <LineChart data={history} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(v) => {
+                          const parts = String(v).split('-');
+                          const year = parts[0] ?? '';
+                          const mon = parts[1] ?? '';
+                          return `${mon}/${year.slice(2)}`;
+                        }}
+                      />
+                      <YAxis
+                        domain={['auto', 'auto']}
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(v) => `€${(Number(v) / 1000).toFixed(0)}k`}
+                        width={45}
+                      />
+                      <Tooltip
+                        formatter={(value) => fmtEUR(Number(value ?? 0))}
+                        labelFormatter={(label) => String(label)}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="liquidAssets"
+                        stroke="#a855f7"
+                        strokeWidth={2}
+                        dot={{ r: 3, fill: '#a855f7' }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </>
               )}
             </div>
           )}

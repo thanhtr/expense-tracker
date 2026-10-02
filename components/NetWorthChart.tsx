@@ -9,6 +9,7 @@ interface HistoryPoint {
   assets: number;
   liabilities: number;
   netWorth: number;
+  liquidAssets: number;
 }
 
 function fmtMonth(m: string) {
@@ -79,6 +80,47 @@ export function NetWorthChart() {
             <Line type="monotone" dataKey="assets" stroke="oklch(0.60 0.09 155)" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="liabilities" stroke="oklch(0.42 0.14 25)" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="netWorth" stroke="oklch(0.55 0.10 225)" strokeWidth={2.5} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="p-[4px_20px_4px] border-t border-border-soft">
+        <h3 className="text-[13px] font-semibold m-0 pt-[12px]">Liquid assets</h3>
+        <div className="text-[12px] text-[var(--fg-3)]">Cash &amp; investments only — shown on its own scale since property and mortgage dwarf monthly moves above</div>
+      </div>
+      <div className="p-[0_12px_16px]">
+        <ResponsiveContainer width="100%" height={160}>
+          <LineChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+              tickLine={false}
+              axisLine={{ stroke: 'var(--border)' }}
+              tickFormatter={fmtMonth}
+            />
+            <YAxis
+              domain={['auto', 'auto']}
+              tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => `€${Math.round(v / 1000)}k`}
+              width={44}
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'oklch(0.22 0.012 260)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                fontSize: 11,
+                padding: '8px 10px',
+              }}
+              labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
+              labelFormatter={(m) => fmtMonth(String(m))}
+              formatter={(value) => fmtEUR(Number(value ?? 0))}
+            />
+            <Line type="monotone" dataKey="liquidAssets" stroke="oklch(0.58 0.14 300)" strokeWidth={2.5} dot={{ r: 3 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
