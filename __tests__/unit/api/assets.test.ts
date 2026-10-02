@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 vi.mock('../../../lib/db', () => ({
@@ -50,6 +50,83 @@ describe('GET /api/assets', () => {
     const body = await res.json();
     expect(body).toHaveLength(1);
     expect(body[0].name).toBe('OP Savings');
+  });
+});
+
+describe('GET /api/assets?history=1', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-02T00:00:00Z'));
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it('forward-fills a live asset balance into months with no new snapshot', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+    ]);
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset({ id: 1 })]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(body.map((m: { month: string }) => m.month)).toEqual(['2026-08', '2026-09', '2026-10']);
+    for (const entry of body) {
+      expect(entry.assets).toBe(10000);
+      expect(entry.netWorth).toBe(10000);
+    }
+  });
+
+  it('does not forward-fill a deleted asset past its last snapshot month', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'Old Account', type: 'bank', balance: 5000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+      { id: 2, assetId: 2, name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: new Date('2026-08-01'), createdAt: new Date() },
+    ]);
+    // Asset 1 was deleted; only asset 2 is still live.
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset({ id: 2 })]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    const byMonth = Object.fromEntries(body.map((m: { month: string; assets: number }) => [m.month, m.assets]));
+    expect(byMonth['2026-08']).toBe(15000);
+    expect(byMonth['2026-09']).toBe(10000);
+    expect(byMonth['2026-10']).toBe(10000);
+  });
+
+  it('breaks same-day ties by createdAt, not DB return order', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 9000, recordedAt: new Date('2026-10-01'), createdAt: new Date('2026-10-01T08:00:00Z') },
+      { id: 2, assetId: 1, name: 'OP Savings', type: 'bank', balance: 11000, recordedAt: new Date('2026-10-01'), createdAt: new Date('2026-10-01T09:00:00Z') },
+    ]);
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset({ id: 1 })]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(prisma.assetSnapshot.findMany).toHaveBeenCalledWith({
+      orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+    expect(body[0].assets).toBe(11000);
+  });
+
+  it('keeps only the latest snapshot per asset within the same month', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: new Date('2026-10-01'), createdAt: new Date() },
+      { id: 2, assetId: 1, name: 'OP Savings', type: 'bank', balance: 12000, recordedAt: new Date('2026-10-15'), createdAt: new Date() },
+    ]);
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset({ id: 1 })]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(body).toHaveLength(1);
+    expect(body[0].assets).toBe(12000);
   });
 });
 
