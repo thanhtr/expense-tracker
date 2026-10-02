@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   if (history) {
     try {
       const [snapshots, liveAssets] = await Promise.all([
-        prisma.assetSnapshot.findMany({ orderBy: { recordedAt: 'asc' } }),
+        prisma.assetSnapshot.findMany({ orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }] }),
         prisma.asset.findMany({ select: { id: true } }),
       ]);
       if (snapshots.length === 0) return NextResponse.json([]);

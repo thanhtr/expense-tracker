@@ -97,6 +97,23 @@ describe('GET /api/assets?history=1', () => {
     expect(byMonth['2026-10']).toBe(10000);
   });
 
+  it('breaks same-day ties by createdAt, not DB return order', async () => {
+    vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
+      { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 9000, recordedAt: new Date('2026-10-01'), createdAt: new Date('2026-10-01T08:00:00Z') },
+      { id: 2, assetId: 1, name: 'OP Savings', type: 'bank', balance: 11000, recordedAt: new Date('2026-10-01'), createdAt: new Date('2026-10-01T09:00:00Z') },
+    ]);
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([makeAsset({ id: 1 })]);
+
+    const req = new NextRequest('http://localhost/api/assets?history=1');
+    const res = await GET(req);
+    const body = await res.json();
+
+    expect(prisma.assetSnapshot.findMany).toHaveBeenCalledWith({
+      orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+    expect(body[0].assets).toBe(11000);
+  });
+
   it('keeps only the latest snapshot per asset within the same month', async () => {
     vi.mocked(prisma.assetSnapshot.findMany).mockResolvedValueOnce([
       { id: 1, assetId: 1, name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: new Date('2026-10-01'), createdAt: new Date() },
