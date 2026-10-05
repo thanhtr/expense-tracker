@@ -55,6 +55,37 @@ describe('runMonteCarlo', () => {
     expect(a.bands).toEqual(b.bands);
   });
 
+  it('starts at the exact fractional current age, not floor(currentAge) — regression for phantom accumulation months', () => {
+    // Bug: an earlier version started the trial loop at Math.floor(currentAge), so the
+    // partial year already elapsed before "now" was simulated as if it were still future
+    // accumulation — injecting up to ~12 months of extra contributions/growth. With
+    // volatility 0 this is directly checkable: growth to the first whole-age checkpoint
+    // should match the closed-form compound-growth formula for the exact number of
+    // elapsed months from today to that checkpoint, not from floor(currentAge).
+    const currentAge = computeCurrentAge(DEFAULTS.dateOfBirth);
+    const config: FireConfig = {
+      ...DEFAULTS,
+      retirementAge: Math.floor(currentAge) + 5, // comfortably inside the accumulation phase
+      accumulationReturn: 0.06,
+      monthlyContribution: 1000,
+      returnVolatility: 0,
+    };
+    const startingPortfolio = 100_000;
+    const result = runMonteCarlo(config, startingPortfolio, 0, 1);
+
+    const firstCheckpointAge = Math.floor(currentAge) + 1;
+    // The simulation records a checkpoint at the first month whose age crosses into
+    // firstCheckpointAge, i.e. the smallest k with currentAge + k/12 >= firstCheckpointAge.
+    const elapsedMonths = Math.ceil((firstCheckpointAge - currentAge) * 12);
+    const mRate = Math.pow(1 + config.accumulationReturn, 1 / 12) - 1;
+    const expected = startingPortfolio * Math.pow(1 + mRate, elapsedMonths)
+      + config.monthlyContribution * (Math.pow(1 + mRate, elapsedMonths) - 1) / mRate;
+
+    const band = result.bands.find(b => b.age === firstCheckpointAge);
+    expect(band).toBeDefined();
+    expect(band!.p50).toBeCloseTo(expected, 0);
+  });
+
   it('bands are sorted p10 <= p50 <= p90 at every age', () => {
     const config = { ...RETIRED_NOW, returnVolatility: 0.2 };
     const target = computeFireTarget(config, 0);

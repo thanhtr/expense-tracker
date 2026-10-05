@@ -55,48 +55,47 @@ function drawAnnualReturn(rng: () => number, mean: number, vol: number): number 
   return Math.exp(mu + sigma * randNormal(rng)) - 1;
 }
 
-// One random trial: walks year by year from today to lifeExpectancy, drawing one
-// annual return per calendar year (resampled each 12 months) and applying it monthly
-// via the same monthlyRate() conversion the deterministic model uses, so a trial with
-// zero volatility reproduces simulateProjection's numbers exactly. Withdrawal amounts
-// come from the same computePhaseGrossWithdrawals the deterministic target uses, so
-// only the return path is randomized. Once the portfolio hits 0 during retirement it
-// stays at 0 (no further withdrawals from an empty account) and the trial is marked
-// failed.
+// One random trial: walks month by month from the exact (fractional) current age to
+// lifeExpectancy — the same total month count the deterministic model uses
+// ((lifeExpectancy - currentAge) * 12) — drawing one annual return every 12 *elapsed*
+// months (not tied to calendar-year boundaries) and applying it via the same
+// monthlyRate() conversion the deterministic model uses. Withdrawal amounts come from
+// the same computePhaseGrossWithdrawals the deterministic target uses, so only the
+// return path is randomized. Once the portfolio hits 0 during retirement it stays at 0
+// (no further withdrawals from an empty account) and the trial is marked failed.
+// Returns one path point per integer age crossed, plus a first point at the exact
+// starting age (matching simulateProjection's own point convention) so the chart band
+// has data right at "today", not just from the next whole year.
 function simulateTrial(
   config: FireConfig,
   currentPortfolio: number,
-  activeIncomeMonthly: number,
   rng: () => number,
-  startAge: number,
-  endAge: number,
+  currentAge: number,
   withdrawals: { gross1a: number; gross1b: number; gross2: number },
-): { success: boolean; path: number[] } {
-  const { retirementAge, mortgageEndAge, pensionAge, monthlyContribution, accumulationReturn, drawdownReturn, returnVolatility } = config;
+): { success: boolean; path: { age: number; portfolio: number }[] } {
+  const { retirementAge, mortgageEndAge, pensionAge, lifeExpectancy, monthlyContribution, accumulationReturn, drawdownReturn, returnVolatility } = config;
 
   let portfolio = currentPortfolio;
   let depleted = false;
-  const path: number[] = [portfolio];
+  const path: { age: number; portfolio: number }[] = [{ age: currentAge, portfolio }];
+  let lastRecordedAge = Math.floor(currentAge);
 
-  for (let age = startAge; age < endAge; age++) {
-    const isAccumulationYear = age < retirementAge;
-    const annualReturn = drawAnnualReturn(
-      rng,
-      isAccumulationYear ? accumulationReturn : drawdownReturn,
-      returnVolatility,
-    );
-    const mRate = monthlyRate(annualReturn);
+  const totalMonths = Math.max(0, Math.round((lifeExpectancy - currentAge) * 12));
+  let mRate = 0;
 
-    for (let m = 0; m < 12; m++) {
-      const exactAge = age + m / 12;
-      if (exactAge < retirementAge) {
-        portfolio = portfolio * (1 + mRate) + monthlyContribution;
-        continue;
-      }
-      if (depleted) continue; // stays pinned at 0, see below
+  for (let m = 0; m < totalMonths; m++) {
+    const age = currentAge + m / 12;
+    if (m % 12 === 0) {
+      const isAccumulation = age < retirementAge;
+      const annualReturn = drawAnnualReturn(rng, isAccumulation ? accumulationReturn : drawdownReturn, returnVolatility);
+      mRate = monthlyRate(annualReturn);
+    }
 
-      const gross = exactAge < mortgageEndAge ? withdrawals.gross1a
-        : exactAge < pensionAge ? withdrawals.gross1b
+    if (age < retirementAge) {
+      portfolio = portfolio * (1 + mRate) + monthlyContribution;
+    } else if (!depleted) {
+      const gross = age < mortgageEndAge ? withdrawals.gross1a
+        : age < pensionAge ? withdrawals.gross1b
         : withdrawals.gross2;
       portfolio = portfolio * (1 + mRate) - gross;
       if (portfolio < 0) {
@@ -105,7 +104,11 @@ function simulateTrial(
       }
     }
 
-    path.push(portfolio);
+    const nextAge = currentAge + (m + 1) / 12;
+    if (Math.floor(nextAge) > lastRecordedAge) {
+      lastRecordedAge = Math.floor(nextAge);
+      path.push({ age: lastRecordedAge, portfolio });
+    }
   }
 
   return { success: !depleted, path };
@@ -127,31 +130,42 @@ export function runMonteCarlo(
   trials = 1000,
   seed = 20261005,
 ): MonteCarloResult {
-  const currentAge = computeCurrentAge(config.dateOfBirth);
-  const startAge = Math.floor(currentAge);
-  const endAge = Math.max(startAge, Math.ceil(config.lifeExpectancy));
+  // Rounded to ~32-second precision: it's used as the key for the first path point
+  // below, and computeCurrentAge is wall-clock-dependent (Date.now()), so two calls a
+  // few milliseconds apart would otherwise produce a different float and silently fail
+  // to line up with each other (or with the deterministic projection's own point) when
+  // merged by age.
+  const currentAge = Math.round(computeCurrentAge(config.dateOfBirth) * 1e6) / 1e6;
   const withdrawals = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
 
   const rng = mulberry32(seed);
-  const numPoints = endAge - startAge + 1;
-  const byAge: number[][] = Array.from({ length: numPoints }, () => []);
+  // Keyed by age (the first point is the exact fractional currentAge, every later one a
+  // whole age), not by array position — every trial visits the same age sequence, so
+  // this is equivalent to indexing but self-documenting and order-independent.
+  const byAge = new Map<number, number[]>();
 
   let successes = 0;
   for (let t = 0; t < trials; t++) {
-    const { success, path } = simulateTrial(config, currentPortfolio, activeIncomeMonthly, rng, startAge, endAge, withdrawals);
+    const { success, path } = simulateTrial(config, currentPortfolio, rng, currentAge, withdrawals);
     if (success) successes++;
-    for (let i = 0; i < path.length; i++) byAge[i]!.push(path[i]!);
+    for (const point of path) {
+      const values = byAge.get(point.age) ?? [];
+      values.push(point.portfolio);
+      byAge.set(point.age, values);
+    }
   }
 
-  const bands: MonteCarloBand[] = byAge.map((values, i) => {
-    const sorted = [...values].sort((a, b) => a - b);
-    return {
-      age: startAge + i,
-      p10: percentile(sorted, 0.10),
-      p50: percentile(sorted, 0.50),
-      p90: percentile(sorted, 0.90),
-    };
-  });
+  const bands: MonteCarloBand[] = [...byAge.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([age, values]) => {
+      const sorted = [...values].sort((a, b) => a - b);
+      return {
+        age,
+        p10: percentile(sorted, 0.10),
+        p50: percentile(sorted, 0.50),
+        p90: percentile(sorted, 0.90),
+      };
+    });
 
   return { trials, successProbability: successes / trials, bands };
 }

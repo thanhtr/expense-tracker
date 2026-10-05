@@ -944,6 +944,37 @@ only evaluates it.
   and instead use configs with `retirementAge` pinned to the current age, removing the accumulation
   phase so funding-level assertions aren't swamped by decades of contributions.
 
+**Fixed in code review:**
+- `runMonteCarlo` started every trial at `Math.floor(currentAge)` instead of the exact fractional
+  age, treating the already-elapsed partial year as if it were still future accumulation — up to
+  ~12 phantom months of extra contributions/growth, systematically overstating the success
+  probability and percentile bands the closer `currentAge` sits to its next whole year. Rewrote
+  `simulateTrial` to step by total elapsed months from the exact `currentAge`
+  (`(lifeExpectancy - currentAge) * 12`, matching the deterministic model's own month count) instead
+  of iterating whole calendar years from a floored start. Added a regression test that checks the
+  portfolio value at the first checkpoint against the exact closed-form compound-growth formula for
+  the correct elapsed-month count.
+- The Monte Carlo badge/band only ever evaluates the **Pure FIRE** plan (`runMonteCarlo` is called
+  with no `activeIncomeMonthly`), but was shown generically alongside all three plan lines
+  (Pure FIRE, Barista 33%, Barista 50%) with no indication of which one it describes — misleading
+  next to a Barista line, whose real survival odds (helped by ongoing income) are materially higher.
+  Running it three times (once per variant) would triple the simulation cost for a purely
+  descriptive check, so fixed by labeling the badge, tooltip, and explainer text as Pure-FIRE-specific
+  instead.
+- The first Monte Carlo band point used to be keyed by a whole age, so it never lined up with the
+  deterministic projections' own first point (the exact fractional `currentAge`) — the shaded band
+  silently started one data point late on the chart. Fixed as a side effect of the elapsed-months
+  rewrite: the trial path's first point is now the exact fractional `currentAge`, matching
+  `simulateProjection`'s own convention.
+- `currentAge` is wall-clock-dependent (`Date.now()`), and the rewrite above started using it as a
+  map key for the first path point — two `runMonteCarlo` calls close in time could previously
+  produce a very slightly different float and silently fail to merge (surfaced as a flaky
+  determinism test when the 1,000-trial compute between two calls was enough to tick the clock by
+  a millisecond). Rounded to ~32-second precision before using it as a key.
+- `simulateTrial` took an unused `activeIncomeMonthly` parameter (withdrawal amounts are precomputed
+  outside and passed in) — misleading, since it looked like per-trial active income might vary.
+  Removed.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

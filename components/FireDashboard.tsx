@@ -267,9 +267,11 @@ need    = sale + rent − tax   (solved for sale, annually, then ÷ 12)`}
               The model runs 1,000 random paths from today to life expectancy. Each path draws one annual real
               return per year (lognormal, centered on your configured accumulation/drawdown return with your
               configured volatility as its standard deviation) and applies your same monthly contributions and
-              withdrawal schedule. The badge is the share of paths whose portfolio never ran out; the band is the
-              10th–90th percentile range of simulated portfolio value at each age. A fixed random seed keeps the
-              numbers stable across reloads for the same configuration.
+              withdrawal schedule — for the Pure FIRE plan specifically; the Barista variants aren&apos;t separately
+              simulated and would survive more often, since their ongoing income reduces how much the portfolio is
+              drawn down. The badge is the share of paths whose portfolio never ran out; the band is the 10th–90th
+              percentile range of simulated portfolio value at each age. A fixed random seed keeps the numbers
+              stable across reloads for the same configuration.
             </p>
             <p className="text-[var(--fg-3)]">
               This is a descriptive check, not a second target: the FIRE number above is still solved
@@ -398,9 +400,9 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
               color: data.monteCarlo.successProbability >= 0.9 ? 'oklch(0.60 0.13 155)' : data.monteCarlo.successProbability >= 0.7 ? 'oklch(0.60 0.15 75)' : 'oklch(0.55 0.19 25)',
             }}
           >
-            {Math.round(data.monteCarlo.successProbability * 100)}% survive to {data.config.lifeExpectancy}
+            {Math.round(data.monteCarlo.successProbability * 100)}% survive to {data.config.lifeExpectancy} (Pure FIRE)
           </span>
-          <InfoTip text={`Monte Carlo: ${data.monteCarlo.trials.toLocaleString()} random return paths (annual real return drawn around your configured accumulation/drawdown returns, with ${pctFmt(data.config.returnVolatility * 100)} standard deviation), same contributions and withdrawal schedule as the deterministic model. Shows the share of paths whose portfolio never runs out through life expectancy — purely descriptive, it doesn't change the FIRE number above. The shaded band on the chart is the 10th–90th percentile range of simulated outcomes at each age.`} />
+          <InfoTip text={`Monte Carlo: ${data.monteCarlo.trials.toLocaleString()} random return paths (annual real return drawn around your configured accumulation/drawdown returns, with ${pctFmt(data.config.returnVolatility * 100)} standard deviation), same contributions and withdrawal schedule as the deterministic model — for the Pure FIRE plan specifically (no active income during retirement). The Barista variants would survive more often, since ongoing income reduces how much the portfolio is drawn down, but aren't separately simulated. Shows the share of paths whose portfolio never runs out through life expectancy — purely descriptive, it doesn't change the FIRE number above. The shaded band on the chart is the 10th–90th percentile range of simulated outcomes at each age, also for the Pure FIRE plan.`} />
         </div>
         <div className="flex items-center gap-2">
           <label htmlFor="extra-investment" className="text-[11px] text-[var(--fg-3)] whitespace-nowrap">Extra monthly</label>
