@@ -24,6 +24,9 @@ export interface StoredFireConfig {
   // solving to exactly €0 — a margin for living longer, a worse-than-assumed market, or
   // unplanned costs.
   endBufferYears: number;
+  // Annual standard deviation of real returns, used only by the Monte Carlo evaluation
+  // (lib/services/fire-monte-carlo.ts) — the deterministic target/projection ignore it.
+  returnVolatility: number;
 }
 
 // Inputs derived from transaction data (see lib/services/fire-inputs-service.ts),
@@ -95,6 +98,9 @@ export const FIRE_DEFAULTS: StoredFireConfig = {
   pensionTaxRate: 0.20,
   // This model's own assumption, not a sourced figure.
   endBufferYears: 2,
+  // This model's own assumption, not a sourced figure. 15% is a commonly used rough
+  // estimate for a diversified equity-heavy portfolio's annual real-return volatility.
+  returnVolatility: 0.15,
 };
 
 // Finnish capital income tax (pääomatulovero), 2026 rates — update if vero.fi changes.
@@ -251,7 +257,7 @@ export interface FireCalculationResult {
   projection: ProjectionPoint[];
 }
 
-function monthlyRate(annualRate: number): number {
+export function monthlyRate(annualRate: number): number {
   return Math.pow(1 + annualRate, 1 / 12) - 1;
 }
 
@@ -268,7 +274,7 @@ function grossUpMonthly(netMonthly: number, config: FireConfig, loanInterestMont
 // Pre-computes the monthly gross withdrawal for each spending phase.
 // Net spend is constant within a phase, so this only needs to run once per simulation.
 // The rental loan runs until mortgageEndAge, so its interest is deducted in Phase 1A only.
-function computePhaseGrossWithdrawals(
+export function computePhaseGrossWithdrawals(
   config: FireConfig,
   activeIncomeMonthly: number,
 ): { gross1a: number; gross1b: number; gross2: number } {
@@ -541,6 +547,13 @@ function computeWarnings(config: FireConfig): string[] {
   if (config.annualGrossEarnings <= 0) {
     warnings.push(
       'No salary income found in the last 12 months, so the pension uses only what is accrued so far.',
+    );
+  }
+  if (config.drawdownReturn > config.accumulationReturn) {
+    warnings.push(
+      'Drawdown real return is set above the accumulation real return — being funded isn\'t guaranteed ' +
+      'to stay true at every later age, so the Years-to-FIRE search (which checks year by year, then refines) ' +
+      'could in principle skip a funded year between checkpoints.',
     );
   }
   return warnings;
