@@ -200,10 +200,19 @@ function CategoryBarList({
 }
 
 // Custom daily chart using recharts (stacked bar)
-function DailyChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
+const REFUNDS_COLOR = 'var(--fg-3)';
+
+function DailyChart({ data, categories, refunds }: { data: Array<Record<string, number | string>>; categories: string[]; refunds?: Array<{ day: string; amount: number }> }) {
+  const chartData = useMemo(() => {
+    if (!refunds?.length) return data;
+    const refundByDay = new Map(refunds.map(r => [r.day, r.amount]));
+    return data.map(d => ({ ...d, refunds: -(refundByDay.get(d.day as string) ?? 0) }));
+  }, [data, refunds]);
+  const hasRefunds = !!refunds?.length;
+
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 28 }}>
+      <BarChart data={chartData} margin={{ left: 20, right: 16, top: 8, bottom: 28 }}>
         <XAxis
           dataKey="day"
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
@@ -235,7 +244,7 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
           }}
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
+          formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name === 'refunds' ? 'Refunds' : name]}
           labelFormatter={(label) => {
             const d = label as string;
             return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -247,9 +256,12 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
             dataKey={cat}
             stackId="a"
             fill={CAT_COLORS[i % CAT_COLORS.length]}
-            radius={i === categories.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+            radius={i === categories.length - 1 && !hasRefunds ? [3, 3, 0, 0] : [0, 0, 0, 0]}
           />
         ))}
+        {hasRefunds && (
+          <Bar dataKey="refunds" stackId="a" fill={REFUNDS_COLOR} fillOpacity={0.5} radius={[0, 0, 3, 3]} />
+        )}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -1479,7 +1491,7 @@ export function DashboardStats() {
         </div>
         <div className="p-[0_12px_12px]">
           {data.byDay.length > 0 ? (
-            <DailyChart data={data.byDay} categories={displayCategories} />
+            <DailyChart data={data.byDay} categories={displayCategories} refunds={data.refundsByDay} />
           ) : (
             <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period. <a href="/upload" className="text-[var(--fg-2)] underline">Upload transactions →</a></div>
           )}
@@ -1491,6 +1503,12 @@ export function DashboardStats() {
                   {c.category}
                 </span>
               ))}
+              {(data.refundsByDay?.length ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-[5px]">
+                  <span className="w-[8px] h-[8px] rounded-[2px] inline-block" style={{ background: REFUNDS_COLOR, opacity: 0.5 }} />
+                  Refunds
+                </span>
+              )}
               {data.byCategory.length > 6 && (
                 <span className="text-[var(--fg-3)]">+{data.byCategory.length - 6} more</span>
               )}

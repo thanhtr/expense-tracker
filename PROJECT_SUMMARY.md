@@ -879,4 +879,21 @@ Expected behavior - category edits via PATCH are in-memory only. Page reload rev
 
 ---
 
+## Recent Changes (October 2026)
+
+### Refunds shown as their own chart series (branch: `feat/refund-series`)
+Unlinked ("blanket") reimbursements were netted into `byCategory` (a period-total aggregate) but
+deliberately never into the date-keyed `byDay`/`byMonth`/`byCategoryMonth` breakdowns, since a
+refund posted on a day/month with no matching spend would otherwise create a misleading
+negative-only bar segment (see the September 2026 netting fix above). That left them invisible in
+the daily/monthly/trend charts even though they're real money. New `refundsByDay`/`refundsByMonth`
+fields on `DashboardAggregation` (`aggregation-service.ts`) total them by their own real posting
+date — still never merged into the gross spend series. Dashboard's daily chart and `/trends`'
+monthly chart now render them as a distinct "Refunds" bar stacked below zero (negative value, same
+`stackId`, muted color), with its own tooltip label and legend entry. Only applies to
+unlinked/blanket reimbursements — linked ones (`TransactionLink`) were already netted correctly
+into the date-keyed breakdowns via their originating expense's date, and are unaffected.
+
+---
+
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

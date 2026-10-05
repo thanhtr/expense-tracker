@@ -103,6 +103,12 @@ export default function TrendsPage() {
 
   const displayed = allCategories.filter(c => selectedCategories.has(c));
 
+  const refundsByMonth = new Map((data.refundsByMonth ?? []).map(r => [r.month, r.amount]));
+  const hasRefunds = refundsByMonth.size > 0;
+  const chartData = hasRefunds
+    ? data.byCategoryMonth.map(row => ({ ...row, refunds: -(refundsByMonth.get(String(row.month)) ?? 0) }))
+    : data.byCategoryMonth;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <div>
@@ -144,7 +150,7 @@ export default function TrendsPage() {
         </div>
         <div className="p-[0_12px_16px]">
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={data.byCategoryMonth} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
+            <BarChart data={chartData} margin={{ left: 20, right: 16, top: 8, bottom: 8 }}>
               <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="month"
@@ -171,7 +177,7 @@ export default function TrendsPage() {
                 }}
                 labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
                 labelFormatter={(m) => fmtMonth(String(m))}
-                formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
+                formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name]}
               />
               <Legend
                 wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
@@ -180,11 +186,15 @@ export default function TrendsPage() {
                 <Bar
                   key={cat}
                   dataKey={cat}
+                  name={cat}
                   stackId="a"
                   fill={CAT_COLORS[allCategories.indexOf(cat) % CAT_COLORS.length]}
-                  radius={i === displayed.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                  radius={i === displayed.length - 1 && !hasRefunds ? [3, 3, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
+              {hasRefunds && (
+                <Bar dataKey="refunds" name="Refunds" stackId="a" fill="var(--fg-3)" fillOpacity={0.5} radius={[0, 0, 3, 3]} />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>

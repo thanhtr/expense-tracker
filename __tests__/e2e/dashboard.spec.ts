@@ -96,6 +96,8 @@ test.describe('Dashboard', () => {
       { category: 'Shopping', amount: 200 },
     ],
     byDay: [],
+    refundsByDay: [],
+    refundsByMonth: [],
     byAccount: {},
     byMonth: [
       { month: '2026-03', amount: 1300 },
