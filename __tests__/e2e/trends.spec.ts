@@ -32,11 +32,34 @@ const DASHBOARD_RESPONSE = {
   byIncomeSource: [],
 };
 
+const PREV_YEAR_RESPONSE = {
+  ...DASHBOARD_RESPONSE,
+  totalExpenses: 3300,
+  byMonth: [
+    { month: '2025-03', amount: 1100 },
+    { month: '2025-04', amount: 1100 },
+    { month: '2025-05', amount: 1100 },
+  ],
+  byCategoryMonth: [
+    { month: '2025-03', Rent: 1000, Shopping: 100 },
+    { month: '2025-04', Rent: 1000, Shopping: 100 },
+    { month: '2025-05', Rent: 1000, Shopping: 100 },
+  ],
+};
+
 test.describe('Trends page', () => {
   test.beforeEach(async ({ page }) => {
     await setupSplitwise(page, []);
+    // Route by the request's own date_from, not by call order — the page fires both
+    // fetches concurrently (Promise.all), so nothing guarantees which one a mock server
+    // receives first.
     await page.route('**/api/dashboard*', async (route) => {
-      await route.fulfill({ json: DASHBOARD_RESPONSE });
+      const url = new URL(route.request().url());
+      const dateFrom = new Date(url.searchParams.get('date_from') ?? '');
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      cutoff.setDate(cutoff.getDate() - 30); // safety margin around the 12-month boundary
+      await route.fulfill({ json: dateFrom > cutoff ? DASHBOARD_RESPONSE : PREV_YEAR_RESPONSE });
     });
   });
 
@@ -47,14 +70,14 @@ test.describe('Trends page', () => {
     await expect(page.locator('table')).toBeVisible();
     const rentRow = page.locator('tbody tr', { hasText: 'Rent' });
     await expect(rentRow).toBeVisible();
-    await expect(rentRow.locator('td').last()).toHaveText(/3.?600/);
+    await expect(rentRow.locator('td').nth(-2)).toHaveText(/3.?600/);
   });
 
   test('toggling a category pill hides it from the displayed totals row', async ({ page }) => {
     await page.goto('/trends');
     await expect(page.locator('text=Monthly spending by category')).toBeVisible();
 
-    const shoppingRow = page.locator('tr', { hasText: 'Shopping' });
+    const shoppingRow = page.locator('tbody tr', { hasText: 'Shopping' });
     await expect(shoppingRow).toBeVisible();
 
     await page.locator('button', { hasText: 'Shopping' }).first().click();
@@ -69,5 +92,34 @@ test.describe('Trends page', () => {
     });
     await page.goto('/trends');
     await expect(page.locator('text=Not enough data for trends')).toBeVisible();
+  });
+
+  test('shows a "vs last year" column with the correct percentage change', async ({ page }) => {
+    await page.goto('/trends');
+    await expect(page.locator('table')).toBeVisible();
+    await expect(page.locator('th', { hasText: 'vs last year' })).toBeVisible();
+
+    // Rent: 3600 this year vs 3000 last year → +20%
+    const rentRow = page.locator('tbody tr', { hasText: 'Rent' });
+    await expect(rentRow).toContainText('+20%');
+  });
+
+  test('toggling "Last year" adds an overlay line to the chart legend', async ({ page }) => {
+    await page.goto('/trends');
+    const yoyCheckbox = page.locator('label:has-text("Last year") input[type=checkbox]');
+    await expect(yoyCheckbox).toBeEnabled();
+    await expect(page.locator('.recharts-legend-wrapper')).not.toContainText('Last year');
+
+    await yoyCheckbox.check();
+    await expect(page.locator('.recharts-legend-wrapper')).toContainText('Last year');
+  });
+
+  test('toggling "3-mo avg" adds a moving-average line to the chart legend', async ({ page }) => {
+    await page.goto('/trends');
+    const avgCheckbox = page.locator('label:has-text("3-mo avg") input[type=checkbox]');
+    await expect(page.locator('.recharts-legend-wrapper')).not.toContainText('3-mo avg');
+
+    await avgCheckbox.check();
+    await expect(page.locator('.recharts-legend-wrapper')).toContainText('3-mo avg');
   });
 });

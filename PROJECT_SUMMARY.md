@@ -1034,6 +1034,50 @@ Several features had zero automated test coverage. Added, without changing any p
   otherwise intercept the click.
 - Depends on PR #167/#168's `endBufferYears`/`returnVolatility`/`monteCarlo` fields for the `fire.spec.ts`
   mock response shape.
+### Year-over-year comparison on Trends (branch: `feat/trends-yoy`, stacked on `feat/refund-series`)
+The dashboard already had a YoY compare mode; `/trends` had none — an open item from
+PROJECT_SUMMARY's "Next Steps" list. `app/trends/page.tsx` now also fetches the 12 months
+immediately preceding the displayed window and adds:
+- A **"vs last year"** table column per category: % change of that category's 12-month total vs
+  the prior 12-month total, using the same up-is-bad/down-is-good red/green convention as the
+  dashboard's `Delta` component (reimplemented locally as `YoyDelta` rather than importing a
+  component private to `DashboardStats.tsx`).
+- A toggleable **"Last year"** dashed overlay line on the chart — last year's monthly total
+  (`byMonth`, not filtered by category selection, so the line reflects overall spending
+  regardless of which categories are currently shown), disabled when no prior-year data exists.
+- A toggleable **"3-mo avg"** line — a trailing 3-month moving average of the current window's
+  monthly total, also independent of category selection.
+- Both toggles default off; checking them just adds a `Line` to the existing stacked `BarChart`
+  and a legend entry.
+- Verified against real production data via a throwaway Playwright script (not committed): the
+  checkbox enables correctly, toggling adds the legend entries, and a real category showed a
+  correct `▲ +35%` vs-last-year delta.
+
+**Fixed in code review** (two independent review passes, both converging on the same index bug):
+- The original version zipped `data.byCategoryMonth[i]` with `prevYearTotals[i]`/`movingAvg3[i]`
+  purely by array index, assuming both windows have exactly 12 entries in lockstep. But `byMonth`/
+  `byCategoryMonth` are sparse — `aggregation-service.ts` only emits a row for a month that actually
+  had a qualifying transaction, so a single quiet month in either window (new account, a gap in
+  uploads) silently shifts every later index, pairing the wrong calendar months with no error.
+  Fixed by looking up the prior year's value by the actual computed calendar-month string (current
+  month's month-number minus 12) instead of by array position, and by computing `movingAvg3` from
+  a month-keyed map rather than a positional array.
+- `Promise.all([fetch(current), fetch(prevYear)])` had no per-promise isolation: a transient
+  failure of the new prior-year fetch alone would reject the whole chain and hide valid
+  current-year data behind the "not enough data" fallback — a resilience regression introduced
+  specifically by adding the second fetch. Fixed by catching the prior-year fetch independently
+  so its failure only disables the YoY feature, not the page.
+- `YoyDelta`'s "flat" threshold (0.5%) had already drifted from the dashboard's `Delta` component
+  it was modeled on (0.05%). Aligned to the same threshold.
+- `__tests__/e2e/trends.spec.ts`'s mock relied on a call-counter to tell the current-window and
+  prior-year fetches apart, which races against `Promise.all`'s concurrent requests — nothing
+  guarantees which one the mock server receives first. Fixed to route by the request's actual
+  `date_from` value instead.
+- The partial-current-month-vs-full-prior-month comparison (the trailing 12-month window's last
+  month only has the elapsed days of the current month) is a real, pre-existing caveat of any
+  trailing-window chart, not introduced by this PR — flagged, not changed, since "fixing" it means
+  deciding whether to exclude the partial month from the comparison entirely, a product call left
+  for later.
 
 ---
 
