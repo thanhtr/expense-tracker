@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DashboardAggregation } from '@/lib/types';
-import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   ComposedChart, Line, CartesianGrid, Legend, LineChart, ReferenceLine,
@@ -712,70 +711,6 @@ function hash(s: string): number {
   return h;
 }
 
-// ----- forecast card -----
-
-function ForecastCard({ forecast }: { forecast: ForecastResult }) {
-  const monthLabel = (() => {
-    const [y, m] = forecast.forecastMonth.split('-');
-    return new Date(Number(y), Number(m) - 1, 1)
-      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  })();
-
-  return (
-    <div className="dash-card">
-      <div className="flex items-center justify-between gap-4 p-[16px_20px_12px]">
-        <div>
-          <h3 className="text-[13px] font-semibold m-0">Forecast: {monthLabel}</h3>
-          <div className="text-[12px] text-[var(--fg-3)]">
-            EMA prediction · {forecast.basedOnMonths} month{forecast.basedOnMonths !== 1 ? 's' : ''} of history
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)]">Est. total</div>
-          <div className="mono text-[20px] font-semibold mt-[2px]">{fmtEUR(forecast.nextMonthTotal)}</div>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[var(--border)]">
-              <th className="px-[20px] py-[8px] text-left text-[11px] font-medium text-[var(--fg-3)]">Category</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Last month</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Forecast</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {forecast.byCategory.slice(0, 8).map(row => (
-              <tr key={row.category} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
-                <td className="px-[20px] py-[9px] text-[13px] text-[var(--foreground)]">{row.category}</td>
-                <td className="px-[20px] py-[9px] text-right mono text-[13px] text-[var(--fg-3)]">
-                  {row.lastMonthActual > 0 ? fmtEUR(row.lastMonthActual) : '—'}
-                </td>
-                <td className="px-[20px] py-[9px] text-right mono text-[13px] font-medium text-[var(--foreground)]">
-                  {fmtEUR(row.forecast)}
-                </td>
-                <td className="px-[20px] py-[9px] text-right text-[12px]">
-                  {row.trend === 'up' && <span style={{ color: 'var(--neg)' }}>▲</span>}
-                  {row.trend === 'down' && <span style={{ color: 'var(--pos)' }}>▼</span>}
-                  {row.trend === 'stable' && <span className="text-[var(--fg-3)]">—</span>}
-                </td>
-              </tr>
-            ))}
-            {forecast.byCategory.length > 8 && (
-              <tr>
-                <td colSpan={4} className="px-[20px] py-[8px] text-[11px] text-[var(--fg-3)] text-center">
-                  +{forecast.byCategory.length - 8} more categories
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ----- skeleton -----
 
 function DashboardSkeleton() {
@@ -891,7 +826,6 @@ export function DashboardStats() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const shouldRefresh = useRef(false);
-  const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
 
   const compareRange = useMemo(
@@ -907,12 +841,8 @@ export function DashboardStats() {
     setDateTo(r.to);
   }, [preset]);
 
-  // Fetch forecast + recurring total once on mount
+  // Fetch recurring total once on mount
   useEffect(() => {
-    fetch('/api/forecast')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setForecast(d); })
-      .catch(() => {});
     fetch('/api/transactions/recurring')
       .then(r => r.ok ? r.json() : null)
       .then((d: { totalMonthly: number } | null) => { if (d) setRecurringMonthly(d.totalMonthly); })
@@ -1555,13 +1485,6 @@ export function DashboardStats() {
             <IncomeTrendChart trendData={incomeTrendData} />
           </div>
         </div>
-      )}
-
-      {/* Forecast */}
-      {forecast && (
-        <CollapsibleSection storageKey="dash-forecast" title="Forecast">
-          <ForecastCard forecast={forecast} />
-        </CollapsibleSection>
       )}
 
       {/* Net Worth */}

@@ -139,7 +139,6 @@ test.describe('Transactions Page', () => {
     await page.route('**/api/budgets*', async (route) => { await route.fulfill({ json: [] }); });
     await page.route('**/api/goals*', async (route) => { await route.fulfill({ json: [] }); });
     await page.route('**/api/assets*', async (route) => { await route.fulfill({ json: [] }); });
-    await page.route('**/api/forecast*', async (route) => { await route.fulfill({ json: null }); });
     await page.route('**/api/transactions/recurring*', async (route) => { await route.fulfill({ json: { items: [], totalMonthly: 0 } }); });
     await page.goto('/transactions');
     await expect(page.locator('text=/No transactions|upload a CSV/').first()).toBeVisible();

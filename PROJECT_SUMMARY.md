@@ -879,4 +879,15 @@ Expected behavior - category edits via PATCH are in-memory only. Page reload rev
 
 ---
 
+## Recent Changes (October 2026)
+
+### Spending forecast removed (branch: `chore/remove-spending-forecast`)
+The next-month spending forecast (`lib/services/forecast-service.ts`, dashboard `ForecastCard`) was a
+single EMA number per category with no confidence interval, no minimum-history guard, and missing
+months counted as literal €0 spend — judged too vague and unreliable to keep. Removed entirely
+(service, `/api/forecast` route, UI card, test mocks). No replacement yet; revisit only with a model
+that can express uncertainty and handle sparse/irregular categories correctly.
+
+---
+
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
