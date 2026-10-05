@@ -894,6 +894,26 @@ monthly chart now render them as a distinct "Refunds" bar stacked below zero (ne
 unlinked/blanket reimbursements — linked ones (`TransactionLink`) were already netted correctly
 into the date-keyed breakdowns via their originating expense's date, and are unaffected.
 
+### Year-over-year comparison on Trends (branch: `feat/trends-yoy`, stacked on `feat/refund-series`)
+The dashboard already had a YoY compare mode; `/trends` had none — an open item from
+PROJECT_SUMMARY's "Next Steps" list. `app/trends/page.tsx` now also fetches the 12 months
+immediately preceding the displayed window (aligned by relative index, since both windows cover
+exactly 12 months — not by calendar month) and adds:
+- A **"vs last year"** table column per category: % change of that category's 12-month total vs
+  the prior 12-month total, using the same up-is-bad/down-is-good red/green convention as the
+  dashboard's `Delta` component (reimplemented locally as `YoyDelta` rather than importing a
+  component private to `DashboardStats.tsx`).
+- A toggleable **"Last year"** dashed overlay line on the chart — last year's monthly total
+  (`byMonth`, not filtered by category selection, so the line reflects overall spending
+  regardless of which categories are currently shown), disabled when no prior-year data exists.
+- A toggleable **"3-mo avg"** line — a trailing 3-month moving average of the current window's
+  monthly total, also independent of category selection.
+- Both toggles default off; checking them just adds a `Line` to the existing stacked `BarChart`
+  (Recharts handles bars/lines in the same `ComposedChart`-like container fine) and a legend entry.
+- Verified against real production data via a throwaway Playwright script (not committed): the
+  checkbox enables correctly, toggling adds the legend entries, and a real category showed a
+  correct `▲ +35%` vs-last-year delta.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
