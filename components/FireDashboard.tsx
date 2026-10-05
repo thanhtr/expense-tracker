@@ -192,13 +192,14 @@ net   = gross × (1 − pension tax %)`}
             <h3 className="font-semibold text-[var(--fg-1)]">Calculating the FIRE number</h3>
             <p>
               The FIRE number is the portfolio value needed at retirement so that — growing at the drawdown
-              real return and paying out the phased net spending — it reaches exactly €0 at age 95. It is found
+              real return and paying out the phased net spending — it leaves the configured end-of-plan buffer
+              (in years of Phase 2 net spending; default 2, set to 0 for exactly €0) at age 95. It is found
               by binary search: the model tries a starting portfolio, simulates all monthly
-              withdrawals from retirement to age 95, and adjusts up or down until the end balance converges to zero (60 iterations,
-              accurate to within a few euros).
+              withdrawals from retirement to age 95, and adjusts up or down until the end balance converges to
+              the buffer target (60 iterations, accurate to within a few euros).
             </p>
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded">
-              repeat 60×: mid = (lo + hi) / 2 → simulate → end &gt; 0 ? hi = mid : lo = mid
+              repeat 60×: mid = (lo + hi) / 2 → simulate → end &gt; buffer ? hi = mid : lo = mid
             </p>
           </section>
 
@@ -250,9 +251,9 @@ need    = sale + rent − tax   (solved for sale, annually, then ÷ 12)`}
             <p className="text-[var(--fg-3)]">
               <span className="font-medium">Known limitation:</span> every year is assumed to return exactly
               this rate, with no ups and downs, so the model can&apos;t show what happens if bad years come early in
-              retirement. The FIRE number is also solved to reach exactly €0 at the life-expectancy age, with
-              no residual buffer for living longer, a worse-than-assumed market, or unplanned costs (e.g.
-              long-term care) — treat it as a floor, not a comfortable target.
+              retirement (no sequence-of-returns risk). The end-of-plan buffer above gives some margin for living
+              longer or unplanned costs (e.g. long-term care), but it&apos;s still a single deterministic path — treat
+              the result as a floor, not a comfortable target.
             </p>
           </section>
 
@@ -658,6 +659,8 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
     fields: [
       { key: 'emergencyFundMonths', label: 'Emergency fund (months of income)', min: 0, max: 24, step: 0.5,
         tip: 'Bank/cash balances above this many months of your trailing-12-month average income count toward your FIRE portfolio; the buffer itself stays reserved and excluded.' },
+      { key: 'endBufferYears', label: 'End-of-plan buffer (years of Phase 2 spend)', min: 0, max: 10, step: 0.5,
+        tip: 'The FIRE number is solved to leave this many years of Phase 2 net spending in the portfolio at life expectancy, instead of exactly €0 — a margin for living longer, a worse-than-assumed market, or unplanned costs. This model\'s own assumption, not a sourced figure; 0 reproduces the old exactly-€0 behavior.' },
     ],
   },
   {

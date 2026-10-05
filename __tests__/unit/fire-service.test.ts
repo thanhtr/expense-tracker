@@ -33,6 +33,8 @@ const MATH_CONFIG: FireConfig = {
   pensionAccruedMonthly: 1580,
   lifeExpectancyCoef: 1,
   pensionTaxRate: 0,
+  // Hand-checked values below assume the pre-buffer exactly-€0-at-death behavior.
+  endBufferYears: 0,
 };
 
 describe('grossUpAnnual', () => {
@@ -254,6 +256,31 @@ describe('computeFireTarget', () => {
   it('two taxpayers lower the FIRE target', () => {
     expect(computeFireTarget({ ...MATH_CONFIG, taxpayers: 2 }))
       .toBeLessThanOrEqual(computeFireTarget(MATH_CONFIG));
+  });
+
+  it('endBufferYears 0 matches the pre-buffer exactly-€0-at-death target', () => {
+    const target = computeFireTarget(MATH_CONFIG, 0);
+    expect(target).toBeGreaterThan(875_000);
+    expect(target).toBeLessThan(895_000);
+  });
+
+  it('a positive endBufferYears raises the target above the 0-buffer target', () => {
+    const noBuffer = computeFireTarget(MATH_CONFIG, 0);
+    const withBuffer = computeFireTarget({ ...MATH_CONFIG, endBufferYears: 2 }, 0);
+    expect(withBuffer).toBeGreaterThan(noBuffer);
+  });
+
+  it('raises the target by exactly the buffer, discounted back from life expectancy', () => {
+    // simulateDrawdown is linear in the starting portfolio (the withdrawal schedule
+    // doesn't depend on it), so the extra starting capital needed for a buffer is just
+    // that buffer discounted back from lifeExpectancy to retirementAge at drawdownReturn.
+    const noBuffer = computeFireTarget(MATH_CONFIG, 0);
+    const withBuffer = computeFireTarget({ ...MATH_CONFIG, endBufferYears: 3 }, 0);
+    const bufferTarget = 3 * 12 * MATH_CONFIG.phase2NetMonthly;
+    const monthlyRate = Math.pow(1 + MATH_CONFIG.drawdownReturn, 1 / 12) - 1;
+    const totalMonths = (MATH_CONFIG.lifeExpectancy - MATH_CONFIG.retirementAge) * 12;
+    const expectedExtra = bufferTarget / Math.pow(1 + monthlyRate, totalMonths);
+    expect(withBuffer - noBuffer).toBeCloseTo(expectedExtra, 0);
   });
 
   it('higher drawdown return reduces FIRE target', () => {

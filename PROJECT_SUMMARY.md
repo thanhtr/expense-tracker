@@ -879,4 +879,43 @@ Expected behavior - category edits via PATCH are in-memory only. Page reload rev
 
 ---
 
+## Recent Changes (October 2026)
+
+### FIRE end-of-plan buffer (branch: `feat/fire-end-buffer`)
+The FIRE target used to be solved to reach exactly €0 at life expectancy, with no margin for living
+longer, a worse-than-assumed market, or unplanned costs. New `endBufferYears` config field (default
+2, this model's own assumption) changes `computeFireTarget`'s binary-search condition from
+`endValue > 0` to `endValue > endBufferYears * 12 * phase2NetMonthly`. Set to 0 to reproduce the old
+behavior exactly. `computeEarliestFire` picks this up automatically since it calls
+`computeFireTarget` internally. UI: new "End-of-plan buffer" field in the Cash buffer config group,
+and the model explainer's "Known limitation" section and binary-search pseudocode were reworded.
+
+**Found and worked around, not fixed:** the production Neon database has 5 tables
+(`BankConnection`, `CsvImport`, `HouseholdMember`, `IncomeRule`, `RecurringExclusion`) with no
+corresponding migration file anywhere in git history — they were applied directly (likely via
+`prisma db push`) at some point without a migration ever being committed. This makes
+`prisma migrate dev` report schema drift and offer to **reset the database** (`migrate reset`,
+which would drop everything) as its fix — never do this against this database. `prisma migrate
+status` and `prisma migrate deploy` are unaffected and work fine; only `migrate dev`'s drift
+detection trips on it. Worked around for this change by applying the new `endBufferYears` column
+directly with `prisma db execute` and recording it with `prisma migrate resolve --applied`, bypassing
+`migrate dev` entirely. The underlying gap (no migration file for those 5 tables) is still
+unresolved — attempting to reconstruct and backfill a baseline migration for them failed because
+Prisma checksums the original migration file content, and a reconstructed file (even with identical
+SQL) doesn't match the already-recorded checksum, triggering the same reset prompt. Needs a
+dedicated session with lower time pressure, ideally with access to whatever checksum or original
+migration file might still exist, or a deliberate decision to force-overwrite the checksum record.
+
+**Also found:** `simulateProjection`'s drawdown loop and `computeFireTarget`'s internal
+`simulateDrawdown` compute each month's age slightly differently (end-of-month vs start-of-month),
+so a withdrawal right at a phase boundary (mortgageEndAge, pensionAge) can use the wrong phase's
+gross amount in one of the two functions but not the other. Over decades of compounding this is
+enough to make the *displayed* projection chart's ending balance disagree with the FIRE target's
+own internal math by low-four-figures of euros on a ~€100k buffer — not large relative to a ~€900k
+target, but a real, pre-existing inconsistency between what's shown and what's solved for. Not
+fixed here (same reasoning as above: real fix needs care to avoid breaking the other projection
+users — barista variants, the extra-investment what-if chart).
+
+---
+
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
