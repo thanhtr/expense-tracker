@@ -244,6 +244,7 @@ export const fireConfigSchema = z.object({
   lifeExpectancyCoef:  z.number().min(0.5).max(1).optional(),
   pensionTaxRate:      z.number().min(0).max(0.6).optional(),
   endBufferYears:      z.number().min(0).max(10).optional(),
+  returnVolatility:    z.number().min(0).max(0.5).optional(),
 }).superRefine((d, ctx) => {
   // Age ordering must be monotonically increasing to keep simulation loops valid.
   // Only validate fields that are present in this partial update.

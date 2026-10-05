@@ -916,6 +916,34 @@ target, but a real, pre-existing inconsistency between what's shown and what's s
 fixed here (same reasoning as above: real fix needs care to avoid breaking the other projection
 users — barista variants, the extra-investment what-if chart).
 
+### FIRE Monte Carlo survival estimate (branch: `feat/fire-monte-carlo`)
+The FIRE model had no way to show sequence-of-returns risk: every year was assumed to return
+exactly the configured rate, with no ups and downs. New `lib/services/fire-monte-carlo.ts`
+(`runMonteCarlo`) adds a **descriptive, non-target-driving** check: 1,000 random annual-return
+paths (lognormal, moment-matched to the configured accumulation/drawdown return and a new
+`returnVolatility` config field, default 15% — this model's own assumption, not sourced), reusing
+the same contributions and withdrawal schedule (`computePhaseGrossWithdrawals`) the deterministic
+model uses. Reports a success probability (share of paths that never ran out through life
+expectancy) and a 10th/50th/90th percentile band per age. A fixed seed (`20261005` default) keeps
+results stable across reloads for the same config. Deliberately does **not** change `computeFireTarget`
+or `computeEarliestFire` — the FIRE number stays the single deterministic value it always was; this
+only evaluates it.
+- `/api/fire` GET now returns a `monteCarlo` key; UI shows a success-probability badge and a shaded
+  10–90% band on the Portfolio Projection chart, plus a new explainer section and a `returnVolatility`
+  config field (Investment assumptions group).
+- New `computeWarnings` check: flags when `drawdownReturn > accumulationReturn`, since that can
+  break the monotonicity `computeEarliestFire`'s year-then-month search assumes.
+- `monthlyRate` and `computePhaseGrossWithdrawals` were exported from `fire-service.ts` (previously
+  private) so the Monte Carlo module could reuse them without duplicating logic.
+- Migration `20261005000001_fire_return_volatility` adds the column, applied the same way as the
+  buffer migration above (`prisma db execute` + `migrate resolve --applied`, bypassing `migrate dev`
+  because of the still-unresolved pre-existing drift).
+- Monte Carlo's own month-stepping (in `simulateTrial`) uses yet another age-discretization
+  convention than both `simulateProjection` and `simulateDrawdown` — tests for it avoid comparing
+  across functions (see the `migrate dev` note above for why aligning all three isn't a quick fix)
+  and instead use configs with `retirementAge` pinned to the current age, removing the accumulation
+  phase so funding-level assertions aren't swamped by decades of contributions.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
