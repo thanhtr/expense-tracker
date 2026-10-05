@@ -944,6 +944,31 @@ only evaluates it.
   and instead use configs with `retirementAge` pinned to the current age, removing the accumulation
   phase so funding-level assertions aren't swamped by decades of contributions.
 
+### Test coverage gaps closed (branch: `test/coverage-gaps`, stacked on `feat/fire-monte-carlo`)
+Several features had zero automated test coverage. Added, without changing any production code:
+- `__tests__/unit/income-rules-service.test.ts` — `matchesAnyIncomeRule` (merchant/category match logic,
+  case-insensitivity, both-fields-required, missing-category handling) and `seedDefaultIncomeRules`
+  (seeds when empty, skips when rules already exist).
+- `__tests__/unit/upload-service.test.ts` — `processUpload`: throws on empty parse / undetected bank /
+  missing generic column mapping; reclassifies an unmatched Income row to Expense (reimbursement);
+  keeps a matched Income row as Income; a dry run never calls `upsertTransactions` or invalidates the
+  dashboard cache and correctly marks existing dedup keys as "skip"; a real upload does both.
+- `__tests__/e2e/trends.spec.ts` — chart and per-category table render, a category pill toggle hides
+  its table row, and the "not enough data" fallback shows with under 2 months of `byCategoryMonth`.
+- `__tests__/e2e/income-rules.spec.ts` — list, add (POST), delete (DELETE), seed defaults (POST
+  `/seed`), following the `settings.spec.ts` pattern (`setupSplitwise` + categories mock).
+- `__tests__/e2e/fire.spec.ts` — the one page with **no** e2e coverage at all before this, flagged
+  explicitly in the August 2026 InfoTip fix as a known gap since `/api/fire` needs a nontrivial mock.
+  Covers: headline KPIs render; the Monte Carlo success badge renders; saving a changed config field
+  sends the right PUT body; and — the actual regression target for the InfoTip fix — every InfoTip
+  popover on the Configuration panel stays within the viewport at 390px width (checked via
+  `boundingBox()`, matching the manual Playwright verification the original fix used, since jsdom
+  can't measure real layout). Needed `{ force: true }` on the popup-closing click: the popup (z-20)
+  visually sits on top of the full-screen "Close" overlay (z-10) wherever they overlap, which can
+  otherwise intercept the click.
+- Depends on PR #167/#168's `endBufferYears`/`returnVolatility`/`monteCarlo` fields for the `fire.spec.ts`
+  mock response shape — that's why this branch stacks on `feat/fire-monte-carlo` rather than `main`.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
