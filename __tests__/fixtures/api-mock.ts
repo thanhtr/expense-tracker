@@ -21,6 +21,8 @@ export interface DashboardAggregation {
   net: number;
   byCategory: Array<{ category: string; amount: number }>;
   byDay: Array<{ day: string; [key: string]: number | string }>;
+  refundsByDay: Array<{ day: string; amount: number }>;
+  refundsByMonth: Array<{ month: string; amount: number }>;
   byAccount: Record<string, number>;
   byMonth: Array<{ month: string; amount: number }>;
   byMonthIncome: Array<{ month: string; amount: number }>;
@@ -172,6 +174,8 @@ export function createDashboardAggregation(transactions: ParsedTransaction[]): D
     net: totalIncome - totalExpenses,
     byCategory,
     byDay,
+    refundsByDay: [],
+    refundsByMonth: [],
     byAccount,
     byMonth,
     byMonthIncome,

@@ -33,6 +33,41 @@ test.describe('Dashboard', () => {
     expect(valueText).toContain('3');
   });
 
+  test('shows a refund on a day with no matching expenses, instead of dropping it', async ({ page }) => {
+    // Regression test: the daily chart used to merge refunds onto existing byDay rows
+    // only, so a refund posted on a day with zero expenses silently never rendered.
+    await page.route('**/api/dashboard*', async (route) => {
+      await route.fulfill({
+        json: {
+          totalExpenses: 80, totalIncome: 0, totalInvestments: 0, totalInternalTransfers: 0,
+          totalReimbursements: 30, net: -50,
+          byCategory: [{ category: 'Dining Out', amount: 50 }],
+          byDay: [{ day: '2026-04-10', 'Dining Out': 80 }],
+          refundsByDay: [{ day: '2026-04-20', amount: 30 }],
+          refundsByMonth: [{ month: '2026-04', amount: 30 }],
+          byAccount: {}, byMonth: [{ month: '2026-04', amount: 80 }], byMonthIncome: [],
+          byCategoryMonth: [{ month: '2026-04', 'Dining Out': 80 }],
+          topTransactions: [], allCategories: ['Dining Out'], transactionCount: 1,
+          uncategorizedCount: 0, byPerson: [], byIncomeSource: [],
+        },
+      });
+    });
+    await page.route('**/api/transactions/recurring*', async (route) => {
+      await route.fulfill({ json: { items: [], totalMonthly: 0 } });
+    });
+    await page.route('**/api/transactions*', async (route) => {
+      await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('text=Daily spending')).toBeVisible();
+    await expect(page.locator('text=Refunds')).toBeVisible();
+    // The chart's x-axis should include the refund's own day (04/20), not just the
+    // expense's day (04/10) — confirms the refund-only day wasn't dropped from the series.
+    const barCount = await page.locator('.recharts-bar-rectangle').count();
+    expect(barCount).toBeGreaterThan(1);
+  });
+
   test('should filter by category and show only selected category data', async ({ page }) => {
     await setupSplitwise(page, [
       mockExpense({ merchant: 'Amazon', amount: 50.00, category: 'Shopping' }),
@@ -96,6 +131,8 @@ test.describe('Dashboard', () => {
       { category: 'Shopping', amount: 200 },
     ],
     byDay: [],
+    refundsByDay: [],
+    refundsByMonth: [],
     byAccount: {},
     byMonth: [
       { month: '2026-03', amount: 1300 },
