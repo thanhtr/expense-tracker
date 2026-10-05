@@ -206,7 +206,13 @@ function DailyChart({ data, categories, refunds }: { data: Array<Record<string, 
   const chartData = useMemo(() => {
     if (!refunds?.length) return data;
     const refundByDay = new Map(refunds.map(r => [r.day, r.amount]));
-    return data.map(d => ({ ...d, refunds: -(refundByDay.get(d.day as string) ?? 0) }));
+    // Union of days, not just data's days — a refund posted on a day with no expenses
+    // at all would otherwise be silently dropped instead of shown.
+    const byDay = new Map(data.map(d => [d.day as string, d]));
+    for (const r of refunds) {
+      if (!byDay.has(r.day)) byDay.set(r.day, { day: r.day });
+    }
+    return [...byDay.keys()].sort().map(day => ({ ...byDay.get(day), refunds: -(refundByDay.get(day) ?? 0) }));
   }, [data, refunds]);
   const hasRefunds = !!refunds?.length;
 
@@ -256,7 +262,7 @@ function DailyChart({ data, categories, refunds }: { data: Array<Record<string, 
             dataKey={cat}
             stackId="a"
             fill={CAT_COLORS[i % CAT_COLORS.length]}
-            radius={i === categories.length - 1 && !hasRefunds ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+            radius={i === categories.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
           />
         ))}
         {hasRefunds && (

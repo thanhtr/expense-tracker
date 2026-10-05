@@ -105,9 +105,16 @@ export default function TrendsPage() {
 
   const refundsByMonth = new Map((data.refundsByMonth ?? []).map(r => [r.month, r.amount]));
   const hasRefunds = refundsByMonth.size > 0;
-  const chartData = hasRefunds
-    ? data.byCategoryMonth.map(row => ({ ...row, refunds: -(refundsByMonth.get(String(row.month)) ?? 0) }))
-    : data.byCategoryMonth;
+  // Union of months, not just byCategoryMonth's months — a refund posted in a month with
+  // no category spend at all would otherwise be silently dropped instead of shown.
+  const byMonth = new Map(data.byCategoryMonth.map(row => [String(row.month), row]));
+  for (const month of refundsByMonth.keys()) {
+    if (!byMonth.has(month)) byMonth.set(month, { month });
+  }
+  const chartData = [...byMonth.keys()].sort().map(month => ({
+    ...byMonth.get(month),
+    ...(hasRefunds ? { refunds: -(refundsByMonth.get(month) ?? 0) } : {}),
+  }));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -189,7 +196,7 @@ export default function TrendsPage() {
                   name={cat}
                   stackId="a"
                   fill={CAT_COLORS[allCategories.indexOf(cat) % CAT_COLORS.length]}
-                  radius={i === displayed.length - 1 && !hasRefunds ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                  radius={i === displayed.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
               {hasRefunds && (

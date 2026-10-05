@@ -894,6 +894,21 @@ monthly chart now render them as a distinct "Refunds" bar stacked below zero (ne
 unlinked/blanket reimbursements — linked ones (`TransactionLink`) were already netted correctly
 into the date-keyed breakdowns via their originating expense's date, and are unaffected.
 
+**Fixed in code review** (two independent review passes converged on the same bugs):
+- The frontend merge was one-directional — `DailyChart` (`components/DashboardStats.tsx`) and
+  `/trends`' chart data (`app/trends/page.tsx`) mapped refunds onto *existing* `byDay`/
+  `byCategoryMonth` rows only, so a refund posted on a day/month with **zero** matching expenses
+  (exactly the case the backend was designed to handle) was silently dropped from the chart
+  instead of rendered. Fixed by merging on the union of days/months from both series. Added an
+  e2e regression test (`__tests__/e2e/dashboard.spec.ts`, "shows a refund on a day with no matching
+  expenses") — verified it fails without the fix and passes with it.
+- An unrelated change had crept into the rounded-corner logic for the topmost stacked bar segment
+  (`i === categories.length - 1 && !hasRefunds`), unnecessarily squaring it off whenever any refund
+  existed in the period, even though the Refunds bar is a separate segment below zero that doesn't
+  touch the top of the positive stack. Reverted to the original unconditional rounding.
+- The new `reimbRows` query (`aggregation-service.ts`) had no `take` limit, unlike the structurally
+  identical `incomeRows` query a few lines above it (`take: 10000`). Added the same cap.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

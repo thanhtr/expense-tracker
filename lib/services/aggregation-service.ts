@@ -181,6 +181,7 @@ export async function getDashboardStats(
     prisma.transaction.findMany({
       where: reimbWhere,
       select: { date: true, amount: true },
+      take: 10000,
     }),
   ]);
 
