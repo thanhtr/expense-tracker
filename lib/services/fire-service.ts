@@ -20,6 +20,10 @@ export interface StoredFireConfig {
   pensionAccruedMonthly: number;
   lifeExpectancyCoef: number;
   pensionTaxRate: number;
+  // Years of Phase 2 net spending left in the portfolio at lifeExpectancy, instead of
+  // solving to exactly €0 — a margin for living longer, a worse-than-assumed market, or
+  // unplanned costs.
+  endBufferYears: number;
 }
 
 // Inputs derived from transaction data (see lib/services/fire-inputs-service.ts),
@@ -89,6 +93,8 @@ export const FIRE_DEFAULTS: StoredFireConfig = {
   // falling for later cohorts; 0.90 is a conservative estimate for the 1990 cohort.
   lifeExpectancyCoef: 0.90,
   pensionTaxRate: 0.20,
+  // This model's own assumption, not a sourced figure.
+  endBufferYears: 2,
 };
 
 // Finnish capital income tax (pääomatulovero), 2026 rates — update if vero.fi changes.
@@ -308,16 +314,18 @@ function simulateDrawdown(
   return portfolio;
 }
 
-// Binary search: find starting portfolio at retirementAge that depletes to ~0 at lifeExpectancy.
+// Binary search: find starting portfolio at retirementAge that leaves endBufferYears of
+// Phase 2 net spending at lifeExpectancy (0 = depletes to exactly €0, as before).
 export function computeFireTarget(config: FireConfig, activeIncomeMonthly = 0): number {
   let lo = 0;
   let hi = 50_000_000;
   const withdrawals = computePhaseGrossWithdrawals(config, activeIncomeMonthly);
+  const bufferTarget = config.endBufferYears * 12 * config.phase2NetMonthly;
 
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
     const endValue = simulateDrawdown(config, mid, withdrawals);
-    if (endValue > 0) {
+    if (endValue > bufferTarget) {
       hi = mid;
     } else {
       lo = mid;

@@ -187,6 +187,7 @@ model FireConfig {
   pensionAccruedMonthly Float    @default(1330)
   lifeExpectancyCoef    Float    @default(0.90)
   pensionTaxRate        Float    @default(0.20)
+  endBufferYears        Float    @default(2)
   updatedAt             DateTime @updatedAt
 }
 

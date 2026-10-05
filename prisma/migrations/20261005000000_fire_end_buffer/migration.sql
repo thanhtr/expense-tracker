@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "FireConfig" ADD COLUMN "endBufferYears" DOUBLE PRECISION NOT NULL DEFAULT 2;
