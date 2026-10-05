@@ -50,12 +50,16 @@ const PREV_YEAR_RESPONSE = {
 test.describe('Trends page', () => {
   test.beforeEach(async ({ page }) => {
     await setupSplitwise(page, []);
-    let call = 0;
+    // Route by the request's own date_from, not by call order — the page fires both
+    // fetches concurrently (Promise.all), so nothing guarantees which one a mock server
+    // receives first.
     await page.route('**/api/dashboard*', async (route) => {
-      call += 1;
-      // First call is the current 12-month window, second is the prior-year window
-      // (see the Promise.all order in app/trends/page.tsx).
-      await route.fulfill({ json: call === 1 ? DASHBOARD_RESPONSE : PREV_YEAR_RESPONSE });
+      const url = new URL(route.request().url());
+      const dateFrom = new Date(url.searchParams.get('date_from') ?? '');
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      cutoff.setDate(cutoff.getDate() - 30); // safety margin around the 12-month boundary
+      await route.fulfill({ json: dateFrom > cutoff ? DASHBOARD_RESPONSE : PREV_YEAR_RESPONSE });
     });
   });
 

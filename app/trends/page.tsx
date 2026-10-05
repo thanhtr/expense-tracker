@@ -16,7 +16,7 @@ const MOVING_AVG_COLOR = 'oklch(0.55 0.10 225)';
 function YoyDelta({ curr, prev }: { curr: number; prev: number }) {
   if (!prev) return <span className="text-[12px] text-[var(--fg-3)]">—</span>;
   const d = ((curr - prev) / prev) * 100;
-  const flat = Math.abs(d) < 0.5;
+  const flat = Math.abs(d) < 0.05;
   const up = d > 0;
   const cls = flat ? 'text-[var(--fg-3)]' : up ? 'text-[oklch(0.38_0.14_25)]' : 'text-[oklch(0.32_0.09_160)]';
   const arrow = flat ? '·' : up ? '▲' : '▼';
@@ -38,6 +38,13 @@ const CAT_COLORS = [
   'oklch(0.66 0.06 200)',
   'oklch(0.70 0.05 60)',
 ];
+
+// Shifts a 'YYYY-MM' string by a number of calendar months (negative to go back).
+function shiftMonth(month: string, delta: number): string {
+  const [y, mo] = month.split('-').map(Number);
+  const d = new Date(y!, mo! - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -62,15 +69,17 @@ export default function TrendsPage() {
     const dateFrom = new Date(now.getFullYear() - 1, now.getMonth() + 1, 1);
     const dateTo = now;
     // The 12 months immediately preceding the displayed window, for the "vs last year"
-    // column and the optional YoY overlay line. Aligned by index, not by calendar month,
-    // since both windows cover exactly 12 months.
+    // column and the optional YoY overlay line.
     const prevDateTo = new Date(dateFrom);
     prevDateTo.setDate(prevDateTo.getDate() - 1);
     const prevDateFrom = new Date(dateFrom.getFullYear() - 1, dateFrom.getMonth(), 1);
 
     Promise.all([
       fetch(`/api/dashboard?date_from=${isoDate(dateFrom)}&date_to=${isoDate(dateTo)}`).then(r => r.ok ? r.json() : null),
-      fetch(`/api/dashboard?date_from=${isoDate(prevDateFrom)}&date_to=${isoDate(prevDateTo)}`).then(r => r.ok ? r.json() : null),
+      // Isolated from the main fetch: a transient failure of the prior-year request alone
+      // should only disable the YoY feature, not hide valid current-year data behind the
+      // "not enough data" fallback.
+      fetch(`/api/dashboard?date_from=${isoDate(prevDateFrom)}&date_to=${isoDate(prevDateTo)}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ])
       .then(([d, prevD]) => {
         if (d) {
@@ -138,25 +147,30 @@ export default function TrendsPage() {
   const refundsByMonth = new Map((data.refundsByMonth ?? []).map(r => [r.month, r.amount]));
   const hasRefunds = refundsByMonth.size > 0;
 
-  // 3-month trailing average of each month's total spend (data.byMonth, independent of
-  // the category toggles above — the moving-average line is meant to show the overall
-  // trend regardless of which categories are currently displayed).
-  const totalByMonth = data.byMonth.map(m => m.amount);
-  const movingAvg3 = totalByMonth.map((_, i) => {
-    const window = totalByMonth.slice(Math.max(0, i - 2), i + 1);
-    return window.reduce((s, v) => s + v, 0) / window.length;
-  });
+  // byMonth/byCategoryMonth are sparse — only months with a qualifying transaction get a
+  // row — so both the moving average and the YoY lookup key off the actual calendar-month
+  // string (via shiftMonth), never off array position, to stay correct across gaps.
+  const totalByMonthMap = new Map(data.byMonth.map(m => [m.month, m.amount]));
+  const prevYearTotalByMonthMap = new Map((prevYearData?.byMonth ?? []).map(m => [m.month, m.amount]));
+  const hasPrevYear = prevYearTotalByMonthMap.size > 0;
 
-  // Last year's monthly total, aligned by relative position in the 12-month window
-  // (prevYearData covers the 12 months immediately before the current window).
-  const prevYearTotals = prevYearData?.byMonth.map(m => m.amount) ?? [];
-  const hasPrevYear = prevYearTotals.length > 0;
+  const movingAvg3 = (month: string) => {
+    const months = [shiftMonth(month, -2), shiftMonth(month, -1), month];
+    const values = months.map(m => totalByMonthMap.get(m)).filter((v): v is number => v !== undefined);
+    return values.length ? values.reduce((s, v) => s + v, 0) / values.length : undefined;
+  };
 
-  const chartData = data.byCategoryMonth.map((row, i) => ({
-    ...row,
-    ...(hasRefunds ? { refunds: -(refundsByMonth.get(String(row.month)) ?? 0) } : {}),
-    ...(showMovingAvg ? { movingAvg: movingAvg3[i] } : {}),
-    ...(showYoyLine && prevYearTotals[i] !== undefined ? { lastYear: prevYearTotals[i] } : {}),
+  // Union of months, not just byCategoryMonth's months — a refund posted in a month with
+  // no category spend at all would otherwise be silently dropped instead of shown.
+  const byMonth = new Map(data.byCategoryMonth.map(row => [String(row.month), row]));
+  for (const month of refundsByMonth.keys()) {
+    if (!byMonth.has(month)) byMonth.set(month, { month });
+  }
+  const chartData = [...byMonth.keys()].sort().map(month => ({
+    ...byMonth.get(month),
+    ...(hasRefunds ? { refunds: -(refundsByMonth.get(month) ?? 0) } : {}),
+    ...(showMovingAvg ? { movingAvg: movingAvg3(month) } : {}),
+    ...(showYoyLine ? { lastYear: prevYearTotalByMonthMap.get(shiftMonth(month, -12)) } : {}),
   }));
 
   return (
@@ -251,7 +265,7 @@ export default function TrendsPage() {
                   name={cat}
                   stackId="a"
                   fill={CAT_COLORS[allCategories.indexOf(cat) % CAT_COLORS.length]}
-                  radius={i === displayed.length - 1 && !hasRefunds ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                  radius={i === displayed.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
               {hasRefunds && (
