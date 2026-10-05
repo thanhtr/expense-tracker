@@ -56,6 +56,7 @@ function setupMocks(opts: {
   topTx?: typeof DEFAULT_TOP_TX;
   reimbByCategoryGroups?: { category: string; _sum: { amount: number } }[];
   reimbAmount?: number;
+  reimbRows?: { date: Date; amount: number }[];
 } = {}) {
   const {
     byCategoryGroups = DEFAULT_BY_CATEGORY,
@@ -71,6 +72,7 @@ function setupMocks(opts: {
     topTx = DEFAULT_TOP_TX,
     reimbByCategoryGroups = [],
     reimbAmount = 0,
+    reimbRows = [],
   } = opts;
 
   // Mocks match getDashboardStats Promise.all order
@@ -92,7 +94,8 @@ function setupMocks(opts: {
   vi.mocked(prisma.transaction.count).mockResolvedValueOnce(uncategorizedCount);
   vi.mocked(prisma.transaction.findMany)
     .mockResolvedValueOnce((topTx ?? []) as never) // top transactions
-    .mockResolvedValueOnce([] as never); // income rows for byMonthIncome
+    .mockResolvedValueOnce([] as never) // income rows for byMonthIncome
+    .mockResolvedValueOnce(reimbRows as never); // unlinked reimbursement rows (for refundsByDay/Month)
 }
 
 describe('getDashboardStats', () => {
@@ -368,6 +371,30 @@ describe('getDashboardStats', () => {
     expect(stats.byMonth.find(m => m.month === '2026-04')).toBeUndefined(); // no negative-only month entry
     expect(stats.byDay.find(d => d.day === '2026-03-15')?.['Dining Out']).toBeCloseTo(80); // day/month breakdowns keep the gross amount
     expect(stats.byCategoryMonth.find(m => m.month === '2026-03')?.['Dining Out']).toBeCloseTo(80);
+  });
+
+  it('puts unlinked blanket reimbursements into refundsByDay/refundsByMonth on their own posting date, without touching byDay/byMonth/byCategoryMonth', async () => {
+    setupMocks({
+      byCategoryGroups: [{ category: 'Dining Out', _sum: { amount: -80 } }],
+      byAccountGroups: [{ account: 'OP Bank', _sum: { amount: -80 } }],
+      byPersonGroups: [{ paidBy: 'tung', _sum: { amount: -80 } }],
+      byDayCatGroups: [{ date: new Date('2026-03-15'), category: 'Dining Out', _sum: { amount: -80 } }],
+      totalAmount: -80,
+      totalCount: 1,
+      topTx: [{ merchant: 'Restaurant X', amount: -80, category: 'Dining Out', date: new Date('2026-03-15') }],
+      reimbByCategoryGroups: [{ category: 'Dining Out', _sum: { amount: 30 } }],
+      reimbAmount: 30,
+      // Posted on a day with no matching spend at all — refundsByDay/Month should still
+      // carry it on its own real date, separate from the gross spend series.
+      reimbRows: [{ date: new Date('2026-04-02'), amount: 30 }],
+    });
+
+    const stats = await getDashboardStats();
+
+    expect(stats.refundsByDay).toEqual([{ day: '2026-04-02', amount: 30 }]);
+    expect(stats.refundsByMonth).toEqual([{ month: '2026-04', amount: 30 }]);
+    expect(stats.byDay.find(d => d.day === '2026-04-02')).toBeUndefined();
+    expect(stats.byMonth.find(m => m.month === '2026-04')).toBeUndefined();
   });
 
   it('should not double-net a linked reimbursement already excluded from the blanket bucket at the query level', async () => {

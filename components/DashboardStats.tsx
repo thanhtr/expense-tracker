@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { DashboardAggregation } from '@/lib/types';
-import type { ForecastResult } from '@/lib/services/forecast-service';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
   ComposedChart, Line, CartesianGrid, Legend, LineChart, ReferenceLine,
@@ -200,10 +199,25 @@ function CategoryBarList({
 }
 
 // Custom daily chart using recharts (stacked bar)
-function DailyChart({ data, categories }: { data: Array<Record<string, number | string>>; categories: string[] }) {
+const REFUNDS_COLOR = 'var(--fg-3)';
+
+function DailyChart({ data, categories, refunds }: { data: Array<Record<string, number | string>>; categories: string[]; refunds?: Array<{ day: string; amount: number }> }) {
+  const chartData = useMemo(() => {
+    if (!refunds?.length) return data;
+    const refundByDay = new Map(refunds.map(r => [r.day, r.amount]));
+    // Union of days, not just data's days — a refund posted on a day with no expenses
+    // at all would otherwise be silently dropped instead of shown.
+    const byDay = new Map(data.map(d => [d.day as string, d]));
+    for (const r of refunds) {
+      if (!byDay.has(r.day)) byDay.set(r.day, { day: r.day });
+    }
+    return [...byDay.keys()].sort().map(day => ({ ...byDay.get(day), refunds: -(refundByDay.get(day) ?? 0) }));
+  }, [data, refunds]);
+  const hasRefunds = !!refunds?.length;
+
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ left: 20, right: 16, top: 8, bottom: 28 }}>
+      <BarChart data={chartData} margin={{ left: 20, right: 16, top: 8, bottom: 28 }}>
         <XAxis
           dataKey="day"
           tick={{ fontSize: 10, fill: 'var(--fg-3)' }}
@@ -235,7 +249,7 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
           }}
           labelStyle={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}
           itemStyle={{ color: '#fff', fontSize: 11 }}
-          formatter={(value) => fmtEUR(Number(value ?? 0), { cents: true })}
+          formatter={(value, name) => [fmtEUR(Number(value ?? 0), { cents: true }), name === 'refunds' ? 'Refunds' : name]}
           labelFormatter={(label) => {
             const d = label as string;
             return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -250,6 +264,9 @@ function DailyChart({ data, categories }: { data: Array<Record<string, number | 
             radius={i === categories.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
           />
         ))}
+        {hasRefunds && (
+          <Bar dataKey="refunds" stackId="a" fill={REFUNDS_COLOR} fillOpacity={0.5} radius={[0, 0, 3, 3]} />
+        )}
       </BarChart>
     </ResponsiveContainer>
   );
@@ -712,70 +729,6 @@ function hash(s: string): number {
   return h;
 }
 
-// ----- forecast card -----
-
-function ForecastCard({ forecast }: { forecast: ForecastResult }) {
-  const monthLabel = (() => {
-    const [y, m] = forecast.forecastMonth.split('-');
-    return new Date(Number(y), Number(m) - 1, 1)
-      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  })();
-
-  return (
-    <div className="dash-card">
-      <div className="flex items-center justify-between gap-4 p-[16px_20px_12px]">
-        <div>
-          <h3 className="text-[13px] font-semibold m-0">Forecast: {monthLabel}</h3>
-          <div className="text-[12px] text-[var(--fg-3)]">
-            EMA prediction · {forecast.basedOnMonths} month{forecast.basedOnMonths !== 1 ? 's' : ''} of history
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)]">Est. total</div>
-          <div className="mono text-[20px] font-semibold mt-[2px]">{fmtEUR(forecast.nextMonthTotal)}</div>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[var(--border)]">
-              <th className="px-[20px] py-[8px] text-left text-[11px] font-medium text-[var(--fg-3)]">Category</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Last month</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Forecast</th>
-              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {forecast.byCategory.slice(0, 8).map(row => (
-              <tr key={row.category} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
-                <td className="px-[20px] py-[9px] text-[13px] text-[var(--foreground)]">{row.category}</td>
-                <td className="px-[20px] py-[9px] text-right mono text-[13px] text-[var(--fg-3)]">
-                  {row.lastMonthActual > 0 ? fmtEUR(row.lastMonthActual) : '—'}
-                </td>
-                <td className="px-[20px] py-[9px] text-right mono text-[13px] font-medium text-[var(--foreground)]">
-                  {fmtEUR(row.forecast)}
-                </td>
-                <td className="px-[20px] py-[9px] text-right text-[12px]">
-                  {row.trend === 'up' && <span style={{ color: 'var(--neg)' }}>▲</span>}
-                  {row.trend === 'down' && <span style={{ color: 'var(--pos)' }}>▼</span>}
-                  {row.trend === 'stable' && <span className="text-[var(--fg-3)]">—</span>}
-                </td>
-              </tr>
-            ))}
-            {forecast.byCategory.length > 8 && (
-              <tr>
-                <td colSpan={4} className="px-[20px] py-[8px] text-[11px] text-[var(--fg-3)] text-center">
-                  +{forecast.byCategory.length - 8} more categories
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 // ----- skeleton -----
 
 function DashboardSkeleton() {
@@ -891,7 +844,6 @@ export function DashboardStats() {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const shouldRefresh = useRef(false);
-  const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
 
   const compareRange = useMemo(
@@ -907,12 +859,8 @@ export function DashboardStats() {
     setDateTo(r.to);
   }, [preset]);
 
-  // Fetch forecast + recurring total once on mount
+  // Fetch recurring total once on mount
   useEffect(() => {
-    fetch('/api/forecast')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setForecast(d); })
-      .catch(() => {});
     fetch('/api/transactions/recurring')
       .then(r => r.ok ? r.json() : null)
       .then((d: { totalMonthly: number } | null) => { if (d) setRecurringMonthly(d.totalMonthly); })
@@ -1479,7 +1427,7 @@ export function DashboardStats() {
         </div>
         <div className="p-[0_12px_12px]">
           {data.byDay.length > 0 ? (
-            <DailyChart data={data.byDay} categories={displayCategories} />
+            <DailyChart data={data.byDay} categories={displayCategories} refunds={data.refundsByDay} />
           ) : (
             <div className="text-center py-8 text-[var(--fg-3)] text-[13px]">No expenses in this period. <a href="/upload" className="text-[var(--fg-2)] underline">Upload transactions →</a></div>
           )}
@@ -1491,6 +1439,12 @@ export function DashboardStats() {
                   {c.category}
                 </span>
               ))}
+              {(data.refundsByDay?.length ?? 0) > 0 && (
+                <span className="inline-flex items-center gap-[5px]">
+                  <span className="w-[8px] h-[8px] rounded-[2px] inline-block" style={{ background: REFUNDS_COLOR, opacity: 0.5 }} />
+                  Refunds
+                </span>
+              )}
               {data.byCategory.length > 6 && (
                 <span className="text-[var(--fg-3)]">+{data.byCategory.length - 6} more</span>
               )}
@@ -1555,13 +1509,6 @@ export function DashboardStats() {
             <IncomeTrendChart trendData={incomeTrendData} />
           </div>
         </div>
-      )}
-
-      {/* Forecast */}
-      {forecast && (
-        <CollapsibleSection storageKey="dash-forecast" title="Forecast">
-          <ForecastCard forecast={forecast} />
-        </CollapsibleSection>
       )}
 
       {/* Net Worth */}

@@ -75,6 +75,10 @@ export interface DashboardAggregation {
   byMonthIncome: { month: string; amount: number }[];
   byCategoryMonth: { month: string; [key: string]: number | string }[];
   byDay: { day: string; [key: string]: number | string }[];
+  // Unlinked ("blanket") reimbursements only, by their own posting date — not netted into
+  // byDay/byMonth/byCategoryMonth (see aggregation-service.ts). Positive amounts.
+  refundsByDay: { day: string; amount: number }[];
+  refundsByMonth: { month: string; amount: number }[];
   uncategorizedCount: number;
   allCategories: string[];
   topTransactions: { merchant: string; amount: number; category: string; date: string }[];

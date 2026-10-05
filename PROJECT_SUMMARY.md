@@ -881,6 +881,41 @@ Expected behavior - category edits via PATCH are in-memory only. Page reload rev
 
 ## Recent Changes (October 2026)
 
+### Spending forecast removed (branch: `chore/remove-spending-forecast`)
+The next-month spending forecast (`lib/services/forecast-service.ts`, dashboard `ForecastCard`) was a
+single EMA number per category with no confidence interval, no minimum-history guard, and missing
+months counted as literal €0 spend — judged too vague and unreliable to keep. Removed entirely
+(service, `/api/forecast` route, UI card, test mocks). No replacement yet; revisit only with a model
+that can express uncertainty and handle sparse/irregular categories correctly.
+
+### Refunds shown as their own chart series (branch: `feat/refund-series`)
+Unlinked ("blanket") reimbursements were netted into `byCategory` (a period-total aggregate) but
+deliberately never into the date-keyed `byDay`/`byMonth`/`byCategoryMonth` breakdowns, since a
+refund posted on a day/month with no matching spend would otherwise create a misleading
+negative-only bar segment (see the September 2026 netting fix above). That left them invisible in
+the daily/monthly/trend charts even though they're real money. New `refundsByDay`/`refundsByMonth`
+fields on `DashboardAggregation` (`aggregation-service.ts`) total them by their own real posting
+date — still never merged into the gross spend series. Dashboard's daily chart and `/trends`'
+monthly chart now render them as a distinct "Refunds" bar stacked below zero (negative value, same
+`stackId`, muted color), with its own tooltip label and legend entry. Only applies to
+unlinked/blanket reimbursements — linked ones (`TransactionLink`) were already netted correctly
+into the date-keyed breakdowns via their originating expense's date, and are unaffected.
+
+**Fixed in code review** (two independent review passes converged on the same bugs):
+- The frontend merge was one-directional — `DailyChart` (`components/DashboardStats.tsx`) and
+  `/trends`' chart data (`app/trends/page.tsx`) mapped refunds onto *existing* `byDay`/
+  `byCategoryMonth` rows only, so a refund posted on a day/month with **zero** matching expenses
+  (exactly the case the backend was designed to handle) was silently dropped from the chart
+  instead of rendered. Fixed by merging on the union of days/months from both series. Added an
+  e2e regression test (`__tests__/e2e/dashboard.spec.ts`, "shows a refund on a day with no matching
+  expenses") — verified it fails without the fix and passes with it.
+- An unrelated change had crept into the rounded-corner logic for the topmost stacked bar segment
+  (`i === categories.length - 1 && !hasRefunds`), unnecessarily squaring it off whenever any refund
+  existed in the period, even though the Refunds bar is a separate segment below zero that doesn't
+  touch the top of the positive stack. Reverted to the original unconditional rounding.
+- The new `reimbRows` query (`aggregation-service.ts`) had no `take` limit, unlike the structurally
+  identical `incomeRows` query a few lines above it (`take: 10000`). Added the same cap.
+
 ### FIRE end-of-plan buffer (branch: `feat/fire-end-buffer`)
 The FIRE target used to be solved to reach exactly €0 at life expectancy, with no margin for living
 longer, a worse-than-assumed market, or unplanned costs. New `endBufferYears` config field (default
