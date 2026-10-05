@@ -881,6 +881,13 @@ Expected behavior - category edits via PATCH are in-memory only. Page reload rev
 
 ## Recent Changes (October 2026)
 
+### Spending forecast removed (branch: `chore/remove-spending-forecast`)
+The next-month spending forecast (`lib/services/forecast-service.ts`, dashboard `ForecastCard`) was a
+single EMA number per category with no confidence interval, no minimum-history guard, and missing
+months counted as literal €0 spend — judged too vague and unreliable to keep. Removed entirely
+(service, `/api/forecast` route, UI card, test mocks). No replacement yet; revisit only with a model
+that can express uncertainty and handle sparse/irregular categories correctly.
+
 ### Refunds shown as their own chart series (branch: `feat/refund-series`)
 Unlinked ("blanket") reimbursements were netted into `byCategory` (a period-total aggregate) but
 deliberately never into the date-keyed `byDay`/`byMonth`/`byCategoryMonth` breakdowns, since a
@@ -909,6 +916,124 @@ into the date-keyed breakdowns via their originating expense's date, and are una
 - The new `reimbRows` query (`aggregation-service.ts`) had no `take` limit, unlike the structurally
   identical `incomeRows` query a few lines above it (`take: 10000`). Added the same cap.
 
+### FIRE end-of-plan buffer (branch: `feat/fire-end-buffer`)
+The FIRE target used to be solved to reach exactly €0 at life expectancy, with no margin for living
+longer, a worse-than-assumed market, or unplanned costs. New `endBufferYears` config field (default
+2, this model's own assumption) changes `computeFireTarget`'s binary-search condition from
+`endValue > 0` to `endValue > endBufferYears * 12 * phase2NetMonthly`. Set to 0 to reproduce the old
+behavior exactly. `computeEarliestFire` picks this up automatically since it calls
+`computeFireTarget` internally. UI: new "End-of-plan buffer" field in the Cash buffer config group,
+and the model explainer's "Known limitation" section and binary-search pseudocode were reworded.
+
+**Found and worked around, not fixed:** the production Neon database has 5 tables
+(`BankConnection`, `CsvImport`, `HouseholdMember`, `IncomeRule`, `RecurringExclusion`) with no
+corresponding migration file anywhere in git history — they were applied directly (likely via
+`prisma db push`) at some point without a migration ever being committed. This makes
+`prisma migrate dev` report schema drift and offer to **reset the database** (`migrate reset`,
+which would drop everything) as its fix — never do this against this database. `prisma migrate
+status` and `prisma migrate deploy` are unaffected and work fine; only `migrate dev`'s drift
+detection trips on it. Worked around for this change by applying the new `endBufferYears` column
+directly with `prisma db execute` and recording it with `prisma migrate resolve --applied`, bypassing
+`migrate dev` entirely. The underlying gap (no migration file for those 5 tables) is still
+unresolved — attempting to reconstruct and backfill a baseline migration for them failed because
+Prisma checksums the original migration file content, and a reconstructed file (even with identical
+SQL) doesn't match the already-recorded checksum, triggering the same reset prompt. Needs a
+dedicated session with lower time pressure, ideally with access to whatever checksum or original
+migration file might still exist, or a deliberate decision to force-overwrite the checksum record.
+
+**Also found:** `simulateProjection`'s drawdown loop and `computeFireTarget`'s internal
+`simulateDrawdown` compute each month's age slightly differently (end-of-month vs start-of-month),
+so a withdrawal right at a phase boundary (mortgageEndAge, pensionAge) can use the wrong phase's
+gross amount in one of the two functions but not the other. Over decades of compounding this is
+enough to make the *displayed* projection chart's ending balance disagree with the FIRE target's
+own internal math by low-four-figures of euros on a ~€100k buffer — not large relative to a ~€900k
+target, but a real, pre-existing inconsistency between what's shown and what's solved for. Not
+fixed here (same reasoning as above: real fix needs care to avoid breaking the other projection
+users — barista variants, the extra-investment what-if chart).
+
+### FIRE Monte Carlo survival estimate (branch: `feat/fire-monte-carlo`)
+The FIRE model had no way to show sequence-of-returns risk: every year was assumed to return
+exactly the configured rate, with no ups and downs. New `lib/services/fire-monte-carlo.ts`
+(`runMonteCarlo`) adds a **descriptive, non-target-driving** check: 1,000 random annual-return
+paths (lognormal, moment-matched to the configured accumulation/drawdown return and a new
+`returnVolatility` config field, default 15% — this model's own assumption, not sourced), reusing
+the same contributions and withdrawal schedule (`computePhaseGrossWithdrawals`) the deterministic
+model uses. Reports a success probability (share of paths that never ran out through life
+expectancy) and a 10th/50th/90th percentile band per age. A fixed seed (`20261005` default) keeps
+results stable across reloads for the same config. Deliberately does **not** change `computeFireTarget`
+or `computeEarliestFire` — the FIRE number stays the single deterministic value it always was; this
+only evaluates it.
+- `/api/fire` GET now returns a `monteCarlo` key; UI shows a success-probability badge and a shaded
+  10–90% band on the Portfolio Projection chart, plus a new explainer section and a `returnVolatility`
+  config field (Investment assumptions group).
+- New `computeWarnings` check: flags when `drawdownReturn > accumulationReturn`, since that can
+  break the monotonicity `computeEarliestFire`'s year-then-month search assumes.
+- `monthlyRate` and `computePhaseGrossWithdrawals` were exported from `fire-service.ts` (previously
+  private) so the Monte Carlo module could reuse them without duplicating logic.
+- Migration `20261005000001_fire_return_volatility` adds the column, applied the same way as the
+  buffer migration above (`prisma db execute` + `migrate resolve --applied`, bypassing `migrate dev`
+  because of the still-unresolved pre-existing drift).
+- Monte Carlo's own month-stepping (in `simulateTrial`) uses yet another age-discretization
+  convention than both `simulateProjection` and `simulateDrawdown` — tests for it avoid comparing
+  across functions (see the `migrate dev` note above for why aligning all three isn't a quick fix)
+  and instead use configs with `retirementAge` pinned to the current age, removing the accumulation
+  phase so funding-level assertions aren't swamped by decades of contributions.
+
+**Fixed in code review:**
+- `runMonteCarlo` started every trial at `Math.floor(currentAge)` instead of the exact fractional
+  age, treating the already-elapsed partial year as if it were still future accumulation — up to
+  ~12 phantom months of extra contributions/growth, systematically overstating the success
+  probability and percentile bands the closer `currentAge` sits to its next whole year. Rewrote
+  `simulateTrial` to step by total elapsed months from the exact `currentAge`
+  (`(lifeExpectancy - currentAge) * 12`, matching the deterministic model's own month count) instead
+  of iterating whole calendar years from a floored start. Added a regression test that checks the
+  portfolio value at the first checkpoint against the exact closed-form compound-growth formula for
+  the correct elapsed-month count.
+- The Monte Carlo badge/band only ever evaluates the **Pure FIRE** plan (`runMonteCarlo` is called
+  with no `activeIncomeMonthly`), but was shown generically alongside all three plan lines
+  (Pure FIRE, Barista 33%, Barista 50%) with no indication of which one it describes — misleading
+  next to a Barista line, whose real survival odds (helped by ongoing income) are materially higher.
+  Running it three times (once per variant) would triple the simulation cost for a purely
+  descriptive check, so fixed by labeling the badge, tooltip, and explainer text as Pure-FIRE-specific
+  instead.
+- The first Monte Carlo band point used to be keyed by a whole age, so it never lined up with the
+  deterministic projections' own first point (the exact fractional `currentAge`) — the shaded band
+  silently started one data point late on the chart. Fixed as a side effect of the elapsed-months
+  rewrite: the trial path's first point is now the exact fractional `currentAge`, matching
+  `simulateProjection`'s own convention.
+- `currentAge` is wall-clock-dependent (`Date.now()`), and the rewrite above started using it as a
+  map key for the first path point — two `runMonteCarlo` calls close in time could previously
+  produce a very slightly different float and silently fail to merge (surfaced as a flaky
+  determinism test when the 1,000-trial compute between two calls was enough to tick the clock by
+  a millisecond). Rounded to ~32-second precision before using it as a key.
+- `simulateTrial` took an unused `activeIncomeMonthly` parameter (withdrawal amounts are precomputed
+  outside and passed in) — misleading, since it looked like per-trial active income might vary.
+  Removed.
+
+### Test coverage gaps closed (branch: `test/coverage-gaps`, stacked on `feat/fire-monte-carlo`)
+Several features had zero automated test coverage. Added, without changing any production code:
+- `__tests__/unit/income-rules-service.test.ts` — `matchesAnyIncomeRule` (merchant/category match logic,
+  case-insensitivity, both-fields-required, missing-category handling) and `seedDefaultIncomeRules`
+  (seeds when empty, skips when rules already exist).
+- `__tests__/unit/upload-service.test.ts` — `processUpload`: throws on empty parse / undetected bank /
+  missing generic column mapping; reclassifies an unmatched Income row to Expense (reimbursement);
+  keeps a matched Income row as Income; a dry run never calls `upsertTransactions` or invalidates the
+  dashboard cache and correctly marks existing dedup keys as "skip"; a real upload does both.
+- `__tests__/e2e/trends.spec.ts` — chart and per-category table render, a category pill toggle hides
+  its table row, and the "not enough data" fallback shows with under 2 months of `byCategoryMonth`.
+- `__tests__/e2e/income-rules.spec.ts` — list, add (POST), delete (DELETE), seed defaults (POST
+  `/seed`), following the `settings.spec.ts` pattern (`setupSplitwise` + categories mock).
+- `__tests__/e2e/fire.spec.ts` — the one page with **no** e2e coverage at all before this, flagged
+  explicitly in the August 2026 InfoTip fix as a known gap since `/api/fire` needs a nontrivial mock.
+  Covers: headline KPIs render; the Monte Carlo success badge renders; saving a changed config field
+  sends the right PUT body; and — the actual regression target for the InfoTip fix — every InfoTip
+  popover on the Configuration panel stays within the viewport at 390px width (checked via
+  `boundingBox()`, matching the manual Playwright verification the original fix used, since jsdom
+  can't measure real layout). Needed `{ force: true }` on the popup-closing click: the popup (z-20)
+  visually sits on top of the full-screen "Close" overlay (z-10) wherever they overlap, which can
+  otherwise intercept the click.
+- Depends on PR #167/#168's `endBufferYears`/`returnVolatility`/`monteCarlo` fields for the `fire.spec.ts`
+  mock response shape.
 ### Year-over-year comparison on Trends (branch: `feat/trends-yoy`, stacked on `feat/refund-series`)
 The dashboard already had a YoY compare mode; `/trends` had none — an open item from
 PROJECT_SUMMARY's "Next Steps" list. `app/trends/page.tsx` now also fetches the 12 months

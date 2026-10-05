@@ -160,7 +160,6 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
-    await page.route('**/api/forecast*', (route) => route.fulfill({ json: null }));
   }
 
   // Bucket config used by guideline tests: Needs=housing, Savings=investments, Wants=catch-all
@@ -194,7 +193,6 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
-    await page.route('**/api/forecast*', (route) => route.fulfill({ json: null }));
   }
 
   const parseEuro = (s: string) => {

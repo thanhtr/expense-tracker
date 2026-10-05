@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { runFireCalculation, FIRE_DEFAULTS, type StoredFireConfig } from '@/lib/services/fire-service';
+import { runMonteCarlo } from '@/lib/services/fire-monte-carlo';
 import { deriveFireInputs } from '@/lib/services/fire-inputs-service';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
@@ -72,12 +73,14 @@ async function respond(stored: StoredFireConfig, portfolioData: PortfolioData): 
   const fireConfig = { ...stored, ...derived.inputs };
   const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
   const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
+  const monteCarlo = runMonteCarlo(fireConfig, breakdown.currentPortfolio);
 
   return NextResponse.json({
     config: fireConfig,
     derived: { earnings: derived.earnings, rental: derived.rental },
     ...breakdown,
     ...result,
+    monteCarlo,
   });
 }
 

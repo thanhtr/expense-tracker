@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "FireConfig" ADD COLUMN "returnVolatility" DOUBLE PRECISION NOT NULL DEFAULT 0.15;

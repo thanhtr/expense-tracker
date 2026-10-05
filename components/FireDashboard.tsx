@@ -2,13 +2,14 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  ComposedChart, Line, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
   ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 import Link from 'next/link';
 import { fmtEUR } from '@/lib/utils';
 import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type StoredFireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate, ASSUMED_INCOME_TAX_RATE, FI_EMPLOYEE_PENSION_CONTRIBUTION, FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION } from '@/lib/services/fire-service';
 import type { EarningsBreakdown, RentalBreakdown } from '@/lib/services/fire-inputs-service';
+import type { MonteCarloResult } from '@/lib/services/fire-monte-carlo';
 
 type FireApiResponse = FireCalculationResult & {
   config: FireConfig;
@@ -18,6 +19,7 @@ type FireApiResponse = FireCalculationResult & {
   avgMonthlyIncome: number;
   bufferTarget: number;
   investableCash: number;
+  monteCarlo: MonteCarloResult;
 };
 
 function fmt(n: number): string {
@@ -192,13 +194,14 @@ net   = gross × (1 − pension tax %)`}
             <h3 className="font-semibold text-[var(--fg-1)]">Calculating the FIRE number</h3>
             <p>
               The FIRE number is the portfolio value needed at retirement so that — growing at the drawdown
-              real return and paying out the phased net spending — it reaches exactly €0 at age 95. It is found
+              real return and paying out the phased net spending — it leaves the configured end-of-plan buffer
+              (in years of Phase 2 net spending; default 2, set to 0 for exactly €0) at age 95. It is found
               by binary search: the model tries a starting portfolio, simulates all monthly
-              withdrawals from retirement to age 95, and adjusts up or down until the end balance converges to zero (60 iterations,
-              accurate to within a few euros).
+              withdrawals from retirement to age 95, and adjusts up or down until the end balance converges to
+              the buffer target (60 iterations, accurate to within a few euros).
             </p>
             <p className="text-[var(--fg-3)] font-mono text-[11px] bg-[var(--surface-2)] px-3 py-2 rounded">
-              repeat 60×: mid = (lo + hi) / 2 → simulate → end &gt; 0 ? hi = mid : lo = mid
+              repeat 60×: mid = (lo + hi) / 2 → simulate → end &gt; buffer ? hi = mid : lo = mid
             </p>
           </section>
 
@@ -249,10 +252,32 @@ need    = sale + rent − tax   (solved for sale, annually, then ÷ 12)`}
             </p>
             <p className="text-[var(--fg-3)]">
               <span className="font-medium">Known limitation:</span> every year is assumed to return exactly
-              this rate, with no ups and downs, so the model can&apos;t show what happens if bad years come early in
-              retirement. The FIRE number is also solved to reach exactly €0 at the life-expectancy age, with
-              no residual buffer for living longer, a worse-than-assumed market, or unplanned costs (e.g.
-              long-term care) — treat it as a floor, not a comfortable target.
+              this rate, with no ups and downs, so the FIRE number itself can&apos;t show what happens if bad years
+              come early in retirement (no sequence-of-returns risk). The end-of-plan buffer above gives some
+              margin for living longer or unplanned costs (e.g. long-term care), but it&apos;s still a single
+              deterministic path — treat the FIRE number as a floor, not a comfortable target.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-semibold text-[var(--fg-1)]">Monte Carlo survival estimate</h3>
+            <p>
+              The projection chart&apos;s shaded band and the percentage badge above it partly address the limitation
+              above — they don&apos;t change the FIRE number, but they show how it might hold up under volatility.
+              The model runs 1,000 random paths from today to life expectancy. Each path draws one annual real
+              return per year (lognormal, centered on your configured accumulation/drawdown return with your
+              configured volatility as its standard deviation) and applies your same monthly contributions and
+              withdrawal schedule — for the Pure FIRE plan specifically; the Barista variants aren&apos;t separately
+              simulated and would survive more often, since their ongoing income reduces how much the portfolio is
+              drawn down. The badge is the share of paths whose portfolio never ran out; the band is the 10th–90th
+              percentile range of simulated portfolio value at each age. A fixed random seed keeps the numbers
+              stable across reloads for the same configuration.
+            </p>
+            <p className="text-[var(--fg-3)]">
+              This is a descriptive check, not a second target: the FIRE number above is still solved
+              deterministically, and a high survival percentage here doesn&apos;t mean the buffer setting is
+              unnecessary — they address different risks (a wrong average-return assumption vs. a bad sequence of
+              actual returns around a correct average).
             </p>
           </section>
 
@@ -339,13 +364,19 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
 
     const extraMap = new Map(extraProjection.map(p => [p.age, p.portfolio]));
 
-    const points = Array.from(ageSet).sort((a, b) => a - b).map(age => ({
-      age,
-      pure: data.pureFire.projection.find(p => p.age === age)?.portfolio ?? null,
-      barista33: data.barista33.projection.find(p => p.age === age)?.portfolio ?? null,
-      barista50: data.barista50.projection.find(p => p.age === age)?.portfolio ?? null,
-      withExtra: extraMap.get(age) ?? null,
-    }));
+    const mcByAge = new Map(data.monteCarlo.bands.map(b => [b.age, b]));
+
+    const points = Array.from(ageSet).sort((a, b) => a - b).map(age => {
+      const mc = mcByAge.get(age);
+      return {
+        age,
+        pure: data.pureFire.projection.find(p => p.age === age)?.portfolio ?? null,
+        barista33: data.barista33.projection.find(p => p.age === age)?.portfolio ?? null,
+        barista50: data.barista50.projection.find(p => p.age === age)?.portfolio ?? null,
+        withExtra: extraMap.get(age) ?? null,
+        mcRange: mc ? [mc.p10, mc.p90] as [number, number] : null,
+      };
+    });
 
     return { chartData: points, extraFireAge, extraFireTarget, yearsSaved };
   }, [data, extraInvestment, currentPortfolio, retirementAge]);
@@ -360,7 +391,19 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
   return (
     <div className="dash-card p-[16px_20px_14px]">
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <div className="text-[13px] font-semibold">Portfolio Projection</div>
+        <div className="flex items-center gap-2">
+          <div className="text-[13px] font-semibold">Portfolio Projection</div>
+          <span
+            className="text-[11px] font-medium px-2 py-[2px] rounded-full"
+            style={{
+              background: data.monteCarlo.successProbability >= 0.9 ? 'oklch(0.75 0.13 155 / 0.15)' : data.monteCarlo.successProbability >= 0.7 ? 'oklch(0.75 0.15 75 / 0.15)' : 'oklch(0.63 0.19 25 / 0.15)',
+              color: data.monteCarlo.successProbability >= 0.9 ? 'oklch(0.60 0.13 155)' : data.monteCarlo.successProbability >= 0.7 ? 'oklch(0.60 0.15 75)' : 'oklch(0.55 0.19 25)',
+            }}
+          >
+            {Math.round(data.monteCarlo.successProbability * 100)}% survive to {data.config.lifeExpectancy} (Pure FIRE)
+          </span>
+          <InfoTip text={`Monte Carlo: ${data.monteCarlo.trials.toLocaleString()} random return paths (annual real return drawn around your configured accumulation/drawdown returns, with ${pctFmt(data.config.returnVolatility * 100)} standard deviation), same contributions and withdrawal schedule as the deterministic model — for the Pure FIRE plan specifically (no active income during retirement). The Barista variants would survive more often, since ongoing income reduces how much the portfolio is drawn down, but aren't separately simulated. Shows the share of paths whose portfolio never runs out through life expectancy — purely descriptive, it doesn't change the FIRE number above. The shaded band on the chart is the 10th–90th percentile range of simulated outcomes at each age, also for the Pure FIRE plan.`} />
+        </div>
         <div className="flex items-center gap-2">
           <label htmlFor="extra-investment" className="text-[11px] text-[var(--fg-3)] whitespace-nowrap">Extra monthly</label>
           <div className="flex items-center border border-[var(--border)] rounded px-2 py-[3px] bg-[var(--surface-2)] gap-1">
@@ -397,14 +440,19 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
           />
           <Tooltip
             contentStyle={tooltipStyle}
-            formatter={(value, name) => [
-              typeof value === 'number' && value < 0 ? `−${fmt(Math.abs(value))}` : fmt(Number(value ?? 0)),
-              name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : name === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)}/mo`,
-            ]}
+            formatter={(value, name) => {
+              if (name === 'mcRange' && Array.isArray(value)) {
+                return [`${fmt(Number(value[0]))} – ${fmt(Number(value[1]))}`, 'Monte Carlo 10–90%'];
+              }
+              return [
+                typeof value === 'number' && value < 0 ? `−${fmt(Math.abs(value))}` : fmt(Number(value ?? 0)),
+                name === 'pure' ? 'Pure FIRE' : name === 'barista33' ? 'Barista 33%' : name === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)}/mo`,
+              ];
+            }}
             labelFormatter={label => `Age ${label}`}
           />
           <Legend
-            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : v === 'barista50' ? 'Barista 50%' : `+ €${fmt(extraInvestment)}/mo`}
+            formatter={v => v === 'pure' ? 'Pure FIRE' : v === 'barista33' ? 'Barista 33%' : v === 'barista50' ? 'Barista 50%' : v === 'mcRange' ? 'Monte Carlo 10–90%' : `+ €${fmt(extraInvestment)}/mo`}
             wrapperStyle={{ fontSize: 12 }}
           />
           <ReferenceLine
@@ -439,6 +487,7 @@ function ProjectionChart({ data, fireTarget, currentAge, currentPortfolio, retir
               label={{ value: `FIRE ${extraFireAge.toFixed(1)}`, position: 'bottom', fontSize: 10, fill: EXTRA_COLOR }}
             />
           )}
+          <Area type="monotone" dataKey="mcRange" stroke="none" fill="var(--accent)" fillOpacity={0.08} connectNulls isAnimationActive={false} />
           <Line type="monotone" dataKey="pure" stroke="oklch(0.55 0.10 225)" strokeWidth={2} dot={false} />
           <Line type="monotone" dataKey="barista33" stroke="oklch(0.60 0.09 155)" strokeWidth={2} strokeDasharray="6 2" dot={false} />
           <Line type="monotone" dataKey="barista50" stroke="oklch(0.66 0.06 200)" strokeWidth={2} strokeDasharray="2 3" dot={false} />
@@ -643,6 +692,8 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
         tip: "After-inflation annual portfolio return while saving. It's your own assumption (default 6%). Using real returns keeps spending targets in today's euros." },
       { key: 'drawdownReturn', label: 'Drawdown real return', min: 0, max: 15, step: 0.1, pct: true,
         tip: 'After-inflation return during retirement. It\'s your own assumption (default 4%). Setting it below the saving-phase return builds in a safety margin, since the model has no year-to-year volatility.' },
+      { key: 'returnVolatility', label: 'Return volatility (annual std. dev.)', min: 0, max: 50, step: 1, pct: true,
+        tip: 'Used only by the Monte Carlo survival estimate on the projection chart below, not by the FIRE number itself (which stays a single deterministic path). This model\'s own assumption, not a sourced figure — 15% is a commonly used rough estimate for a diversified equity-heavy portfolio.' },
     ],
   },
   {
@@ -658,6 +709,8 @@ const CONFIG_FIELDS: { group: string; fields: ConfigField[] }[] = [
     fields: [
       { key: 'emergencyFundMonths', label: 'Emergency fund (months of income)', min: 0, max: 24, step: 0.5,
         tip: 'Bank/cash balances above this many months of your trailing-12-month average income count toward your FIRE portfolio; the buffer itself stays reserved and excluded.' },
+      { key: 'endBufferYears', label: 'End-of-plan buffer (years of Phase 2 spend)', min: 0, max: 10, step: 0.5,
+        tip: 'The FIRE number is solved to leave this many years of Phase 2 net spending in the portfolio at life expectancy, instead of exactly €0 — a margin for living longer, a worse-than-assumed market, or unplanned costs. This model\'s own assumption, not a sourced figure; 0 reproduces the old exactly-€0 behavior.' },
     ],
   },
   {
