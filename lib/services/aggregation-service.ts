@@ -107,6 +107,7 @@ export async function getDashboardStats(
     incomeRows,
     reimbByCategoryGroups,
     reimbAggregate,
+    reimbRows,
   ] = await Promise.all([
     prisma.transaction.groupBy({
       by: ['category'],
@@ -176,6 +177,11 @@ export async function getDashboardStats(
     prisma.transaction.aggregate({
       where: reimbWhere,
       _sum: { amount: true },
+    }),
+    prisma.transaction.findMany({
+      where: reimbWhere,
+      select: { date: true, amount: true },
+      take: 10000,
     }),
   ]);
 
@@ -348,6 +354,20 @@ export async function getDashboardStats(
     adjustedByCat[cat] = (adjustedByCat[cat] ?? 0) - (r._sum.amount ?? 0);
   }
 
+  // Unlinked reimbursements still get their own day/month series (not netted into
+  // byDay/byMonth/byCategoryMonth, per the comment above) so the dashboard and trends
+  // charts can show them as a distinct "Refunds" series on their own real posting date,
+  // instead of either hiding them or risking a negative-height segment in the gross
+  // spend series.
+  const refundsByDayMap: Record<string, number> = {};
+  const refundsByMonthMap: Record<string, number> = {};
+  for (const r of reimbRows) {
+    const day = r.date.toISOString().slice(0, 10);
+    const month = day.slice(0, 7);
+    refundsByDayMap[day] = (refundsByDayMap[day] ?? 0) + r.amount;
+    refundsByMonthMap[month] = (refundsByMonthMap[month] ?? 0) + r.amount;
+  }
+
   // Net each explicitly linked reimbursement against its own expense's category (and that
   // expense's day/month, so byMonth/byDay/byCategoryMonth stay consistent with byCategory
   // here too) — this is what lets a fronted expense's true net cost show correctly even
@@ -422,6 +442,14 @@ export async function getDashboardStats(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, cats]) => ({ month, ...cats }));
 
+  const refundsByDayArray = Object.entries(refundsByDayMap)
+    .map(([day, amount]) => ({ day, amount }))
+    .sort((a, b) => a.day.localeCompare(b.day));
+
+  const refundsByMonthArray = Object.entries(refundsByMonthMap)
+    .map(([month, amount]) => ({ month, amount }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
   const topTransactions = topTx.map(tx => ({
     merchant: tx.merchant,
     amount: Math.abs(tx.amount),
@@ -450,6 +478,8 @@ export async function getDashboardStats(
     byMonthIncome: byMonthIncomeArray,
     byCategoryMonth: byCategoryMonthArray,
     byDay: byDayArray,
+    refundsByDay: refundsByDayArray,
+    refundsByMonth: refundsByMonthArray,
     uncategorizedCount,
     allCategories,
     topTransactions,
