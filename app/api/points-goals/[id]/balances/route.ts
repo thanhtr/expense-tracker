@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { createPointsBalanceSchema, parseBody, parseId } from '@/lib/validation';
 import { computePointsGoalProgress } from '@/lib/services/points-goal-service';
@@ -31,6 +32,9 @@ export async function POST(
 
     return NextResponse.json({ ...goal, progress: computePointsGoalProgress(goal) }, { status: 201 });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+    }
     console.error('Failed to add points balance:', error);
     return NextResponse.json({ error: 'Failed to add points balance' }, { status: 500 });
   }

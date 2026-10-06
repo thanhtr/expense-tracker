@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-vi.mock('../../../lib/db', () => ({
-  prisma: {
+vi.mock('../../../lib/db', () => {
+  const prismaMock = {
     pointsGoal: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -14,8 +14,10 @@ vi.mock('../../../lib/db', () => ({
       create: vi.fn(),
       deleteMany: vi.fn(),
     },
-  },
-}));
+    $transaction: vi.fn((fn) => fn(prismaMock)),
+  };
+  return { prisma: prismaMock };
+});
 
 import { GET, POST } from '../../../app/api/points-goals/route';
 import { PATCH, DELETE } from '../../../app/api/points-goals/[id]/route';

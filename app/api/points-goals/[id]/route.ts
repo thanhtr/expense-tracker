@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { updatePointsGoalSchema, parseBody, parseId } from '@/lib/validation';
 import { computePointsGoalProgress } from '@/lib/services/points-goal-service';
@@ -32,17 +33,27 @@ export async function PATCH(
       };
     }
 
-    const goal = await prisma.pointsGoal.update({
-      where: { id: idResult.id },
-      data,
-      include: {
-        levels: { orderBy: { targetPoints: 'asc' } },
-        balances: { orderBy: { recordedAt: 'asc' } },
-      },
-    });
+    const goal = await prisma.$transaction(
+      (tx) =>
+        tx.pointsGoal.update({
+          where: { id: idResult.id },
+          data,
+          include: {
+            levels: { orderBy: { targetPoints: 'asc' } },
+            balances: { orderBy: { recordedAt: 'asc' } },
+          },
+        }),
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     return NextResponse.json({ ...goal, progress: computePointsGoalProgress(goal) });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      if (error.code === 'P2034') {
+        return NextResponse.json({ error: 'Conflicting update, please retry' }, { status: 409 });
+      }
+    }
     console.error('Failed to update points goal:', error);
     return NextResponse.json({ error: 'Failed to update points goal' }, { status: 500 });
   }
@@ -60,6 +71,9 @@ export async function DELETE(
     await prisma.pointsGoal.delete({ where: { id: idResult.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+    }
     console.error('Failed to delete points goal:', error);
     return NextResponse.json({ error: 'Failed to delete points goal' }, { status: 500 });
   }
