@@ -1,5 +1,5 @@
 import { getDashboardStats } from './aggregation-service';
-import { mulberry32, percentile } from './stats';
+import { mulberry32, percentile, monthString, shiftMonth } from './stats';
 import { FORECAST_RELIABLE_HISTORY_START } from '@/lib/constants';
 
 const MIN_HISTORY_MONTHS = 3;
@@ -27,24 +27,13 @@ export interface ForecastResult {
   trials: number;
   total: ForecastBand;
   byCategory: CategoryForecast[];
+  minHistoryMonths: number;
 }
 
 export interface InsufficientForecastData {
   insufficientData: true;
   monthsAvailable: number;
-}
-
-// Uses local date components, not toISOString(): converting a local midnight to UTC
-// rolls back to the previous day (and sometimes month) in any positive-UTC-offset
-// timezone, which would silently corrupt month arithmetic here.
-function monthString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function addMonths(monthStr: string, delta: number): string {
-  const [y, m] = monthStr.split('-').map(Number);
-  const d = new Date(y!, m! - 1 + delta, 1);
-  return monthString(d);
+  minHistoryMonths: number;
 }
 
 // Builds the list of calendar months from `start` to `end` inclusive, as 'YYYY-MM' strings.
@@ -53,7 +42,7 @@ function monthRange(start: string, end: string): string[] {
   let m = start;
   while (m <= end) {
     months.push(m);
-    m = addMonths(m, 1);
+    m = shiftMonth(m, 1);
   }
   return months;
 }
@@ -85,7 +74,7 @@ export async function forecastNextMonth(
 
   const months = monthRange(historyStart, historyEnd);
   if (months.length < MIN_HISTORY_MONTHS) {
-    return { insufficientData: true, monthsAvailable: months.length };
+    return { insufficientData: true, monthsAvailable: months.length, minHistoryMonths: MIN_HISTORY_MONTHS };
   }
 
   const stats = await getDashboardStats(
@@ -120,10 +109,13 @@ export async function forecastNextMonth(
 
   for (let t = 0; t < trials; t++) {
     const m = months[Math.floor(rng() * months.length)]!;
-    totalDraws.push(totalByMonth.get(m) ?? 0);
+    // Clamp at 0: a linked reimbursement can net a month/category negative (see
+    // aggregation-service.ts's byMonth/byCategoryMonth comments), and a negative draw
+    // would show as a nonsensical negative "likely spend" band.
+    totalDraws.push(Math.max(0, totalByMonth.get(m) ?? 0));
     const row = categoryByMonth.get(m);
     for (const cat of categories) {
-      categoryDraws.get(cat)!.push(row ? Number(row[cat]) || 0 : 0);
+      categoryDraws.get(cat)!.push(row ? Math.max(0, Number(row[cat]) || 0) : 0);
     }
   }
 
@@ -137,10 +129,11 @@ export async function forecastNextMonth(
     .sort((a, b) => b.p50 - a.p50);
 
   return {
-    forecastMonth: addMonths(historyEnd, 1),
+    forecastMonth: shiftMonth(historyEnd, 1),
     basedOnMonths: months.length,
     trials,
     total: band(totalDraws),
     byCategory,
+    minHistoryMonths: MIN_HISTORY_MONTHS,
   };
 }

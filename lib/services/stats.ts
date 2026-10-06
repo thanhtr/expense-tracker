@@ -25,3 +25,17 @@ export function percentile(sorted: number[], p: number): number {
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(p * sorted.length)));
   return sorted[idx]!;
 }
+
+// Formats a Date as a 'YYYY-MM' string using local date components, not toISOString():
+// converting a local midnight to UTC rolls back to the previous day (and sometimes
+// month) in any positive-UTC-offset timezone, which would silently corrupt month
+// arithmetic for callers that round-trip through this.
+export function monthString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Shifts a 'YYYY-MM' string by a number of calendar months (negative to go back).
+export function shiftMonth(month: string, delta: number): string {
+  const [y, mo] = month.split('-').map(Number);
+  return monthString(new Date(y!, mo! - 1 + delta, 1));
+}

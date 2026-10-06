@@ -59,7 +59,7 @@ test.describe('Dashboard', () => {
       await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
     });
     await page.route('**/api/forecast*', async (route) => {
-      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } });
+      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 0, minHistoryMonths: 3 } });
     });
 
     await page.goto('/');
@@ -84,6 +84,7 @@ test.describe('Dashboard', () => {
             { category: 'Rent', p10: 1200, p50: 1200, p90: 1200, monthsWithData: 9 },
             { category: 'Electronics', p10: 0, p50: 0, p90: 160, monthsWithData: 1 },
           ],
+          minHistoryMonths: 3,
         },
       });
     });
@@ -98,7 +99,7 @@ test.describe('Dashboard', () => {
   test('shows a fallback message when there is not enough reliable history for a forecast', async ({ page }) => {
     await setupSplitwise(page, mockExpenses(5, new Date('2026-04-01')));
     await page.route('**/api/forecast*', async (route) => {
-      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 1 } });
+      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 1, minHistoryMonths: 3 } });
     });
 
     await page.goto('/');
@@ -198,7 +199,7 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
-    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } }));
+    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0, minHistoryMonths: 3 } }));
   }
 
   // Bucket config used by guideline tests: Needs=housing, Savings=investments, Wants=catch-all
@@ -232,7 +233,7 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
-    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } }));
+    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0, minHistoryMonths: 3 } }));
   }
 
   const parseEuro = (s: string) => {

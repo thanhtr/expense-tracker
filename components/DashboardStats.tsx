@@ -770,7 +770,7 @@ function ForecastCard({ forecast }: { forecast: ForecastResult }) {
               <tr key={row.category} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
                 <td className="px-[20px] py-[9px] text-[13px] text-[var(--foreground)]">
                   {row.category}
-                  {row.monthsWithData < 3 && (
+                  {row.monthsWithData < forecast.minHistoryMonths && (
                     <span className="ml-[6px] text-[10px] text-[var(--fg-3)] uppercase tracking-[.03em]">
                       rare · {row.monthsWithData}/{forecast.basedOnMonths} mo
                     </span>
@@ -803,7 +803,7 @@ function ForecastInsufficientData({ data }: { data: InsufficientForecastData }) 
     <div className="dash-card p-[16px_20px]">
       <h3 className="text-[13px] font-semibold m-0">Forecast</h3>
       <div className="text-[12px] text-[var(--fg-3)] mt-[4px]">
-        Not enough reliable history yet ({data.monthsAvailable}/3 months). Check back once more
+        Not enough reliable history yet ({data.monthsAvailable}/{data.minHistoryMonths} months). Check back once more
         months of data are available.
       </div>
     </div>
