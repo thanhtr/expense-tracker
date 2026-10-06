@@ -853,7 +853,11 @@ stay resident for hours without a full reload.
 1. **More Parsers**: Add bank statement parsers for more accounts
 2. **Receipts**: Attach and store receipt images
 3. **Sharing**: Share expense reports with family members
-4. **Trends**: Year-over-year comparison, moving averages
+4. ~~**Trends**: Year-over-year comparison, moving averages~~ — done, see "Year-over-year
+   comparison on Trends" above
+5. **Forecast seasonality**: once 2025 is recategorized or 2026 has a full year of history,
+   revisit blending same-month-last-year into the forecast (see "Spending forecast redesigned"
+   above)
 
 ---
 
@@ -1078,6 +1082,52 @@ immediately preceding the displayed window and adds:
   trailing-window chart, not introduced by this PR — flagged, not changed, since "fixing" it means
   deciding whether to exclude the partial month from the comparison entirely, a product call left
   for later.
+
+### Spending forecast redesigned as a block bootstrap (branch: `feat/forecast-bootstrap`)
+Revives the forecast removed earlier in October 2026 (its EMA approach had no confidence
+interval, no minimum-history guard, and blended months a category didn't occur in as if they
+were real €0 data points). Before redesigning, checked the actual data: real history spans
+21 months (Jan 2025–Sep 2026), but **2025 is excluded** — it was imported as-is from Splitwise
+with legacy categorization and isn't reliable (user decision, 2026-10-06; see
+`FORECAST_RELIABLE_HISTORY_START` in `lib/constants.ts`). Within the remaining 9 months
+(2026 only), category coverage is very uneven: 9 of 19 categories appear in all 9 months,
+several in 7–8, and a real tail is genuinely occasional (Insurance 3/9, Electronics 1/9).
+
+- **Method: block bootstrap, not a parametric model.** `lib/services/forecast-service.ts`
+  resamples *whole historical months* with replacement (1,000 trials, seeded) rather than
+  fitting a distribution (like `fire-monte-carlo.ts`'s lognormal returns) or resampling each
+  category independently. This was a deliberate choice over both simpler and fancier
+  alternatives: with only 9 data points per category, there's nothing sensible to fit a
+  distribution to, and whole-month resampling preserves real cross-category correlation
+  (a trip month plausibly spikes Travel and Dining together) for free. It also naturally
+  produces a correctly wide, low-confidence band for occasional categories — most resampled
+  months show €0 for Electronics, a minority show the one real spike — which *is* the honest
+  confidence interval the old version lacked, with no separate "is this category reliable"
+  branch needed.
+- Reuses `getDashboardStats` (`lib/services/aggregation-service.ts`) for the month×category
+  data instead of new queries — this means the existing `NON_SPENDING_CATEGORIES` exclusion
+  and reimbursement netting apply for free.
+- `mulberry32` (seeded PRNG) and `percentile` were extracted from `fire-monte-carlo.ts`
+  (previously private) into a new shared `lib/services/stats.ts`, since both modules now need
+  them — pure refactor, verified behavior-unchanged against `fire-monte-carlo.test.ts`.
+- Minimum-history guard: fewer than 3 reliable months → `{ insufficientData: true }`, the UI
+  shows a "not enough reliable history" message instead of a number.
+- `/api/forecast` GET returns `{ forecastMonth, basedOnMonths, trials, total: {p10,p50,p90},
+  byCategory: [{category, p10, p50, p90, monthsWithData}] }`. UI shows the total as a range
+  ("€X–€Y, likely ≈ €Z") rather than one number, and tags any category with under 3 months of
+  data as "rare" in the per-category table.
+- **Found and fixed while implementing:** the obvious `monthString(d) { return
+  d.toISOString().slice(0,7) }` helper (used for calendar-month arithmetic) is a real bug in
+  any positive-UTC-offset timezone (this dev environment is EEST, UTC+3) — converting a local
+  midnight to UTC rolls back to the previous day, and for the 1st of a month, to the *previous
+  month*, which made month-range iteration loop forever. Fixed by reading local
+  `getFullYear()`/`getMonth()` components directly instead of round-tripping through UTC —
+  the same safe pattern `/trends`' `shiftMonth` already uses. Passing whole `Date` objects
+  (not strings) to `getDashboardStats` is unaffected and matches existing precedent
+  (`app/api/fire/route.ts`'s `twelveMonthsAgo`/`today`).
+- No seasonality (YoY) blending for v1 — deliberately deferred: with 2025 excluded, there's no
+  reliable same-month-last-year data yet to blend in. Revisit once 2026 has a full year behind
+  it, or if 2025 is ever recategorized.
 
 ---
 

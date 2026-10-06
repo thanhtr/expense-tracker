@@ -58,6 +58,9 @@ test.describe('Dashboard', () => {
     await page.route('**/api/transactions*', async (route) => {
       await route.fulfill({ json: { transactions: [], total: 0, offset: 0, limit: 50 } });
     });
+    await page.route('**/api/forecast*', async (route) => {
+      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } });
+    });
 
     await page.goto('/');
     await expect(page.locator('text=Daily spending')).toBeVisible();
@@ -66,6 +69,41 @@ test.describe('Dashboard', () => {
     // expense's day (04/10) — confirms the refund-only day wasn't dropped from the series.
     const barCount = await page.locator('.recharts-bar-rectangle').count();
     expect(barCount).toBeGreaterThan(1);
+  });
+
+  test('renders the forecast card with a range when data is available', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(5, new Date('2026-04-01')));
+    await page.route('**/api/forecast*', async (route) => {
+      await route.fulfill({
+        json: {
+          forecastMonth: '2026-10',
+          basedOnMonths: 9,
+          trials: 1000,
+          total: { p10: 2000, p50: 2500, p90: 3200 },
+          byCategory: [
+            { category: 'Rent', p10: 1200, p50: 1200, p90: 1200, monthsWithData: 9 },
+            { category: 'Electronics', p10: 0, p50: 0, p90: 160, monthsWithData: 1 },
+          ],
+        },
+      });
+    });
+
+    await page.goto('/');
+    await page.locator('button', { hasText: 'Forecast' }).click();
+    await expect(page.locator('text=/Forecast: October 2026/')).toBeVisible();
+    await expect(page.locator('text=Likely range')).toBeVisible();
+    await expect(page.locator('tbody tr', { hasText: 'Electronics' })).toContainText('rare');
+  });
+
+  test('shows a fallback message when there is not enough reliable history for a forecast', async ({ page }) => {
+    await setupSplitwise(page, mockExpenses(5, new Date('2026-04-01')));
+    await page.route('**/api/forecast*', async (route) => {
+      await route.fulfill({ json: { insufficientData: true, monthsAvailable: 1 } });
+    });
+
+    await page.goto('/');
+    await page.locator('button', { hasText: 'Forecast' }).click();
+    await expect(page.locator('text=/Not enough reliable history/')).toBeVisible();
   });
 
   test('should filter by category and show only selected category data', async ({ page }) => {
@@ -160,6 +198,7 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } }));
   }
 
   // Bucket config used by guideline tests: Needs=housing, Savings=investments, Wants=catch-all
@@ -193,6 +232,7 @@ test.describe('Dashboard', () => {
     await page.route('**/api/budgets*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/goals*', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/assets*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/api/forecast*', (route) => route.fulfill({ json: { insufficientData: true, monthsAvailable: 0 } }));
   }
 
   const parseEuro = (s: string) => {
