@@ -165,10 +165,14 @@ test.describe('FIRE page', () => {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(390 + 1);
       }
-      // The popup overlaps the full-screen "Close" overlay at z-20 vs z-10, so a plain
-      // click can be intercepted by the popup itself — force it, since we only need the
-      // open state reset between iterations, not a pixel-accurate user click.
-      await page.locator('button[aria-label="Close"]').click({ force: true });
+      // InfoTip closes itself on any window scroll (see its own comment in
+      // FireDashboard.tsx), and a real .click() always performs a "scroll into view if
+      // needed" actionability step first — even with `force: true`, which only skips the
+      // visibility/hit-target checks, not that step. On the fixed, inset-0 overlay that's
+      // normally a no-op, but when it does trigger a scroll, the popup (and this Close
+      // button) unmounts mid-click, so the test hangs waiting for a button that's gone.
+      // dispatchEvent fires the click directly with no actionability/scroll step.
+      await page.locator('button[aria-label="Close"]').dispatchEvent('click');
     }
   });
 });
