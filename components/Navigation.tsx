@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: '/upload', label: 'Upload' },
   { href: '/settings', label: 'Settings' },
   { href: '/fire', label: 'FIRE' },
+  { href: '/goals', label: 'Goals' },
 ];
 
 export function Navigation() {

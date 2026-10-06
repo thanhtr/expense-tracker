@@ -251,4 +251,7 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
   await page.route('**/api/assets*', async (route) => {
     await route.fulfill({ json: [] });
   });
+  await page.route('**/api/points-goals*', async (route) => {
+    await route.fulfill({ json: [] });
+  });
 }

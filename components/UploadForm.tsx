@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { detectBank, detectColumnMapping } from '@/lib/parsers';
 import type { ColumnMapping } from '@/lib/parsers';
+import { ACCOUNT_NAMES } from '@/lib/constants';
 
 interface HouseholdMember {
   id: number;
@@ -28,7 +29,9 @@ interface UploadFormProps {
   onSuccess?: () => void;
 }
 
-const TRACKED_ACCOUNTS = ['OP Bank', 'Amex', 'Finnair Visa', 'Aktia'];
+// Aktia is only the bank that issues the Finnair Visa card, not a separate tracked account —
+// it's already covered by "Finnair Visa".
+const TRACKED_ACCOUNTS: readonly string[] = ACCOUNT_NAMES;
 const PROFILE_KEY_PREFIX = 'bankProfile:';
 
 function daysAgo(dateStr: string): string {
@@ -207,7 +210,7 @@ export function UploadForm({ onSuccess }: UploadFormProps) {
       {/* Last import status */}
       <div className="bg-surface rounded-lg border border-border-soft p-4">
         <h3 className="text-xs font-medium text-fg-3 uppercase tracking-wide mb-3">Last imported</h3>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {TRACKED_ACCOUNTS.map(account => {
             const date = lastImports[account];
             return (
