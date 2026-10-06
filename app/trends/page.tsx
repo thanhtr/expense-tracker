@@ -6,6 +6,7 @@ import {
   CartesianGrid, Legend,
 } from 'recharts';
 import { fmtEUR } from '@/lib/utils';
+import { shiftMonth } from '@/lib/services/stats';
 import type { DashboardAggregation } from '@/lib/types';
 
 const YOY_COLOR = 'oklch(0.70 0.05 60)';
@@ -38,13 +39,6 @@ const CAT_COLORS = [
   'oklch(0.66 0.06 200)',
   'oklch(0.70 0.05 60)',
 ];
-
-// Shifts a 'YYYY-MM' string by a number of calendar months (negative to go back).
-function shiftMonth(month: string, delta: number): string {
-  const [y, mo] = month.split('-').map(Number);
-  const d = new Date(y!, mo! - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);

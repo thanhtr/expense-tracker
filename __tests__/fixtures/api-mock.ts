@@ -204,6 +204,10 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     await route.fulfill({ json: { items: [], totalMonthly: 0 } });
   });
 
+  await page.route('**/api/forecast*', async (route) => {
+    await route.fulfill({ json: { insufficientData: true, monthsAvailable: 0, minHistoryMonths: 3 } });
+  });
+
   await page.route('**/api/transactions*', async (route) => {
     const url = new URL(route.request().url());
     const offset = parseInt(url.searchParams.get('offset') || '0');

@@ -4,6 +4,7 @@ import {
   monthlyRate,
   computePhaseGrossWithdrawals,
 } from './fire-service';
+import { mulberry32, randNormal, percentile } from './stats';
 
 export interface MonteCarloBand {
   age: number;
@@ -20,26 +21,6 @@ export interface MonteCarloResult {
   // randomized. Does not drive the FIRE target; purely descriptive.
   successProbability: number;
   bands: MonteCarloBand[];
-}
-
-// Deterministic PRNG (mulberry32), so results are stable across reloads/tests for a
-// given seed, with no external dependency.
-function mulberry32(seed: number): () => number {
-  let a = seed;
-  return function random() {
-    a |= 0;
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Standard normal via Box-Muller.
-function randNormal(rng: () => number): number {
-  const u1 = Math.max(rng(), Number.EPSILON);
-  const u2 = rng();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
 
 // Draws an annual real return from a lognormal distribution, moment-matched so that
@@ -112,11 +93,6 @@ function simulateTrial(
   }
 
   return { success: !depleted, path };
-}
-
-function percentile(sorted: number[], p: number): number {
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(p * sorted.length)));
-  return sorted[idx]!;
 }
 
 // Evaluates (doesn't solve) the plan under return volatility: runs `trials` random

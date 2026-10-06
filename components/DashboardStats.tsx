@@ -15,6 +15,7 @@ import { useCategories } from '@/components/CategoriesProvider';
 import { useHouseholdMembers } from '@/components/HouseholdMembersProvider';
 import { fmtEUR } from '@/lib/utils';
 import { ACCOUNT_NAMES } from '@/lib/constants';
+import type { ForecastResult, InsufficientForecastData } from '@/lib/services/forecast-service';
 
 // Palette used by category charts — stable, print-friendly, a single hue family.
 const CAT_COLORS = [
@@ -729,6 +730,86 @@ function hash(s: string): number {
   return h;
 }
 
+// ----- forecast card -----
+
+function ForecastCard({ forecast }: { forecast: ForecastResult }) {
+  const monthLabel = (() => {
+    const [y, m] = forecast.forecastMonth.split('-');
+    return new Date(Number(y), Number(m) - 1, 1)
+      .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  })();
+
+  return (
+    <div className="dash-card">
+      <div className="flex items-center justify-between gap-4 p-[16px_20px_12px]">
+        <div>
+          <h3 className="text-[13px] font-semibold m-0">Forecast: {monthLabel}</h3>
+          <div className="text-[12px] text-[var(--fg-3)]">
+            Historical simulation · {forecast.basedOnMonths} month{forecast.basedOnMonths !== 1 ? 's' : ''} of data · {forecast.trials.toLocaleString()} trials
+          </div>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <div className="text-[11px] uppercase tracking-[.04em] text-[var(--fg-3)]">Likely range</div>
+          <div className="mono text-[18px] font-semibold mt-[2px]">
+            {fmtEUR(forecast.total.p10)}–{fmtEUR(forecast.total.p90)}
+          </div>
+          <div className="text-[11px] text-[var(--fg-3)]">likely ≈ {fmtEUR(forecast.total.p50)}</div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[var(--border)]">
+              <th className="px-[20px] py-[8px] text-left text-[11px] font-medium text-[var(--fg-3)]">Category</th>
+              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Likely</th>
+              <th className="px-[20px] py-[8px] text-right text-[11px] font-medium text-[var(--fg-3)]">Range</th>
+            </tr>
+          </thead>
+          <tbody>
+            {forecast.byCategory.slice(0, 8).map(row => (
+              <tr key={row.category} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-2)]">
+                <td className="px-[20px] py-[9px] text-[13px] text-[var(--foreground)]">
+                  {row.category}
+                  {row.monthsWithData < forecast.minHistoryMonths && (
+                    <span className="ml-[6px] text-[10px] text-[var(--fg-3)] uppercase tracking-[.03em]">
+                      rare · {row.monthsWithData}/{forecast.basedOnMonths} mo
+                    </span>
+                  )}
+                </td>
+                <td className="px-[20px] py-[9px] text-right mono text-[13px] font-medium text-[var(--foreground)]">
+                  {fmtEUR(row.p50)}
+                </td>
+                <td className="px-[20px] py-[9px] text-right mono text-[12px] text-[var(--fg-3)]">
+                  {fmtEUR(row.p10)}–{fmtEUR(row.p90)}
+                </td>
+              </tr>
+            ))}
+            {forecast.byCategory.length > 8 && (
+              <tr>
+                <td colSpan={3} className="px-[20px] py-[8px] text-[11px] text-[var(--fg-3)] text-center">
+                  +{forecast.byCategory.length - 8} more categories
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ForecastInsufficientData({ data }: { data: InsufficientForecastData }) {
+  return (
+    <div className="dash-card p-[16px_20px]">
+      <h3 className="text-[13px] font-semibold m-0">Forecast</h3>
+      <div className="text-[12px] text-[var(--fg-3)] mt-[4px]">
+        Not enough reliable history yet ({data.monthsAvailable}/{data.minHistoryMonths} months). Check back once more
+        months of data are available.
+      </div>
+    </div>
+  );
+}
+
 // ----- skeleton -----
 
 function DashboardSkeleton() {
@@ -845,6 +926,7 @@ export function DashboardStats() {
   const [refreshing, setRefreshing] = useState(false);
   const shouldRefresh = useRef(false);
   const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
+  const [forecast, setForecast] = useState<ForecastResult | InsufficientForecastData | null>(null);
 
   const compareRange = useMemo(
     () => compareMode === 'yoy' ? yoyRange(dateFrom, dateTo) : previousRange(dateFrom, dateTo),
@@ -859,11 +941,15 @@ export function DashboardStats() {
     setDateTo(r.to);
   }, [preset]);
 
-  // Fetch recurring total once on mount
+  // Fetch recurring total + forecast once on mount
   useEffect(() => {
     fetch('/api/transactions/recurring')
       .then(r => r.ok ? r.json() : null)
       .then((d: { totalMonthly: number } | null) => { if (d) setRecurringMonthly(d.totalMonthly); })
+      .catch(() => {});
+    fetch('/api/forecast')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setForecast(d); })
       .catch(() => {});
   }, []);
 
@@ -1509,6 +1595,15 @@ export function DashboardStats() {
             <IncomeTrendChart trendData={incomeTrendData} />
           </div>
         </div>
+      )}
+
+      {/* Forecast */}
+      {forecast && (
+        <CollapsibleSection storageKey="dash-forecast" title="Forecast">
+          {'insufficientData' in forecast
+            ? <ForecastInsufficientData data={forecast} />
+            : <ForecastCard forecast={forecast} />}
+        </CollapsibleSection>
       )}
 
       {/* Net Worth */}
