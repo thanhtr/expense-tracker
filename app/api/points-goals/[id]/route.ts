@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { updatePointsGoalSchema, parseBody, parseId } from '@/lib/validation';
+import { updatePointsGoalSchema, parseBody, parseRouteId } from '@/lib/validation';
 import { computePointsGoalProgress } from '@/lib/services/points-goal-service';
 
 export async function PATCH(
@@ -9,8 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: idStr } = await params;
-    const idResult = parseId(idStr);
+    const idResult = await parseRouteId(params);
     if ('error' in idResult) return idResult.error;
 
     const parsed = parseBody(updatePointsGoalSchema, await request.json());
@@ -64,8 +63,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: idStr } = await params;
-    const idResult = parseId(idStr);
+    const idResult = await parseRouteId(params);
     if ('error' in idResult) return idResult.error;
 
     await prisma.pointsGoal.delete({ where: { id: idResult.id } });

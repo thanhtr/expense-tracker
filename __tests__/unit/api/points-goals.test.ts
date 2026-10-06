@@ -177,12 +177,15 @@ describe('DELETE /api/points-goals/[id]/balances', () => {
 
   it('deletes a reading scoped to its goal', async () => {
     vi.mocked(prisma.pointsBalance.deleteMany).mockResolvedValueOnce({ count: 1 });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal());
     const res = await DELETE_BALANCE(
       makeReq('http://localhost/api/points-goals/1/balances?balanceId=2', 'DELETE'),
       { params: params('1') },
     );
     expect(res.status).toBe(200);
     expect(prisma.pointsBalance.deleteMany).toHaveBeenCalledWith({ where: { id: 2, goalId: 1 } });
+    const body = await res.json();
+    expect(body.id).toBe(1);
   });
 
   it('returns 404 when the reading does not belong to that goal', async () => {

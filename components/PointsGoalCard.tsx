@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { today } from '@/lib/utils';
+import { today, fmtDateLong, fmtNumber } from '@/lib/utils';
 
 interface Level {
   id: number;
@@ -49,14 +49,6 @@ interface PointsGoal {
   progress: Progress;
 }
 
-function fmtPts(n: number): string {
-  return Math.round(n).toLocaleString('en-GB');
-}
-
-function fmtDate(d: string): string {
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function defaultForm() {
   const year = new Date().getFullYear() + 1;
   return {
@@ -80,7 +72,7 @@ function LevelRow({ level, unit }: { level: LevelProgress; unit: string }) {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-[13px] font-medium">{level.label}</span>
         <span className="text-[12px] text-[var(--fg-3)] mono">
-          {fmtPts(level.targetPoints)} {unit}
+          {fmtNumber(level.targetPoints)} {unit}
         </span>
       </div>
       <div className="w-full h-[6px] bg-surface-2 rounded-full overflow-hidden">
@@ -92,12 +84,12 @@ function LevelRow({ level, unit }: { level: LevelProgress; unit: string }) {
           {level.reached ? (
             <span className="text-emerald-600 dark:text-emerald-400 font-medium"> · goal reached</span>
           ) : (
-            <> · {fmtPts(level.remaining)} {unit} remaining</>
+            <> · {fmtNumber(level.remaining)} {unit} remaining</>
           )}
         </span>
         {!level.reached && level.pointsPerMonthNeeded !== null && (
           <span className={level.onTrack === false ? 'text-amber-600 dark:text-amber-400' : ''}>
-            needs {fmtPts(level.pointsPerMonthNeeded)}/mo
+            needs {fmtNumber(level.pointsPerMonthNeeded)}/mo
             {level.onTrack === true && ' · on track'}
             {level.onTrack === false && ' · behind pace'}
           </span>
@@ -107,7 +99,15 @@ function LevelRow({ level, unit }: { level: LevelProgress; unit: string }) {
   );
 }
 
-function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }) {
+function GoalCard({
+  goal,
+  onUpdate,
+  onRemove,
+}: {
+  goal: PointsGoal;
+  onUpdate: (goal: PointsGoal) => void;
+  onRemove: (id: number) => void;
+}) {
   const [addingReading, setAddingReading] = useState(false);
   const [readingBalance, setReadingBalance] = useState('');
   const [readingDate, setReadingDate] = useState(today());
@@ -131,10 +131,11 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
         body: JSON.stringify({ balance, recordedAt: readingDate, note: readingNote }),
       });
       if (res.ok) {
+        const updated = await res.json() as PointsGoal;
         setReadingBalance('');
         setReadingNote('');
         setAddingReading(false);
-        onMutate();
+        onUpdate(updated);
         toast.success('Balance reading added');
       } else {
         const err = await res.json() as { error: string };
@@ -149,7 +150,7 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
     if (!window.confirm('Remove this reading?')) return;
     const res = await fetch(`/api/points-goals/${goal.id}/balances?balanceId=${balanceId}`, { method: 'DELETE' });
     if (res.ok) {
-      onMutate();
+      onUpdate(await res.json() as PointsGoal);
     } else {
       toast.error('Failed to delete reading');
     }
@@ -159,7 +160,7 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
     if (!window.confirm(`Delete goal "${goal.name}"? This also deletes its readings.`)) return;
     const res = await fetch(`/api/points-goals/${goal.id}`, { method: 'DELETE' });
     if (res.ok) {
-      onMutate();
+      onRemove(goal.id);
       toast.success(`"${goal.name}" deleted`);
     } else {
       toast.error('Failed to delete goal');
@@ -172,7 +173,7 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
         <div>
           <h3 className="text-[14px] font-semibold m-0">{goal.name}</h3>
           <div className="text-[11px] text-[var(--fg-3)]">
-            {fmtDate(goal.periodStart)} – {fmtDate(goal.periodEnd)}
+            {fmtDateLong(goal.periodStart)} – {fmtDateLong(goal.periodEnd)}
             {goal.note && <> · {goal.note}</>}
           </div>
         </div>
@@ -189,10 +190,10 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
       <div className="mb-4">
         <div className="flex items-center justify-between text-[12px] mb-[4px]">
           <span className="text-[var(--fg-2)]">
-            Current balance: <span className="mono font-semibold">{fmtPts(progress.latestBalance)} {goal.unit}</span>
+            Current balance: <span className="mono font-semibold">{fmtNumber(progress.latestBalance)} {goal.unit}</span>
           </span>
           {progress.latestRecordedAt && (
-            <span className="text-[var(--fg-3)]">as of {fmtDate(progress.latestRecordedAt)}</span>
+            <span className="text-[var(--fg-3)]">as of {fmtDateLong(progress.latestRecordedAt)}</span>
           )}
         </div>
         <div className="relative w-full h-[10px] bg-surface-2 rounded-full overflow-hidden">
@@ -205,7 +206,7 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
                 key={l.id}
                 className="absolute top-0 bottom-0 w-[2px] bg-[var(--surface)]"
                 style={{ left: `${tickPct}%` }}
-                title={`${l.label}: ${fmtPts(l.targetPoints)}`}
+                title={`${l.label}: ${fmtNumber(l.targetPoints)}`}
               />
             );
           })}
@@ -213,10 +214,10 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
         <div className="text-[11px] text-[var(--fg-3)] mt-[4px]">
           {progress.periodElapsedPct.toFixed(0)}% of period elapsed
           {progress.observedPointsPerMonth !== null && (
-            <> · observed pace {fmtPts(progress.observedPointsPerMonth)}/mo</>
+            <> · observed pace {fmtNumber(progress.observedPointsPerMonth)}/mo</>
           )}
           {progress.projectedEndBalance !== null && (
-            <> · projected end {fmtPts(progress.projectedEndBalance)}</>
+            <> · projected end {fmtNumber(progress.projectedEndBalance)}</>
           )}
         </div>
       </div>
@@ -246,11 +247,11 @@ function GoalCard({ goal, onMutate }: { goal: PointsGoal; onMutate: () => void }
             {[...goal.balances].reverse().map((b) => (
               <li key={b.id} className="flex items-center justify-between gap-3 text-[11px] text-[var(--fg-3)]">
                 <span>
-                  {fmtDate(b.recordedAt)}
+                  {fmtDateLong(b.recordedAt)}
                   {b.note && <span className="text-[var(--fg-3)]"> — {b.note}</span>}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="mono">{fmtPts(b.balance)}</span>
+                  <span className="mono">{fmtNumber(b.balance)}</span>
                   <button
                     onClick={() => void handleDeleteReading(b.id)}
                     className="hover:text-red-500 transition-colors"
@@ -339,6 +340,14 @@ export function PointsGoalCard() {
 
   useEffect(load, []);
 
+  function updateGoal(goal: PointsGoal) {
+    setGoals((gs) => gs.map((g) => (g.id === goal.id ? goal : g)));
+  }
+
+  function removeGoal(id: number) {
+    setGoals((gs) => gs.filter((g) => g.id !== id));
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const levels = form.levels
@@ -360,9 +369,10 @@ export function PointsGoalCard() {
         }),
       });
       if (res.ok) {
+        const created = await res.json() as PointsGoal;
         setCreating(false);
         setForm(defaultForm());
-        load();
+        setGoals((gs) => [...gs, created]);
         toast.success('Goal created');
       } else {
         const err = await res.json() as { error: string };
@@ -391,7 +401,7 @@ export function PointsGoalCard() {
       )}
 
       {goals.map((goal) => (
-        <GoalCard key={goal.id} goal={goal} onMutate={load} />
+        <GoalCard key={goal.id} goal={goal} onUpdate={updateGoal} onRemove={removeGoal} />
       ))}
 
       {creating ? (

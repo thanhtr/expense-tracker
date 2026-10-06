@@ -345,3 +345,11 @@ export function parseId(idStr: string): { id: number } | { error: NextResponse }
   }
   return { id };
 }
+
+/** Awaits a route's `params` promise and parses its `id` segment in one step. */
+export async function parseRouteId(
+  params: Promise<{ id: string }>,
+): Promise<{ id: number } | { error: NextResponse }> {
+  const { id: idStr } = await params;
+  return parseId(idStr);
+}

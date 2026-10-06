@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { createPointsBalanceSchema, parseBody, parseId } from '@/lib/validation';
+import { createPointsBalanceSchema, parseBody, parseId, parseRouteId } from '@/lib/validation';
 import { computePointsGoalProgress } from '@/lib/services/points-goal-service';
 
 export async function POST(
@@ -9,8 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: idStr } = await params;
-    const idResult = parseId(idStr);
+    const idResult = await parseRouteId(params);
     if ('error' in idResult) return idResult.error;
 
     const parsed = parseBody(createPointsBalanceSchema, await request.json());
@@ -45,8 +44,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: idStr } = await params;
-    const idResult = parseId(idStr);
+    const idResult = await parseRouteId(params);
     if ('error' in idResult) return idResult.error;
 
     const balanceIdStr = new URL(request.url).searchParams.get('balanceId');
@@ -62,7 +60,16 @@ export async function DELETE(
     });
     if (count === 0) return NextResponse.json({ error: 'Balance not found' }, { status: 404 });
 
-    return NextResponse.json({ success: true });
+    const goal = await prisma.pointsGoal.findUnique({
+      where: { id: idResult.id },
+      include: {
+        levels: { orderBy: { targetPoints: 'asc' } },
+        balances: { orderBy: { recordedAt: 'asc' } },
+      },
+    });
+    if (!goal) return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+
+    return NextResponse.json({ ...goal, progress: computePointsGoalProgress(goal) });
   } catch (error) {
     console.error('Failed to delete points balance:', error);
     return NextResponse.json({ error: 'Failed to delete points balance' }, { status: 500 });
