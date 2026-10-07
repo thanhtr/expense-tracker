@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { fmtEUR } from '@/lib/utils';
+import { fmtEUR, fmtDateLong } from '@/lib/utils';
 import { ASSET_TYPES } from '@/lib/constants';
 
 type AssetType = typeof ASSET_TYPES[number];
@@ -293,7 +293,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
                       <div className="flex-1 min-w-0">
                         <div className="text-[13px] font-medium truncate">{asset.name}</div>
                         <div className="text-[11px] text-[var(--fg-3)]">
-                          as of {new Date(asset.recordedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          as of {fmtDateLong(asset.recordedAt)}
                         </div>
                       </div>
 
@@ -357,7 +357,7 @@ export function AssetManager({ onMutate }: { onMutate?: () => void }) {
                           <ul className="space-y-1">
                             {[...historyByAsset[asset.id]!].reverse().map(snap => (
                               <li key={snap.id} className="flex items-center justify-between gap-3 pl-3 text-[11px] text-[var(--fg-3)]">
-                                <span>{new Date(snap.recordedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                <span>{fmtDateLong(snap.recordedAt)}</span>
                                 <span className="mono">{fmtEUR(snap.balance)}</span>
                               </li>
                             ))}

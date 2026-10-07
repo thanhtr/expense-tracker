@@ -1129,6 +1129,55 @@ several in 7–8, and a real tail is genuinely occasional (Insurance 3/9, Electr
   reliable same-month-last-year data yet to blend in. Revisit once 2026 has a full year behind
   it, or if 2025 is ever recategorized.
 
+### Avios goal tracking + fact-check of an external strategy doc (branch: `feat/avios-goal`)
+User brought an externally-drafted "Finnair Avios master strategy" doc and asked for (1) a way to
+track its target inside the app and (2) its logic re-checked against collectable facts, not
+assumptions. Two goal levels (set by the user, not in the exported doc): **minimum** = one-way
+Business upgrade for 2 people = 80,000 Avios/yr; **extended** = return upgrade for 2 = 160,000/yr.
+
+**Fact-check findings** (DB queries + official finnair.com / americanexpress.com/fi-fi pages read
+6 Oct 2026 — full table and reasoning were reported to the user, not reproduced here):
+- The plan's card-spend baseline (€25,367/yr) undercounts real spend by annualizing 7 months of
+  data over 8.5 months; actual March–September 2026 run rate is **≈€32.1k/yr**.
+- The plan's "abandon Silver status" step has the economics backwards: the Finnair Visa gives 500
+  tier points in any €1,500+ month (no Avios cost), and Silver earns *more* Avios (1.2/€ on the
+  card, 7/€ on flights vs Basic's 1.0/€ and 6/€) — keeping status costs nothing and raises the
+  earn rate; the plan's own numbers don't support dropping it.
+- The Amex fee (€65/mo until 1 Nov 2026, then €75) and the MR→Avios math (75,000 MR isn't a
+  multiple of 17, the required transfer unit) were both slightly off; the real Amex offer is a
+  100k-point bonus split 50k/50k at months 7 and 13, not the plan's single 75k.
+- The "effective seat cost ≈€526" figure doesn't reconcile with the plan's own cited inputs (works
+  out to ≈€779, or ≈€1,140 using the real 2026 Japan fare the user confirmed, €1,668 for 2 return).
+- Confirmed as official fact: 40,000 Avios per person per direction for Economy→Business on
+  Japan/Singapore/most-of-Asia routes, the 18-month Avios expiry (keeps a multi-year rollover plan
+  viable as long as the card keeps getting used), the 200k Avios/yr purchase cap, and the official
+  48k-Avios subscription price (€628.80/yr, €0.0131/Avios). The 30%/40% bulk-sale discount tiers in
+  the plan are blog-sourced only (loyaltylobby.com), not confirmed on an official page.
+
+**Feature (phase 1, manual readings only — not computed from transactions):** earning rules for
+which card purchases count toward Avios aren't confirmed precisely enough to encode in the
+categorizer yet, so this follows the existing Asset/AssetSnapshot pattern instead of trying to
+derive Avios from `Transaction` rows.
+- New models `PointsGoal` (name, unit, period), `PointsGoalLevel` (named thresholds — the
+  minimum/extended split is just two rows, not a hardcoded concept) and `PointsBalance` (dated
+  manual readings), migration `20261006000000_points_goal` (applied via `prisma db execute` +
+  `migrate resolve --applied`, per the established workaround for the pre-existing migration drift
+  — never `migrate dev`/`reset` against this database).
+- `lib/services/points-goal-service.ts`: pure function, no DB access. Computes per-level % reached,
+  remaining, and Avios/month needed, plus a shared observed pace and end-of-period projection from
+  readings taken *inside* the goal's own period (a reading from outside the period still sets the
+  displayed current balance, but doesn't feed the pace calculation — a stale or prior-goal reading
+  shouldn't imply this period's earn rate). No earn-rate assumption is made anywhere in phase 1.
+- `app/api/points-goals/route.ts` + `[id]/route.ts` + `[id]/balances/route.ts`,
+  `components/PointsGoalCard.tsx`, new `/goals` page linked in `Navigation.tsx`.
+- Deferred to a later phase, once the Finnair Visa's exact earn exclusions (transfers, fees, etc.)
+  can be confirmed from an official source and mapped onto existing categories: computing Avios
+  automatically from `Finnair Visa` transactions, and tracking tier points toward Silver
+  requalification.
+- Also removed **Aktia** from `UploadForm.tsx`'s tracked-accounts list — it's only the bank that
+  issues the Finnair Visa card, not a separate account; the card's own spend is already tracked
+  under "Finnair Visa". `TRACKED_ACCOUNTS` now just reuses `ACCOUNT_NAMES` from `lib/constants.ts`.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

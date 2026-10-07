@@ -138,6 +138,41 @@ export const updateAssetSchema = z.object({
   recordedAt: dateField.optional(),
 });
 
+export const pointsGoalLevelSchema = z.object({
+  label: z.string().min(1).max(100).transform(s => s.trim()),
+  targetPoints: z.number().int().positive(),
+});
+
+export const createPointsGoalSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()),
+  unit: z.string().min(1).max(50).optional().default('Avios'),
+  periodStart: dateField,
+  periodEnd: dateField,
+  note: z.string().max(500).optional().default(''),
+  levels: z.array(pointsGoalLevelSchema).min(1).max(10),
+}).refine(d => d.periodStart < d.periodEnd, {
+  message: 'periodStart must be before periodEnd',
+  path: ['periodEnd'],
+});
+
+export const updatePointsGoalSchema = z.object({
+  name: z.string().min(1).max(200).transform(s => s.trim()).optional(),
+  unit: z.string().min(1).max(50).optional(),
+  periodStart: dateField.optional(),
+  periodEnd: dateField.optional(),
+  note: z.string().max(500).optional(),
+  levels: z.array(pointsGoalLevelSchema).min(1).max(10).optional(),
+}).refine(d => !d.periodStart || !d.periodEnd || d.periodStart < d.periodEnd, {
+  message: 'periodStart must be before periodEnd',
+  path: ['periodEnd'],
+});
+
+export const createPointsBalanceSchema = z.object({
+  balance: z.number().int().min(0),
+  recordedAt: dateField,
+  note: z.string().max(500).optional().default(''),
+});
+
 export const createBudgetSchema = z.object({
   category: z.string().min(1).max(100),
   monthlyLimit: z.number().nonnegative().finite(),
@@ -309,4 +344,12 @@ export function parseId(idStr: string): { id: number } | { error: NextResponse }
     return { error: NextResponse.json({ error: 'Invalid id' }, { status: 400 }) };
   }
   return { id };
+}
+
+/** Awaits a route's `params` promise and parses its `id` segment in one step. */
+export async function parseRouteId(
+  params: Promise<{ id: string }>,
+): Promise<{ id: number } | { error: NextResponse }> {
+  const { id: idStr } = await params;
+  return parseId(idStr);
 }

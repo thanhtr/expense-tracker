@@ -37,3 +37,13 @@ export function formatDate(date: string | Date): string {
   if (typeof date === 'string') return date.slice(0, 10);
   return date.toISOString().slice(0, 10);
 }
+
+/** Formats a date for display, e.g. "5 Oct 2026". */
+export function fmtDateLong(date: string | Date): string {
+  return new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Formats a count as a locale-grouped whole number, e.g. 12345 -> "12,345". */
+export function fmtNumber(n: number): string {
+  return Math.round(n).toLocaleString('en-GB');
+}

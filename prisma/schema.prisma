@@ -204,6 +204,42 @@ model IncomeRule {
   @@index([category])
 }
 
+model PointsGoal {
+  id          Int               @id @default(autoincrement())
+  name        String
+  unit        String            @default("Avios")
+  periodStart DateTime          @db.Date
+  periodEnd   DateTime          @db.Date
+  note        String            @default("")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  levels      PointsGoalLevel[]
+  balances    PointsBalance[]
+}
+
+model PointsGoalLevel {
+  id           Int        @id @default(autoincrement())
+  goalId       Int
+  label        String
+  targetPoints Int
+  sortOrder    Int        @default(0)
+  goal         PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+}
+
+model PointsBalance {
+  id         Int        @id @default(autoincrement())
+  goalId     Int
+  balance    Int
+  recordedAt DateTime   @db.Date
+  note       String     @default("")
+  createdAt  DateTime   @default(now())
+  goal       PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, recordedAt])
+}
+
 model CsvImport {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())
