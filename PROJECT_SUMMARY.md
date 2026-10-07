@@ -1178,6 +1178,54 @@ derive Avios from `Transaction` rows.
   issues the Finnair Visa card, not a separate account; the card's own spend is already tracked
   under "Finnair Visa". `TRACKED_ACCOUNTS` now just reuses `ACCOUNT_NAMES` from `lib/constants.ts`.
 
+### Avios goal rebuilt around tracked flights, with a sourced strategy and a real cash plan (branch: `feat/avios-flights`)
+The period/levels model above didn't match what the goal actually is — having enough Avios for
+*specific* flights — and broke on redemptions: spending Avios on an upgrade dropped the next
+balance reading, which made progress fall back and the earn pace read as negative. Replaced with a
+flight-based model, on explicit user direction (2026-10-07) to track real flights rather than a
+period, and to factor in real household cash flow for at least 1 (ideally 2) long-haul upgrades a
+year on top of the Avios balance itself.
+- **New `PointsFlight` model** (label, Avios `points`, optional `economyFareEur`, `neededBy` date,
+  `status` planned/redeemed, `redeemedAt`). `PointsGoal.periodStart/periodEnd` are now nullable and
+  unread; `PointsGoalLevel` is unused. Both are kept, not dropped, per the established "stop
+  reading, deploy, then drop" pattern for this DB's pre-existing migration drift — a follow-up PR
+  drops them. Migration `20261007000000_points_flights`, applied via `prisma db execute` +
+  `migrate resolve --applied` as always.
+- **`lib/services/points-goal-service.ts`** (rewritten, still pure/no DB): `accruedPoints` = latest
+  balance + flights redeemed on/before that reading (already reflected in it); `availableBalance` =
+  latest balance − flights redeemed *after* it (real-world spend the next reading hasn't caught up
+  to yet) — this is what stops a redemption from reading as regression. Pace uses an
+  accrued-equivalent series over the trailing 12 months, so a redemption is never counted as
+  negative earning. Planned flights are allocated the available balance in `neededBy` order
+  (coverage %, cumulative shortfall, Avios/month needed, on-track projection per flight).
+- **`lib/avios-facts.ts`**: every verified rate (upgrade cost, subscription €/Avios, purchase cap,
+  Amex MR transfer ratio, Visa/flight earn rates by tier, expiry, Silver requalification), each
+  with the exact finnair.com/americanexpress.com page that confirms it, read 2026-10-07. The one
+  unverified number (flash-sale price, blog-only) is flagged as such and never used in a
+  calculation — only the subscription rate is used as the dependable € baseline everywhere.
+- **`lib/services/avios-strategy.ts`**: converts a flight's Avios shortfall into €, Amex MR
+  (rounded up to a multiple of 17), and Finnair Visa/Amex card spend needed — facts-only, no
+  transaction data, flags a gap over the 200k/yr purchase cap.
+- **`lib/services/cash-plan-service.ts`**: the real-money check, separate from the Avios-rate
+  math. Rolling-12-month net income (`getDashboardStats`, same call `/api/fire` already makes) ÷
+  12, minus each active `SavingsGoal`'s required monthly contribution, leaves a discretionary
+  monthly amount checked against each flight's real economy fare plus its Avios gap (priced at the
+  subscription rate) by its `neededBy` date.
+- **`lib/services/points-goal-enrichment.ts`**: the DB-backed glue — attaches `strategy`/`cashPlan`
+  to Avios-unit goals only, fetching the household context (net income, savings goals) once per
+  request rather than per goal.
+- API: new `app/api/points-goals/[id]/flights/route.ts` (POST) and `[flightId]/route.ts`
+  (PATCH/DELETE, goal-scoped via `updateMany`/`deleteMany` count checks, same pattern as balances).
+  Goal create/update schemas dropped to name/unit/note now that levels/period are gone.
+- UI: `PointsGoalCard.tsx` shows the flight list (coverage, on-track, mark-redeemed, delete), the
+  Avios-gap strategy and the cash plan (each Avios-sourced number links to its source), and a new
+  collapsible `AviosExplainer.tsx` ("How Avios work here") covering upgrade cost, € cost, Amex MR,
+  why Silver status pays for itself, how the cash plan works, and specific corrections to the
+  original household strategy doc (Amex earns 2 MR/€ not 1; the bonus is 100k split 50/50 at months
+  7 and 13, not a single 75k; the fee rises to €75/mo from 1 Nov 2026; keeping Silver status is
+  strictly better, not worse). `SourceLinks` was extracted from `FireDashboard.tsx` into a shared
+  `components/SourceLinks.tsx` for both explainers to use.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

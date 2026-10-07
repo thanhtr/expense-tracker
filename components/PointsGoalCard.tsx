@@ -2,22 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { today, fmtDateLong, fmtNumber } from '@/lib/utils';
-
-interface Level {
-  id: number;
-  label: string;
-  targetPoints: number;
-}
-
-interface LevelProgress extends Level {
-  reached: boolean;
-  pctOfTarget: number;
-  remaining: number;
-  expectedByToday: number;
-  pointsPerMonthNeeded: number | null;
-  onTrack: boolean | null;
-}
+import { today, fmtDateLong, fmtNumber, fmtEUR } from '@/lib/utils';
+import { SourceLinks } from './SourceLinks';
+import { AviosExplainer } from './AviosExplainer';
+import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION } from '@/lib/avios-facts';
 
 interface Balance {
   id: number;
@@ -26,53 +14,107 @@ interface Balance {
   note: string;
 }
 
+type FlightStatus = 'planned' | 'redeemed';
+
+interface FlightProgress {
+  id: number;
+  label: string;
+  points: number;
+  economyFareEur: number | null;
+  neededBy: string;
+  status: FlightStatus;
+  redeemedAt: string | null;
+  coveredNow: number;
+  pctCoveredNow: number;
+  remainingNow: number;
+  cumulativeNeeded: number;
+  remainingCumulative: number;
+  projectedAtDate: number | null;
+  shortfallAtDate: number | null;
+  pointsPerMonthNeeded: number | null;
+  onTrack: boolean | null;
+}
+
 interface Progress {
   latestBalance: number;
   latestRecordedAt: string | null;
-  periodElapsedPct: number;
-  monthsElapsed: number;
-  monthsRemaining: number;
+  accruedPoints: number;
+  availableBalance: number;
+  totalRedeemedPoints: number;
+  totalPlannedPoints: number;
   observedPointsPerMonth: number | null;
-  projectedEndBalance: number | null;
-  levels: LevelProgress[];
+  flights: FlightProgress[];
+  redeemedFlights: FlightProgress[];
+  nextFlightAtRisk: FlightProgress | null;
+}
+
+interface AviosStrategyConversion {
+  flightId: number;
+  flightLabel: string;
+  neededBy: string;
+  shortfallPoints: number;
+  monthsUntil: number;
+  eurTotal: number;
+  mrPoints: number;
+  visaSpendBasicTotal: number;
+  visaSpendSilverTotal: number;
+  amexSpendTotal: number;
+  overCap: boolean;
+}
+
+interface AviosStrategy {
+  allCovered: boolean;
+  nextAtRisk: AviosStrategyConversion | null;
+  combined: AviosStrategyConversion | null;
+}
+
+interface CashPlanFlight {
+  id: number;
+  label: string;
+  neededBy: string;
+  cashNeeded: number;
+  onTrack: boolean;
+  shortBy: number;
+}
+
+interface CashPlan {
+  monthlySurplus: number;
+  savingsMonthly: number;
+  discretionaryMonthly: number;
+  overcommitted: boolean;
+  flights: CashPlanFlight[];
+  onTrack: boolean;
 }
 
 interface PointsGoal {
   id: number;
   name: string;
   unit: string;
-  periodStart: string;
-  periodEnd: string;
   note: string;
-  levels: Level[];
   balances: Balance[];
   progress: Progress;
+  strategy?: AviosStrategy;
+  cashPlan?: CashPlan;
 }
 
 function defaultForm() {
   const year = new Date().getFullYear() + 1;
-  return {
-    name: `Avios ${year}`,
-    unit: 'Avios',
-    periodStart: `${year}-01-01`,
-    periodEnd: `${year}-12-31`,
-    note: '',
-    levels: [
-      { label: 'Minimum — one-way ×2', targetPoints: '80000' },
-      { label: 'Extended — return ×2', targetPoints: '160000' },
-    ],
-  };
+  return { name: `Avios ${year}`, unit: 'Avios', note: '' };
 }
 
-function LevelRow({ level, unit }: { level: LevelProgress; unit: string }) {
-  const pct = Math.min(level.pctOfTarget, 100);
-  const color = level.reached ? 'bg-emerald-500' : level.onTrack === false ? 'bg-amber-400' : 'bg-blue-500';
+function defaultFlightForm() {
+  return { label: '', points: String(UPGRADE_AVIOS_PER_PAX_DIRECTION * 2), economyFareEur: '', neededBy: '' };
+}
+
+function FlightProgressRow({ flight, unit }: { flight: FlightProgress; unit: string }) {
+  const pct = Math.min(flight.pctCoveredNow, 100);
+  const color = flight.remainingNow === 0 ? 'bg-emerald-500' : flight.onTrack === false ? 'bg-amber-400' : 'bg-blue-500';
   return (
     <div className="space-y-[6px]">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-[13px] font-medium">{level.label}</span>
+        <span className="text-[13px] font-medium">{flight.label}</span>
         <span className="text-[12px] text-[var(--fg-3)] mono">
-          {fmtNumber(level.targetPoints)} {unit}
+          {fmtNumber(flight.points)} {unit} · by {fmtDateLong(flight.neededBy)}
         </span>
       </div>
       <div className="w-full h-[6px] bg-surface-2 rounded-full overflow-hidden">
@@ -80,21 +122,40 @@ function LevelRow({ level, unit }: { level: LevelProgress; unit: string }) {
       </div>
       <div className="flex items-center justify-between gap-2 flex-wrap text-[11px] text-[var(--fg-3)]">
         <span>
-          {level.pctOfTarget.toFixed(0)}% reached
-          {level.reached ? (
-            <span className="text-emerald-600 dark:text-emerald-400 font-medium"> · goal reached</span>
+          {flight.pctCoveredNow.toFixed(0)}% covered now
+          {flight.remainingNow === 0 ? (
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium"> · fully covered</span>
           ) : (
-            <> · {fmtNumber(level.remaining)} {unit} remaining</>
+            <> · {fmtNumber(flight.remainingNow)} {unit} short</>
           )}
+          {flight.economyFareEur !== null && <> · fare {fmtEUR(flight.economyFareEur)}</>}
         </span>
-        {!level.reached && level.pointsPerMonthNeeded !== null && (
-          <span className={level.onTrack === false ? 'text-amber-600 dark:text-amber-400' : ''}>
-            needs {fmtNumber(level.pointsPerMonthNeeded)}/mo
-            {level.onTrack === true && ' · on track'}
-            {level.onTrack === false && ' · behind pace'}
+        {flight.remainingNow > 0 && flight.pointsPerMonthNeeded !== null && (
+          <span className={flight.onTrack === false ? 'text-amber-600 dark:text-amber-400' : ''}>
+            needs {fmtNumber(flight.pointsPerMonthNeeded)}/mo
+            {flight.onTrack === true && ' · on track'}
+            {flight.onTrack === false && ' · behind pace'}
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: string }) {
+  return (
+    <div className="space-y-1 text-[12px]">
+      <div className="font-medium text-[13px]">
+        {fmtNumber(c.shortfallPoints)} {unit} short for &quot;{c.flightLabel}&quot; by {fmtDateLong(c.neededBy)}
+        {c.overCap && (
+          <span className="text-amber-600 dark:text-amber-400 font-normal"> · exceeds the 200,000/yr purchase cap</span>
+        )}
+      </div>
+      <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
+        <li>Subscription price: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span></li>
+        <li>Amex MR needed: <span className="mono">{fmtNumber(c.mrPoints)}</span> (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
+        <li>Finnair Visa spend: <span className="mono">{fmtEUR(c.visaSpendSilverTotal)}</span> at Silver, <span className="mono">{fmtEUR(c.visaSpendBasicTotal)}</span> at Basic</li>
+      </ul>
     </div>
   );
 }
@@ -112,18 +173,23 @@ function GoalCard({
   const [readingBalance, setReadingBalance] = useState('');
   const [readingDate, setReadingDate] = useState(today());
   const [readingNote, setReadingNote] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [savingReading, setSavingReading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [redeemedOpen, setRedeemedOpen] = useState(false);
+
+  const [addingFlight, setAddingFlight] = useState(false);
+  const [flightForm, setFlightForm] = useState(defaultFlightForm);
+  const [savingFlight, setSavingFlight] = useState(false);
+  const [redeemingId, setRedeemingId] = useState<number | null>(null);
+  const [redeemDate, setRedeemDate] = useState(today());
 
   const { progress } = goal;
-  const highestTarget = Math.max(...goal.levels.map((l) => l.targetPoints), 1);
-  const overallPct = Math.min((progress.latestBalance / highestTarget) * 100, 100);
 
   async function handleAddReading(e: React.FormEvent) {
     e.preventDefault();
     const balance = parseInt(readingBalance, 10);
     if (isNaN(balance) || balance < 0) return;
-    setSaving(true);
+    setSavingReading(true);
     try {
       const res = await fetch(`/api/points-goals/${goal.id}/balances`, {
         method: 'POST',
@@ -131,18 +197,17 @@ function GoalCard({
         body: JSON.stringify({ balance, recordedAt: readingDate, note: readingNote }),
       });
       if (res.ok) {
-        const updated = await res.json() as PointsGoal;
         setReadingBalance('');
         setReadingNote('');
         setAddingReading(false);
-        onUpdate(updated);
+        onUpdate(await res.json() as PointsGoal);
         toast.success('Balance reading added');
       } else {
         const err = await res.json() as { error: string };
         toast.error(err.error ?? 'Failed to add reading');
       }
     } finally {
-      setSaving(false);
+      setSavingReading(false);
     }
   }
 
@@ -157,7 +222,7 @@ function GoalCard({
   }
 
   async function handleDeleteGoal() {
-    if (!window.confirm(`Delete goal "${goal.name}"? This also deletes its readings.`)) return;
+    if (!window.confirm(`Delete goal "${goal.name}"? This also deletes its readings and flights.`)) return;
     const res = await fetch(`/api/points-goals/${goal.id}`, { method: 'DELETE' });
     if (res.ok) {
       onRemove(goal.id);
@@ -167,15 +232,63 @@ function GoalCard({
     }
   }
 
+  async function handleAddFlight(e: React.FormEvent) {
+    e.preventDefault();
+    const points = parseInt(flightForm.points, 10);
+    const economyFareEur = flightForm.economyFareEur ? parseFloat(flightForm.economyFareEur) : null;
+    if (!flightForm.label.trim() || isNaN(points) || points <= 0 || !flightForm.neededBy) return;
+    setSavingFlight(true);
+    try {
+      const res = await fetch(`/api/points-goals/${goal.id}/flights`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: flightForm.label.trim(), points, economyFareEur, neededBy: flightForm.neededBy }),
+      });
+      if (res.ok) {
+        setFlightForm(defaultFlightForm());
+        setAddingFlight(false);
+        onUpdate(await res.json() as PointsGoal);
+        toast.success('Flight added');
+      } else {
+        const err = await res.json() as { error: string };
+        toast.error(err.error ?? 'Failed to add flight');
+      }
+    } finally {
+      setSavingFlight(false);
+    }
+  }
+
+  async function handleMarkRedeemed(flightId: number) {
+    const res = await fetch(`/api/points-goals/${goal.id}/flights/${flightId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'redeemed', redeemedAt: redeemDate }),
+    });
+    if (res.ok) {
+      setRedeemingId(null);
+      onUpdate(await res.json() as PointsGoal);
+      toast.success('Flight marked redeemed');
+    } else {
+      toast.error('Failed to update flight');
+    }
+  }
+
+  async function handleDeleteFlight(flightId: number, label: string) {
+    if (!window.confirm(`Remove "${label}"?`)) return;
+    const res = await fetch(`/api/points-goals/${goal.id}/flights/${flightId}`, { method: 'DELETE' });
+    if (res.ok) {
+      onUpdate(await res.json() as PointsGoal);
+    } else {
+      toast.error('Failed to delete flight');
+    }
+  }
+
   return (
     <div className="dash-card p-[16px_20px]">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h3 className="text-[14px] font-semibold m-0">{goal.name}</h3>
-          <div className="text-[11px] text-[var(--fg-3)]">
-            {fmtDateLong(goal.periodStart)} – {fmtDateLong(goal.periodEnd)}
-            {goal.note && <> · {goal.note}</>}
-          </div>
+          {goal.note && <div className="text-[11px] text-[var(--fg-3)]">{goal.note}</div>}
         </div>
         <button
           onClick={() => void handleDeleteGoal()}
@@ -186,52 +299,212 @@ function GoalCard({
         </button>
       </div>
 
-      {/* Overall balance bar scaled to the highest level, with a tick per level */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between text-[12px] mb-[4px]">
-          <span className="text-[var(--fg-2)]">
-            Current balance: <span className="mono font-semibold">{fmtNumber(progress.latestBalance)} {goal.unit}</span>
-          </span>
-          {progress.latestRecordedAt && (
-            <span className="text-[var(--fg-3)]">as of {fmtDateLong(progress.latestRecordedAt)}</span>
+      {/* Balance summary */}
+      <div className="mb-4 text-[12px] space-y-[2px]">
+        <div className="text-[var(--fg-2)]">
+          Balance: <span className="mono font-semibold">{fmtNumber(progress.latestBalance)} {goal.unit}</span>
+          {progress.latestRecordedAt && <span className="text-[var(--fg-3)]"> as of {fmtDateLong(progress.latestRecordedAt)}</span>}
+          {progress.totalRedeemedPoints > 0 && (
+            <span className="text-[var(--fg-3)]"> · {fmtNumber(progress.totalRedeemedPoints)} redeemed</span>
           )}
         </div>
-        <div className="relative w-full h-[10px] bg-surface-2 rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${overallPct}%` }} />
-          {goal.levels.map((l) => {
-            const tickPct = Math.min((l.targetPoints / highestTarget) * 100, 100);
-            if (tickPct >= 99.5) return null; // avoid a tick right at the end
-            return (
-              <div
-                key={l.id}
-                className="absolute top-0 bottom-0 w-[2px] bg-[var(--surface)]"
-                style={{ left: `${tickPct}%` }}
-                title={`${l.label}: ${fmtNumber(l.targetPoints)}`}
-              />
-            );
-          })}
-        </div>
-        <div className="text-[11px] text-[var(--fg-3)] mt-[4px]">
-          {progress.periodElapsedPct.toFixed(0)}% of period elapsed
-          {progress.observedPointsPerMonth !== null && (
-            <> · observed pace {fmtNumber(progress.observedPointsPerMonth)}/mo</>
-          )}
-          {progress.projectedEndBalance !== null && (
-            <> · projected end {fmtNumber(progress.projectedEndBalance)}</>
-          )}
-        </div>
+        {progress.observedPointsPerMonth !== null && (
+          <div className="text-[11px] text-[var(--fg-3)]">observed pace {fmtNumber(progress.observedPointsPerMonth)}/mo (trailing 12mo)</div>
+        )}
       </div>
 
-      {/* Per-level rows */}
-      <div className="space-y-[14px] mb-4">
-        {goal.levels
-          .slice()
-          .sort((a, b) => a.targetPoints - b.targetPoints)
-          .map((l) => {
-            const lp = progress.levels.find((p) => p.id === l.id);
-            return lp ? <LevelRow key={l.id} level={lp} unit={goal.unit} /> : null;
-          })}
+      {/* Planned flights */}
+      <div className="space-y-[14px] mb-3">
+        {progress.flights.length === 0 && (
+          <div className="text-[12px] text-[var(--fg-3)]">No flights tracked yet.</div>
+        )}
+        {progress.flights.map((f) => (
+          <div key={f.id} className="space-y-1">
+            <FlightProgressRow flight={f} unit={goal.unit} />
+            <div className="flex items-center gap-3 text-[11px]">
+              {redeemingId === f.id ? (
+                <>
+                  <input
+                    type="date"
+                    className="date-input"
+                    value={redeemDate}
+                    onChange={(e) => setRedeemDate(e.target.value)}
+                  />
+                  <button className="btn-ghost text-[11px]" onClick={() => void handleMarkRedeemed(f.id)}>Confirm</button>
+                  <button className="btn-ghost text-[11px] text-[var(--fg-3)]" onClick={() => setRedeemingId(null)}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="text-[var(--fg-3)] hover:text-[var(--fg-1)] transition-colors"
+                    onClick={() => { setRedeemDate(today()); setRedeemingId(f.id); }}
+                  >
+                    Mark redeemed
+                  </button>
+                  <button
+                    className="text-[var(--fg-3)] hover:text-red-500 transition-colors"
+                    onClick={() => void handleDeleteFlight(f.id, f.label)}
+                  >
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
+
+      {/* Redeemed flights */}
+      {progress.redeemedFlights.length > 0 && (
+        <div className="border-t border-[var(--border)] pt-3 mb-3">
+          <button
+            onClick={() => setRedeemedOpen((o) => !o)}
+            className="text-[11px] text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
+            aria-expanded={redeemedOpen}
+          >
+            {redeemedOpen ? 'Hide' : 'Show'} redeemed ({progress.redeemedFlights.length})
+          </button>
+          {redeemedOpen && (
+            <ul className="mt-[8px] space-y-[4px]">
+              {progress.redeemedFlights.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 text-[11px] text-[var(--fg-3)]">
+                  <span>✓ {f.label} — redeemed {f.redeemedAt && fmtDateLong(f.redeemedAt)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="mono">{fmtNumber(f.points)}</span>
+                    <button
+                      onClick={() => void handleDeleteFlight(f.id, f.label)}
+                      className="hover:text-red-500 transition-colors"
+                      aria-label="Delete flight"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Add flight */}
+      <div className="border-t border-[var(--border)] pt-3 mb-3">
+        {addingFlight ? (
+          <form onSubmit={(e) => void handleAddFlight(e)} className="flex items-end gap-2 flex-wrap">
+            <label className="flex flex-col gap-[2px] flex-1 min-w-[160px]">
+              <span className="text-[10px] text-[var(--fg-2)]">Label</span>
+              <input
+                className="date-input"
+                placeholder="e.g. Japan return, 2 pax"
+                value={flightForm.label}
+                onChange={(e) => setFlightForm((p) => ({ ...p, label: e.target.value }))}
+                required
+                autoFocus
+              />
+            </label>
+            <label className="flex flex-col gap-[2px]">
+              <span className="text-[10px] text-[var(--fg-2)]">{goal.unit} needed</span>
+              <input
+                type="number"
+                className="date-input w-[110px]"
+                value={flightForm.points}
+                onChange={(e) => setFlightForm((p) => ({ ...p, points: e.target.value }))}
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-[2px]">
+              <span className="text-[10px] text-[var(--fg-2)]">Economy fare € (optional)</span>
+              <input
+                type="number"
+                className="date-input w-[110px]"
+                value={flightForm.economyFareEur}
+                onChange={(e) => setFlightForm((p) => ({ ...p, economyFareEur: e.target.value }))}
+              />
+            </label>
+            <label className="flex flex-col gap-[2px]">
+              <span className="text-[10px] text-[var(--fg-2)]">Needed by</span>
+              <input
+                type="date"
+                className="date-input"
+                value={flightForm.neededBy}
+                onChange={(e) => setFlightForm((p) => ({ ...p, neededBy: e.target.value }))}
+                required
+              />
+            </label>
+            <button type="submit" disabled={savingFlight} className="btn-ghost text-[12px] disabled:opacity-40">
+              {savingFlight ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost text-[12px] text-[var(--fg-3)]"
+              onClick={() => setAddingFlight(false)}
+              disabled={savingFlight}
+            >
+              Cancel
+            </button>
+            {goal.unit === 'Avios' && (
+              <div className="w-full text-[10px] text-[var(--fg-3)]">
+                {fmtNumber(UPGRADE_AVIOS_PER_PAX_DIRECTION)} Avios/passenger/direction for a Business upgrade on
+                long-haul Asia/N. America — <SourceLinks sources={[AVIOS_SOURCES.upgrade]} />
+              </div>
+            )}
+          </form>
+        ) : (
+          <button className="btn-ghost text-[12px]" onClick={() => setAddingFlight(true)}>+ Add flight</button>
+        )}
+      </div>
+
+      {/* Avios strategy */}
+      {goal.strategy && (
+        <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2">
+          <div className="text-[12px] font-semibold text-[var(--fg-1)]">Closing the Avios gap</div>
+          {goal.strategy.allCovered ? (
+            <div className="text-[12px] text-emerald-600 dark:text-emerald-400">Every tracked flight is covered by your current balance.</div>
+          ) : (
+            <>
+              {goal.strategy.nextAtRisk && <StrategyConversion c={goal.strategy.nextAtRisk} unit={goal.unit} />}
+              {goal.strategy.combined && (
+                <>
+                  <div className="text-[11px] text-[var(--fg-3)] pt-1">Combined, across every tracked flight:</div>
+                  <StrategyConversion c={goal.strategy.combined} unit={goal.unit} />
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Cash plan */}
+      {goal.cashPlan && (
+        <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
+          <div className="font-semibold text-[var(--fg-1)]">Can I afford it?</div>
+          <div className="text-[var(--fg-2)]">
+            Rolling 12mo surplus <span className="mono">{fmtEUR(goal.cashPlan.monthlySurplus)}</span>/mo
+            {' '}− savings goals <span className="mono">{fmtEUR(goal.cashPlan.savingsMonthly)}</span>/mo
+            {' '}= <span className={`mono font-medium ${goal.cashPlan.overcommitted ? 'text-red-600 dark:text-red-400' : ''}`}>
+              {fmtEUR(goal.cashPlan.discretionaryMonthly)}
+            </span>/mo discretionary
+            {goal.cashPlan.overcommitted && ' — already overcommitted to savings goals'}
+          </div>
+          {goal.cashPlan.flights.length > 0 && (
+            <ul className="space-y-[2px] pl-4 list-disc text-[var(--fg-2)]">
+              {goal.cashPlan.flights.map((f) => (
+                <li key={f.id}>
+                  {f.label}: needs <span className="mono">{fmtEUR(f.cashNeeded)}</span> by {fmtDateLong(f.neededBy)} —{' '}
+                  {f.onTrack ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">on track</span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">short by {fmtEUR(f.shortBy)}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="text-[11px] text-[var(--fg-3)]">
+            Priced at the subscription rate (the dependable baseline); buying Avios during a flash sale would cost
+            less than shown, never more.
+          </div>
+        </div>
+      )}
 
       {/* Readings history */}
       <div className="border-t border-[var(--border)] pt-3">
@@ -302,14 +575,14 @@ function GoalCard({
                 onChange={(e) => setReadingNote(e.target.value)}
               />
             </label>
-            <button type="submit" disabled={saving} className="btn-ghost text-[12px] disabled:opacity-40">
-              {saving ? 'Saving…' : 'Save'}
+            <button type="submit" disabled={savingReading} className="btn-ghost text-[12px] disabled:opacity-40">
+              {savingReading ? 'Saving…' : 'Save'}
             </button>
             <button
               type="button"
               className="btn-ghost text-[12px] text-[var(--fg-3)]"
               onClick={() => setAddingReading(false)}
-              disabled={saving}
+              disabled={savingReading}
             >
               Cancel
             </button>
@@ -350,23 +623,13 @@ export function PointsGoalCard() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    const levels = form.levels
-      .map((l) => ({ label: l.label.trim(), targetPoints: parseInt(l.targetPoints, 10) }))
-      .filter((l) => l.label && !isNaN(l.targetPoints) && l.targetPoints > 0);
-    if (!form.name.trim() || levels.length === 0) return;
+    if (!form.name.trim()) return;
     setSaving(true);
     try {
       const res = await fetch('/api/points-goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          unit: form.unit.trim() || 'Avios',
-          periodStart: form.periodStart,
-          periodEnd: form.periodEnd,
-          note: form.note,
-          levels,
-        }),
+        body: JSON.stringify({ name: form.name.trim(), unit: form.unit.trim() || 'Avios', note: form.note }),
       });
       if (res.ok) {
         const created = await res.json() as PointsGoal;
@@ -383,13 +646,11 @@ export function PointsGoalCard() {
     }
   }
 
-  function updateLevel(i: number, patch: Partial<{ label: string; targetPoints: string }>) {
-    setForm((p) => ({ ...p, levels: p.levels.map((l, idx) => (idx === i ? { ...l, ...patch } : l)) }));
-  }
-
   if (loading) {
     return <div className="dash-card h-[200px] animate-pulse bg-[var(--surface-2)]" />;
   }
+
+  const hasAvios = goals.some((g) => g.unit === 'Avios');
 
   return (
     <div className="space-y-4">
@@ -425,64 +686,15 @@ export function PointsGoalCard() {
                 onChange={(e) => setForm((p) => ({ ...p, unit: e.target.value }))}
               />
             </label>
-            <label className="flex flex-col gap-[4px]">
-              <span className="text-[11px] text-[var(--fg-2)]">Period start</span>
+            <label className="flex flex-col gap-[4px] col-span-2">
+              <span className="text-[11px] text-[var(--fg-2)]">Note (optional)</span>
               <input
-                type="date"
                 className="date-input"
-                value={form.periodStart}
-                onChange={(e) => setForm((p) => ({ ...p, periodStart: e.target.value }))}
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-[4px]">
-              <span className="text-[11px] text-[var(--fg-2)]">Period end</span>
-              <input
-                type="date"
-                className="date-input"
-                value={form.periodEnd}
-                onChange={(e) => setForm((p) => ({ ...p, periodEnd: e.target.value }))}
-                required
+                value={form.note}
+                onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
               />
             </label>
           </div>
-
-          <div className="space-y-2">
-            <span className="text-[11px] text-[var(--fg-2)]">Levels</span>
-            {form.levels.map((l, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  className="date-input flex-1"
-                  placeholder="Label"
-                  value={l.label}
-                  onChange={(e) => updateLevel(i, { label: e.target.value })}
-                />
-                <input
-                  type="number"
-                  className="date-input w-[120px] text-right"
-                  placeholder="Target"
-                  value={l.targetPoints}
-                  onChange={(e) => updateLevel(i, { targetPoints: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="text-[var(--fg-3)] hover:text-red-500 text-[12px]"
-                  onClick={() => setForm((p) => ({ ...p, levels: p.levels.filter((_, idx) => idx !== i) }))}
-                  aria-label="Remove level"
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="btn-ghost text-[12px]"
-              onClick={() => setForm((p) => ({ ...p, levels: [...p.levels, { label: '', targetPoints: '' }] }))}
-            >
-              + Add level
-            </button>
-          </div>
-
           <div className="flex items-center gap-2">
             <button type="submit" disabled={saving} className="btn-ghost disabled:opacity-40">
               {saving ? 'Creating…' : 'Create goal'}
@@ -500,6 +712,8 @@ export function PointsGoalCard() {
       ) : goals.length > 0 ? (
         <button className="btn-ghost text-[12px]" onClick={() => setCreating(true)}>+ Create goal</button>
       ) : null}
+
+      {hasAvios && <AviosExplainer />}
     </div>
   );
 }

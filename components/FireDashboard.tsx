@@ -10,6 +10,7 @@ import { fmtEUR } from '@/lib/utils';
 import { FIRE_DEFAULTS, computeCurrentAge, simulateProjection, computeEarliestFire, type FireConfig, type StoredFireConfig, type FireCalculationResult, type BaristaVariant, type PhaseInfo, type PensionEstimate, ASSUMED_INCOME_TAX_RATE, FI_EMPLOYEE_PENSION_CONTRIBUTION, FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION } from '@/lib/services/fire-service';
 import type { EarningsBreakdown, RentalBreakdown } from '@/lib/services/fire-inputs-service';
 import type { MonteCarloResult } from '@/lib/services/fire-monte-carlo';
+import { SourceLinks as SharedSourceLinks } from './SourceLinks';
 
 type FireApiResponse = FireCalculationResult & {
   config: FireConfig;
@@ -82,19 +83,7 @@ const SOURCES = {
 type SourceId = keyof typeof SOURCES;
 
 function SourceLinks({ ids }: { ids: SourceId[] }) {
-  return (
-    <span className="block text-[11px] text-[var(--fg-3)]">
-      Sources:{' '}
-      {ids.map((id, i) => (
-        <span key={id}>
-          {i > 0 && ' · '}
-          <a href={SOURCES[id].url} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--fg-2)]">
-            {SOURCES[id].label}
-          </a>
-        </span>
-      ))}
-    </span>
-  );
+  return <SharedSourceLinks sources={ids.map((id) => SOURCES[id])} />;
 }
 
 function ModelExplainer() {

@@ -138,39 +138,53 @@ export const updateAssetSchema = z.object({
   recordedAt: dateField.optional(),
 });
 
-export const pointsGoalLevelSchema = z.object({
-  label: z.string().min(1).max(100).transform(s => s.trim()),
-  targetPoints: z.number().int().positive(),
-});
-
 export const createPointsGoalSchema = z.object({
   name: z.string().min(1).max(200).transform(s => s.trim()),
   unit: z.string().min(1).max(50).optional().default('Avios'),
-  periodStart: dateField,
-  periodEnd: dateField,
   note: z.string().max(500).optional().default(''),
-  levels: z.array(pointsGoalLevelSchema).min(1).max(10),
-}).refine(d => d.periodStart < d.periodEnd, {
-  message: 'periodStart must be before periodEnd',
-  path: ['periodEnd'],
 });
 
 export const updatePointsGoalSchema = z.object({
   name: z.string().min(1).max(200).transform(s => s.trim()).optional(),
   unit: z.string().min(1).max(50).optional(),
-  periodStart: dateField.optional(),
-  periodEnd: dateField.optional(),
   note: z.string().max(500).optional(),
-  levels: z.array(pointsGoalLevelSchema).min(1).max(10).optional(),
-}).refine(d => !d.periodStart || !d.periodEnd || d.periodStart < d.periodEnd, {
-  message: 'periodStart must be before periodEnd',
-  path: ['periodEnd'],
 });
 
 export const createPointsBalanceSchema = z.object({
   balance: z.number().int().min(0),
   recordedAt: dateField,
   note: z.string().max(500).optional().default(''),
+});
+
+const pointsFlightStatus = z.enum(['planned', 'redeemed']);
+
+export const createPointsFlightSchema = z.object({
+  label: z.string().min(1).max(100).transform(s => s.trim()),
+  points: z.number().int().positive().max(10_000_000),
+  economyFareEur: z.number().nonnegative().finite().optional().nullable(),
+  neededBy: dateField,
+  note: z.string().max(500).optional().default(''),
+});
+
+export const updatePointsFlightSchema = z.object({
+  label: z.string().min(1).max(100).transform(s => s.trim()).optional(),
+  points: z.number().int().positive().max(10_000_000).optional(),
+  economyFareEur: z.number().nonnegative().finite().optional().nullable(),
+  neededBy: dateField.optional(),
+  status: pointsFlightStatus.optional(),
+  redeemedAt: dateField.optional().nullable(),
+  note: z.string().max(500).optional(),
+}).refine(d => d.status !== 'redeemed' || d.redeemedAt != null, {
+  // Loose `!= null` (not `!== undefined`) so an explicit `redeemedAt: null` alongside
+  // `status: 'redeemed'` is rejected too, not just an omitted redeemedAt.
+  message: 'redeemedAt is required when marking a flight redeemed',
+  path: ['redeemedAt'],
+}).refine(d => d.redeemedAt !== null || d.status === 'planned', {
+  // Clearing redeemedAt only makes sense together with reverting status to 'planned' — otherwise
+  // a flight already 'redeemed' in the DB could end up with redeemedAt: null and match neither
+  // the planned nor the redeemed filter in computePointsGoalProgress.
+  message: "status must be set to 'planned' when clearing redeemedAt",
+  path: ['status'],
 });
 
 export const createBudgetSchema = z.object({

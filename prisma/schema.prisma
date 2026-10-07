@@ -208,15 +208,22 @@ model PointsGoal {
   id          Int               @id @default(autoincrement())
   name        String
   unit        String            @default("Avios")
-  periodStart DateTime          @db.Date
-  periodEnd   DateTime          @db.Date
+  // Unused since the flight-based model (replaced periodStart/periodEnd + levels as the
+  // definition of "done" — a goal is now the set of tracked PointsFlights). Columns kept
+  // nullable rather than dropped yet; see PROJECT_SUMMARY's "stop reading, deploy, then drop"
+  // pattern for this DB's pre-existing migration drift.
+  periodStart DateTime?         @db.Date
+  periodEnd   DateTime?         @db.Date
   note        String            @default("")
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   levels      PointsGoalLevel[]
   balances    PointsBalance[]
+  flights     PointsFlight[]
 }
 
+// Unused since the flight-based model; kept only so the (now-optional) PointsGoal.periodStart/
+// periodEnd read naturally alongside it until both are dropped in a follow-up migration.
 model PointsGoalLevel {
   id           Int        @id @default(autoincrement())
   goalId       Int
@@ -238,6 +245,22 @@ model PointsBalance {
   goal       PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, recordedAt])
+}
+
+model PointsFlight {
+  id             Int        @id @default(autoincrement())
+  goalId         Int
+  label          String
+  points         Int
+  economyFareEur Float?
+  neededBy       DateTime   @db.Date
+  status         String     @default("planned") // "planned" | "redeemed"
+  redeemedAt     DateTime?  @db.Date
+  note           String     @default("")
+  createdAt      DateTime   @default(now())
+  goal           PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, neededBy])
 }
 
 model CsvImport {
