@@ -70,6 +70,9 @@ beforeEach(() => {
   vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalInvestments: 0, totalIncome: 0, byMonthIncome: [] } as never);
   vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
   vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
+  // enrichPointsGoal (single-goal mutation responses) looks up sibling Avios goals for a shared
+  // cash plan; default to none so tests that don't care about this don't need their own mock.
+  vi.mocked(prisma.pointsGoal.findMany).mockResolvedValue([]);
 });
 
 describe('GET /api/points-goals', () => {
