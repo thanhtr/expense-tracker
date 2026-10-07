@@ -157,12 +157,14 @@ describe('computePointsGoalProgress', () => {
               neededBy: '2027-01-01',
               status: 'planned',
               redeemedAt: null,
+              note: 'booking ref ABC123',
             },
           ],
         }),
         new Date('2026-07-01'),
       );
       const f = p.flights[0]!;
+      expect(f.note).toBe('booking ref ABC123');
       expect(f.coveredNow).toBe(80_000);
       expect(f.pctCoveredNow).toBe(100);
       expect(f.remainingNow).toBe(0);

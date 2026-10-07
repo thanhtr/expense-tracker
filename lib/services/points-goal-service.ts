@@ -25,6 +25,7 @@ export interface PointsFlightInput {
   // 'planned' | 'redeemed', so every comparison below checks against those literals explicitly.
   status: string;
   redeemedAt: Date | string | null;
+  note: string;
 }
 
 export interface PointsGoalInput {
@@ -40,6 +41,7 @@ export interface PointsFlightProgress {
   neededBy: string;
   status: PointsFlightStatus;
   redeemedAt: string | null;
+  note: string;
   /** Avios applied from the current available balance, in neededBy order. */
   coveredNow: number;
   pctCoveredNow: number;
@@ -209,6 +211,7 @@ export function computePointsGoalProgress(
       neededBy: toDateStr(f.neededBy),
       status: 'planned',
       redeemedAt: f.redeemedAt ? toDateStr(f.redeemedAt) : null,
+      note: f.note,
       coveredNow,
       pctCoveredNow,
       remainingNow,
@@ -229,6 +232,7 @@ export function computePointsGoalProgress(
     neededBy: toDateStr(f.neededBy),
     status: 'redeemed',
     redeemedAt: toDateStr(f.redeemedAt),
+    note: f.note,
     coveredNow: f.points,
     pctCoveredNow: 100,
     remainingNow: 0,
