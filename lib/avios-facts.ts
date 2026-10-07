@@ -80,6 +80,11 @@ export const FLIGHT_AVIOS_PER_EUR = { basic: 6, silver: 7 } as const;
 
 export type FinnairTier = keyof typeof VISA_AVIOS_PER_EUR;
 
+/** Avios expire once 18 months pass with no collecting or spending activity at all (Silver+
+ * members: no expiry during the tracking period, not modelled here since tier isn't tracked).
+ * Source: `expiry`. */
+export const AVIOS_EXPIRY_MONTHS = 18;
+
 /** Rounds an Avios shortfall up to the nearest whole Amex MR transfer (multiples of 17 MR /
  * 10 Avios), returning the MR points needed. */
 export function aviosToMrPoints(avios: number): number {

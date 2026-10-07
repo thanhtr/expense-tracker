@@ -5,6 +5,7 @@ function goal(overrides: Partial<PointsGoalInput> = {}): PointsGoalInput {
   return {
     balances: [],
     flights: [],
+    purchases: [],
     ...overrides,
   };
 }
@@ -339,6 +340,106 @@ describe('computePointsGoalProgress', () => {
       expect(f.remainingNow).toBe(130_000);
       expect(f.remainingCumulative).toBe(130_000);
       expect(f.onTrack).not.toBe(true);
+    });
+  });
+
+  describe('purchases', () => {
+    it('excludes a purchase from the observed pace, so a one-off top-up is not projected as ongoing organic earn', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [
+            { id: 1, balance: 10_000, recordedAt: '2026-01-01' },
+            { id: 2, balance: 60_000, recordedAt: '2026-07-01' }, // +50,000 over 6mo, but 40,000 of it was bought
+          ],
+          purchases: [
+            { id: 1, points: 40_000, costEur: 524, purchasedAt: '2026-04-01', kind: 'purchased', note: '' },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      // Organic growth only: (60,000 - 40,000) - 10,000 = 10,000 over ~6 months ≈ 1,667/mo —
+      // nowhere near the ~8,333/mo a naive reading-to-reading delta would imply.
+      expect(p.observedPointsPerMonth).not.toBeNull();
+      expect(p.observedPointsPerMonth!).toBeLessThan(2_000);
+    });
+
+    it('does not let a bonus inflate the organic pace either', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [
+            { id: 1, balance: 0, recordedAt: '2026-01-01' },
+            { id: 2, balance: 50_000, recordedAt: '2026-07-01' },
+          ],
+          purchases: [
+            { id: 1, points: 44_118, costEur: 0, purchasedAt: '2026-02-01', kind: 'bonus', note: 'Amex welcome bonus' },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.observedPointsPerMonth!).toBeLessThan(2_000);
+    });
+
+    it('does not affect availableBalance/accruedPoints — a purchase is just as spendable as organic earn', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }],
+          purchases: [
+            { id: 1, points: 40_000, costEur: 524, purchasedAt: '2026-05-01', kind: 'purchased', note: '' },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.availableBalance).toBe(50_000);
+      expect(p.accruedPoints).toBe(50_000);
+    });
+
+    it('sums only this calendar year\'s "purchased" (not "bonus") points for the yearly cap check', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          purchases: [
+            { id: 1, points: 85_000, costEur: 1_071, purchasedAt: '2026-03-01', kind: 'purchased', note: '' },
+            { id: 2, points: 44_118, costEur: 0, purchasedAt: '2026-02-01', kind: 'bonus', note: '' },
+            { id: 3, points: 50_000, costEur: 650, purchasedAt: '2025-11-01', kind: 'purchased', note: 'last year' },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.purchasedThisCalendarYearPoints).toBe(85_000);
+    });
+
+    it('computes daysSinceLastActivity from the most recent of a reading, redemption, or purchase', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 10_000, recordedAt: '2026-01-01' }], // oldest
+          flights: [
+            {
+              id: 1, label: 'Redeemed', points: 1, economyFareEur: null, neededBy: '2026-01-01',
+              status: 'redeemed', redeemedAt: '2026-05-01', note: '', // middle
+            },
+          ],
+          purchases: [{ id: 1, points: 1, costEur: 1, purchasedAt: '2026-06-01', kind: 'purchased', note: '' }], // newest
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.daysSinceLastActivity).toBeCloseTo(30, 0); // ~30 days since the 2026-06-01 purchase
+    });
+
+    it('is null with no activity recorded at all', () => {
+      const p = computePointsGoalProgress(goal(), new Date('2026-07-01'));
+      expect(p.daysSinceLastActivity).toBeNull();
+    });
+
+    it('lists purchases newest first', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          purchases: [
+            { id: 1, points: 10_000, costEur: 131, purchasedAt: '2026-01-01', kind: 'purchased', note: 'first' },
+            { id: 2, points: 20_000, costEur: 262, purchasedAt: '2026-06-01', kind: 'purchased', note: 'second' },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.purchases.map((x) => x.note)).toEqual(['second', 'first']);
     });
   });
 });

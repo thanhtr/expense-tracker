@@ -34,6 +34,7 @@ function goalWithFlights(
     id,
     unit: 'Avios',
     balances: [],
+    purchases: [],
     flights: flights.map((f) => ({
       ...f,
       label: `Flight ${f.id}`,

@@ -3,9 +3,14 @@ import { computeAviosStrategy } from '../../lib/services/avios-strategy';
 import { computePointsGoalProgress, type PointsGoalInput } from '../../lib/services/points-goal-service';
 import { PURCHASE_CAP_PER_YEAR } from '../../lib/avios-facts';
 
-function progressFor(flights: PointsGoalInput['flights'], balance = 0, today = new Date('2026-07-01')) {
+function progressFor(
+  flights: PointsGoalInput['flights'],
+  balance = 0,
+  today = new Date('2026-07-01'),
+  purchases: PointsGoalInput['purchases'] = [],
+) {
   return computePointsGoalProgress(
-    { balances: balance > 0 ? [{ id: 1, balance, recordedAt: '2026-06-01' }] : [], flights },
+    { balances: balance > 0 ? [{ id: 1, balance, recordedAt: '2026-06-01' }] : [], flights, purchases },
     today,
   );
 }
@@ -106,6 +111,49 @@ describe('computeAviosStrategy', () => {
     expect(s.combined).not.toBeNull();
     expect(s.combined!.flightId).toBe(2);
     expect(s.combined!.shortfallPoints).toBe(80_000); // cumulative across both flights
+  });
+
+  it('weighs an already-this-year purchase into the cap check for a flight due this year', () => {
+    const p = progressFor(
+      [
+        {
+          id: 1,
+          label: 'Needs a big top-up',
+          points: 150_000,
+          economyFareEur: null,
+          neededBy: '2026-12-01', // same calendar year as "today" (2026-07-01)
+          status: 'planned',
+          redeemedAt: null,
+        },
+      ],
+      0,
+      new Date('2026-07-01'),
+      [{ id: 1, points: 85_000, costEur: 1_071, purchasedAt: '2026-03-01', kind: 'purchased', note: '' }],
+    );
+    const s = computeAviosStrategy(p);
+    // 150,000 shortfall alone is under the 200k cap, but + 85,000 already bought this year > cap.
+    expect(s.nextAtRisk!.overCap).toBe(true);
+  });
+
+  it('does not stack this year\'s purchases onto a flight due in a future year', () => {
+    const p = progressFor(
+      [
+        {
+          id: 1,
+          label: 'Next year',
+          points: 150_000,
+          economyFareEur: null,
+          neededBy: '2027-06-01', // a later calendar year
+          status: 'planned',
+          redeemedAt: null,
+        },
+      ],
+      0,
+      new Date('2026-07-01'),
+      [{ id: 1, points: 85_000, costEur: 1_071, purchasedAt: '2026-03-01', kind: 'purchased', note: '' }],
+    );
+    const s = computeAviosStrategy(p);
+    expect(s.nextAtRisk!.overCap).toBe(false);
   });
 
   it('does not return a combined conversion when only one flight is short', () => {
