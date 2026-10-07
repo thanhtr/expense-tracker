@@ -12,6 +12,7 @@ vi.mock('../../../lib/db', () => {
     },
     pointsBalance: {
       create: vi.fn(),
+      updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
     pointsFlight: {
@@ -36,7 +37,7 @@ vi.mock('../../../lib/services/aggregation-service', () => ({
 
 import { GET, POST } from '../../../app/api/points-goals/route';
 import { PATCH, DELETE } from '../../../app/api/points-goals/[id]/route';
-import { POST as POST_BALANCE, DELETE as DELETE_BALANCE } from '../../../app/api/points-goals/[id]/balances/route';
+import { POST as POST_BALANCE, PATCH as PATCH_BALANCE, DELETE as DELETE_BALANCE } from '../../../app/api/points-goals/[id]/balances/route';
 import { POST as POST_FLIGHT } from '../../../app/api/points-goals/[id]/flights/route';
 import { PATCH as PATCH_FLIGHT, DELETE as DELETE_FLIGHT } from '../../../app/api/points-goals/[id]/flights/[flightId]/route';
 import { prisma } from '../../../lib/db';
@@ -190,6 +191,43 @@ describe('POST /api/points-goals/[id]/balances', () => {
       { params: params('999') },
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe('PATCH /api/points-goals/[id]/balances', () => {
+  it('updates a reading scoped to its goal', async () => {
+    vi.mocked(prisma.pointsBalance.updateMany).mockResolvedValueOnce({ count: 1 });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal({
+      balances: [{ id: 2, balance: 60_000, recordedAt: new Date('2026-07-01'), note: 'corrected' }],
+    }));
+    const res = await PATCH_BALANCE(
+      makeReq('http://localhost/api/points-goals/1/balances?balanceId=2', 'PATCH', { balance: 60_000, note: 'corrected' }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(200);
+    expect(prisma.pointsBalance.updateMany).toHaveBeenCalledWith({
+      where: { id: 2, goalId: 1 },
+      data: { balance: 60_000, note: 'corrected' },
+    });
+    const body = await res.json();
+    expect(body.progress.latestBalance).toBe(60_000);
+  });
+
+  it('returns 404 when the reading does not belong to that goal', async () => {
+    vi.mocked(prisma.pointsBalance.updateMany).mockResolvedValueOnce({ count: 0 });
+    const res = await PATCH_BALANCE(
+      makeReq('http://localhost/api/points-goals/1/balances?balanceId=999', 'PATCH', { balance: 1 }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 when balanceId is missing', async () => {
+    const res = await PATCH_BALANCE(
+      makeReq('http://localhost/api/points-goals/1/balances', 'PATCH', { balance: 1 }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(400);
   });
 });
 

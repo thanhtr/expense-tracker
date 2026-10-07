@@ -10,6 +10,7 @@ function makeFlight(overrides: Partial<Record<string, unknown>> = {}) {
     neededBy: '2027-10-01',
     status: 'planned',
     redeemedAt: null,
+    note: '',
     coveredNow: 50_000,
     pctCoveredNow: 31.25,
     remainingNow: 110_000,
@@ -207,5 +208,104 @@ test.describe('Goals page', () => {
     // Still shown in the main list (not archived under "Show past"), confirmed rather than planned.
     await expect(page.getByText(/flying/)).toBeVisible();
     await expect(page.getByRole('button', { name: /Show past/ })).toHaveCount(0);
+  });
+
+  test('edits a flight', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'PATCH' && /\/flights\/\d+$/.test(url)) {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: makeGoal({ progress: { ...makeGoal().progress, flights: [{ ...makeFlight(), label: 'Japan return, 3 pax' }] } }) });
+      } else {
+        await route.fulfill({ json: [makeGoal()] });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    const labelInput = page.getByPlaceholder('e.g. Japan return, 2 pax');
+    await labelInput.fill('Japan return, 3 pax');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    expect(patchedBody).toMatchObject({ label: 'Japan return, 3 pax' });
+    await expect(page.getByText('Japan return, 3 pax', { exact: true })).toBeVisible();
+  });
+
+  test('edits the goal name/unit/note', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'PATCH' && /\/api\/points-goals\/\d+$/.test(url)) {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: makeGoal({ name: 'Avios 2028' }) });
+      } else {
+        await route.fulfill({ json: [makeGoal()] });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: 'Edit goal Avios 2027' }).click();
+    await page.getByLabel('Name').fill('Avios 2028');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    expect(patchedBody).toMatchObject({ name: 'Avios 2028' });
+    await expect(page.getByText('Avios 2028')).toBeVisible();
+  });
+
+  test('edits a balance reading', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'PATCH' && url.includes('/balances')) {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: makeGoal() });
+      } else {
+        await route.fulfill({ json: [makeGoal()] });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: /Show readings/ }).click();
+    await page.getByRole('button', { name: 'Edit reading' }).first().click();
+    const balanceInputs = page.locator('input[type="number"]');
+    await balanceInputs.last().fill('55000');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    expect(patchedBody).toMatchObject({ balance: 55_000 });
+  });
+
+  test('reverts a redeemed-but-upcoming flight back to planned', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    page.on('dialog', (d) => void d.accept());
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'PATCH' && /\/flights\/\d+$/.test(url)) {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: makeGoal() });
+      } else {
+        await route.fulfill({
+          json: [makeGoal({
+            progress: {
+              ...makeGoal().progress,
+              flights: [{ ...makeFlight(), status: 'redeemed', redeemedAt: '2027-07-15', coveredNow: 160_000, remainingNow: 0, onTrack: true }],
+            },
+          })],
+        });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: 'Revert to planned' }).click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    expect(patchedBody).toMatchObject({ status: 'planned', redeemedAt: null });
   });
 });
