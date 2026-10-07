@@ -205,34 +205,15 @@ model IncomeRule {
 }
 
 model PointsGoal {
-  id          Int               @id @default(autoincrement())
-  name        String
-  unit        String            @default("Avios")
-  // Unused since the flight-based model (replaced periodStart/periodEnd + levels as the
-  // definition of "done" — a goal is now the set of tracked PointsFlights). Columns kept
-  // nullable rather than dropped yet; see PROJECT_SUMMARY's "stop reading, deploy, then drop"
-  // pattern for this DB's pre-existing migration drift.
-  periodStart DateTime?         @db.Date
-  periodEnd   DateTime?         @db.Date
-  note        String            @default("")
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  levels      PointsGoalLevel[]
-  balances    PointsBalance[]
-  flights     PointsFlight[]
-}
-
-// Unused since the flight-based model; kept only so the (now-optional) PointsGoal.periodStart/
-// periodEnd read naturally alongside it until both are dropped in a follow-up migration.
-model PointsGoalLevel {
-  id           Int        @id @default(autoincrement())
-  goalId       Int
-  label        String
-  targetPoints Int
-  sortOrder    Int        @default(0)
-  goal         PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
-
-  @@index([goalId])
+  id         Int              @id @default(autoincrement())
+  name       String
+  unit       String           @default("Avios")
+  note       String           @default("")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  balances   PointsBalance[]
+  flights    PointsFlight[]
+  purchases  PointsPurchase[]
 }
 
 model PointsBalance {
@@ -261,6 +242,25 @@ model PointsFlight {
   goal           PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, neededBy])
+}
+
+// A recorded acquisition of points NOT earned through normal card/flight spend — a cash
+// purchase (subscription, flash sale) or a one-off bonus (e.g. a card's welcome offer). Kept
+// separate from PointsBalance (a point-in-time snapshot of the total, not a transaction) so the
+// pace/projection math can tell organic earn apart from a one-off top-up, and so the yearly
+// purchase cap can be checked against what was actually bought rather than inferred.
+model PointsPurchase {
+  id          Int        @id @default(autoincrement())
+  goalId      Int
+  points      Int
+  costEur     Float
+  purchasedAt DateTime   @db.Date
+  kind        String     @default("purchased") // "purchased" | "bonus"
+  note        String     @default("")
+  createdAt   DateTime   @default(now())
+  goal        PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, purchasedAt])
 }
 
 model CsvImport {

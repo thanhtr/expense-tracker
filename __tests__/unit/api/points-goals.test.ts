@@ -20,6 +20,11 @@ vi.mock('../../../lib/db', () => {
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    pointsPurchase: {
+      create: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     asset: {
       findMany: vi.fn(),
     },
@@ -40,6 +45,8 @@ import { PATCH, DELETE } from '../../../app/api/points-goals/[id]/route';
 import { POST as POST_BALANCE, PATCH as PATCH_BALANCE, DELETE as DELETE_BALANCE } from '../../../app/api/points-goals/[id]/balances/route';
 import { POST as POST_FLIGHT } from '../../../app/api/points-goals/[id]/flights/route';
 import { PATCH as PATCH_FLIGHT, DELETE as DELETE_FLIGHT } from '../../../app/api/points-goals/[id]/flights/[flightId]/route';
+import { POST as POST_PURCHASE } from '../../../app/api/points-goals/[id]/purchases/route';
+import { PATCH as PATCH_PURCHASE, DELETE as DELETE_PURCHASE } from '../../../app/api/points-goals/[id]/purchases/[purchaseId]/route';
 import { prisma } from '../../../lib/db';
 import { getDashboardStats } from '../../../lib/services/aggregation-service';
 
@@ -52,6 +59,7 @@ const makeGoal = (overrides: Record<string, unknown> = {}) => ({
   updatedAt: new Date(),
   balances: [],
   flights: [],
+  purchases: [],
   ...overrides,
 });
 
@@ -64,6 +72,7 @@ const makeReq = (url: string, method: string, body?: unknown) =>
 
 const params = (id: string) => Promise.resolve({ id });
 const flightParams = (id: string, flightId: string) => Promise.resolve({ id, flightId });
+const purchaseParams = (id: string, purchaseId: string) => Promise.resolve({ id, purchaseId });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -365,6 +374,94 @@ describe('DELETE /api/points-goals/[id]/flights/[flightId]', () => {
     const res = await DELETE_FLIGHT(
       makeReq('http://localhost/api/points-goals/1/flights/999', 'DELETE'),
       { params: flightParams('1', '999') },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/points-goals/[id]/purchases', () => {
+  it('creates a purchase and returns updated progress', async () => {
+    vi.mocked(prisma.pointsPurchase.create).mockResolvedValueOnce({} as never);
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal({
+      purchases: [{
+        id: 1, goalId: 1, points: 85_000, costEur: 1_071, purchasedAt: new Date('2026-03-01'),
+        kind: 'purchased', note: '', createdAt: new Date(),
+      }],
+    }));
+    const res = await POST_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases', 'POST', {
+        points: 85_000, costEur: 1_071, purchasedAt: '2026-03-01',
+      }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.progress.purchases).toHaveLength(1);
+  });
+
+  it('returns 400 for a non-positive points value', async () => {
+    const res = await POST_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases', 'POST', { points: 0, costEur: 1, purchasedAt: '2026-03-01' }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when the goal was deleted', async () => {
+    const { Prisma } = await import('@prisma/client');
+    vi.mocked(prisma.pointsPurchase.create).mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('fk', { code: 'P2003', clientVersion: 'x' }),
+    );
+    const res = await POST_PURCHASE(
+      makeReq('http://localhost/api/points-goals/999/purchases', 'POST', { points: 1, costEur: 1, purchasedAt: '2026-03-01' }),
+      { params: params('999') },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('PATCH /api/points-goals/[id]/purchases/[purchaseId]', () => {
+  it('updates a purchase scoped to its goal', async () => {
+    vi.mocked(prisma.pointsPurchase.updateMany).mockResolvedValueOnce({ count: 1 });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal());
+    const res = await PATCH_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases/1', 'PATCH', { kind: 'bonus' }),
+      { params: purchaseParams('1', '1') },
+    );
+    expect(res.status).toBe(200);
+    expect(prisma.pointsPurchase.updateMany).toHaveBeenCalledWith({
+      where: { id: 1, goalId: 1 },
+      data: { kind: 'bonus' },
+    });
+  });
+
+  it('returns 404 when the purchase does not belong to that goal', async () => {
+    vi.mocked(prisma.pointsPurchase.updateMany).mockResolvedValueOnce({ count: 0 });
+    const res = await PATCH_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases/999', 'PATCH', { kind: 'bonus' }),
+      { params: purchaseParams('1', '999') },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/points-goals/[id]/purchases/[purchaseId]', () => {
+  it('deletes a purchase scoped to its goal', async () => {
+    vi.mocked(prisma.pointsPurchase.deleteMany).mockResolvedValueOnce({ count: 1 });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal());
+    const res = await DELETE_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases/2', 'DELETE'),
+      { params: purchaseParams('1', '2') },
+    );
+    expect(res.status).toBe(200);
+    expect(prisma.pointsPurchase.deleteMany).toHaveBeenCalledWith({ where: { id: 2, goalId: 1 } });
+  });
+
+  it('returns 404 for a cross-goal purchase id', async () => {
+    vi.mocked(prisma.pointsPurchase.deleteMany).mockResolvedValueOnce({ count: 0 });
+    const res = await DELETE_PURCHASE(
+      makeReq('http://localhost/api/points-goals/1/purchases/999', 'DELETE'),
+      { params: purchaseParams('1', '999') },
     );
     expect(res.status).toBe(404);
   });

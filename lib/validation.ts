@@ -193,6 +193,24 @@ export const updatePointsFlightSchema = z.object({
   path: ['status'],
 });
 
+const pointsPurchaseKind = z.enum(['purchased', 'bonus']);
+
+export const createPointsPurchaseSchema = z.object({
+  points: z.number().int().positive().max(10_000_000),
+  costEur: z.number().nonnegative().finite(),
+  purchasedAt: dateField,
+  kind: pointsPurchaseKind.optional().default('purchased'),
+  note: z.string().max(500).optional().default(''),
+});
+
+export const updatePointsPurchaseSchema = z.object({
+  points: z.number().int().positive().max(10_000_000).optional(),
+  costEur: z.number().nonnegative().finite().optional(),
+  purchasedAt: dateField.optional(),
+  kind: pointsPurchaseKind.optional(),
+  note: z.string().max(500).optional(),
+});
+
 export const createBudgetSchema = z.object({
   category: z.string().min(1).max(100),
   monthlyLimit: z.number().nonnegative().finite(),

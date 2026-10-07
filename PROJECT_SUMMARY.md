@@ -1277,6 +1277,48 @@ name/unit/note — none of it had a UI. Added:
   was unreadable anywhere. Now shown on both the planned-flight and upcoming-redeemed rows.
 - This is Phase 2 of 3; Phase 3 (purchase-vs-earn ledger, tier points, expiry warnings) is still
   a follow-up, not done here.
+- (Process note: the original PR #179 for this phase was auto-closed by GitHub when its stacked
+  base branch, `feat/goal-money-capacity`, was deleted after Phase 1 merged — GitHub doesn't
+  always retarget a stacked PR to the repo default branch in that case. Recreated via
+  `git cherry-pick` onto a fresh branch off `main` as PR #180. Lesson for future stacked-PR work:
+  either merge each phase before starting the next, or retarget with `gh pr edit --base main`
+  *before* the base branch is deleted, not after.)
+
+### Goal tracking Phase 3: purchase/bonus ledger, tier points, expiry staleness warning (branch: `feat/goal-avios-tracking-v2`)
+Final phase of the goal-tracking improvement plan — new Avios-specific tracking, on top of the
+Phase 1/2 correctness and UI work.
+- **New `PointsPurchase` model** (points, costEur, purchasedAt, `kind`: 'purchased' | 'bonus',
+  note) — a real transaction record, deliberately separate from `PointsBalance` (a point-in-time
+  snapshot, not a transaction). Migration `20261007010000_points_purchase_drop_legacy` also drops
+  the long-unused `PointsGoal.periodStart/periodEnd` columns and the `PointsGoalLevel` table
+  (flagged as a deferred follow-up since PR #177; confirmed nothing has read them since), applied
+  via the established `prisma db execute` + `migrate resolve --applied` workaround.
+- **Organic-only pace**: `computePointsGoalProgress` now subtracts cumulative purchased/bonus
+  points (dated on-or-before each reading) from the accrued series before computing
+  `observedPointsPerMonth`, so a one-off bulk buy or welcome bonus no longer inflates the
+  projected future pace. `availableBalance`/`accruedPoints` (flight coverage) are unaffected — a
+  purchased Avios is exactly as spendable as an earned one, only the *projection* needed the
+  earned/bought distinction.
+- **Real purchase-cap check**: `avios-strategy.ts`'s `overCap` now compares a flight's shortfall
+  (plus `purchasedThisCalendarYearPoints`, tallied from real `PointsPurchase` rows) against the
+  200k/yr cap when the flight is due this calendar year, instead of inferring it from the
+  shortfall alone. A flight due in a later year isn't stacked against this year's purchases,
+  since there's another January's cap to use by then.
+- **Tier points — no new mechanism**: the existing generic `PointsGoal`/`PointsFlight` model
+  already works for any `unit`. A `unit: 'Tier points'` goal gets its own 15,000-point flight
+  prefill (mirroring the Avios upgrade prefill) and an explainer mention; everything else (cash
+  plan, strategy conversions use Avios-specific rates and are skipped for non-Avios goals, so a
+  Tier points goal only shows flight progress — exactly what it needs).
+- **Staleness warning**: new `daysSinceLastActivity` in `PointsGoalProgress` (days since the most
+  recent balance reading, redemption, or purchase/bonus — whichever is latest). `AVIOS_EXPIRY_MONTHS`
+  (18, sourced) added to `lib/avios-facts.ts`; `PointsGoalCard.tsx` shows an amber banner at 15
+  months of inactivity and a red one past 18, each linking to the expiry source.
+- UI: new "Show purchases/bonuses" ledger section (add/delete, same pattern as balance readings),
+  an `observed organic pace` label update to make the earn/bought distinction visible, and
+  `AviosExplainer.tsx`'s "How the cash plan works" section corrected (it still described the
+  retired `SavingsGoal`-netting from before Phase 1) plus a new section covering purchases/
+  bonuses/tier points.
+- This closes out the 3-phase goal-tracking improvement plan from this session.
 
 ---
 
