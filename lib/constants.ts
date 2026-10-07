@@ -67,8 +67,3 @@ export const FIRE_RENTAL = {
   // Loan rate = 6-month Euribor + this margin.
   loanMargin: 0.006,
 } as const;
-
-// 2025 data was imported as-is from Splitwise with legacy categorization and isn't
-// reliable for category-level analysis. Only 2026+ data should be used for the
-// spending forecast until this is revisited (user decision, 2026-10-06).
-export const FORECAST_RELIABLE_HISTORY_START = '2026-01-01';

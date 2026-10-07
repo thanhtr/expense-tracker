@@ -855,9 +855,33 @@ stay resident for hours without a full reload.
 3. **Sharing**: Share expense reports with family members
 4. ~~**Trends**: Year-over-year comparison, moving averages~~ — done, see "Year-over-year
    comparison on Trends" above
-5. **Forecast seasonality**: once 2025 is recategorized or 2026 has a full year of history,
+5. **Forecast seasonality**: once there's a full year of history (pre-2026 data was deleted),
    revisit blending same-month-last-year into the forecast (see "Spending forecast redesigned"
    above)
+6. **Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now** — user decision,
+   2026-10-07. Balance readings become the single source of truth (a reading may silently
+   include purchased/bonus Avios — accepted ambiguity) until purchase/pace aggregation is
+   derived from transactions instead of manual entry. Work on branch `chore/drop-points-purchase`:
+   - `lib/services/points-goal-service.ts`: remove the `PointsPurchase*` types, `purchases` from
+     `PointsGoalInput` and `POINTS_GOAL_INCLUDE`, `purchases`/`purchasedThisCalendarYearPoints`
+     from `PointsGoalProgress`. Pace series back to `balance + redeemedByThen` (no purchase
+     subtraction); `daysSinceLastActivity` counts readings and redemptions only.
+   - `lib/services/avios-strategy.ts`: `overCap = shortfallPoints > PURCHASE_CAP_PER_YEAR`
+     (drop the this-calendar-year purchase stacking).
+   - Delete `app/api/points-goals/[id]/purchases/` (both routes) and the purchase schemas in
+     `lib/validation.ts`.
+   - `components/PointsGoalCard.tsx`: remove the "Show purchases/bonuses" ledger, its state and
+     handlers; pace label back to "observed pace … (trailing 12mo)". `components/AviosExplainer.tsx`:
+     replace "Purchases, bonuses, and tier points" with a short tier-points note that says readings
+     include any purchased/bonus Avios, so a one-off top-up can inflate the observed pace.
+   - Tests: drop purchase fixtures, the `purchases` describe blocks, purchase-cap stacking tests
+     (`points-goal-service`, `avios-strategy`, `api/points-goals`, `points-goal-enrichment` unit
+     tests) and the "records a purchase/bonus" e2e test in `goals.spec.ts`.
+   - **Keep the `PointsPurchase` table and model in this PR.** The currently deployed code reads
+     it, so drop it in a follow-up migration after deploy (`prisma migrate deploy`, never
+     `migrate dev`/`reset`). No coverage is lost: purchased Avios are already in the next reading.
+   - Verify: grep for leftover `purchases`/`PointsPurchase` usages outside the schema, `tsc`,
+     unit tests, `goals.spec.ts`, and check `/goals` in the dev server.
 
 ---
 
@@ -1319,6 +1343,28 @@ Phase 1/2 correctness and UI work.
   retired `SavingsGoal`-netting from before Phase 1) plus a new section covering purchases/
   bonuses/tier points.
 - This closes out the 3-phase goal-tracking improvement plan from this session.
+
+### Pre-2026 data deleted; forecast window now dynamic (migration `20261007020000_delete_pre_2026_transactions`)
+The Avios cash plan's rolling-12-month `getDashboardStats` call was quietly reaching back into
+2025 data that was already known-unreliable (see `FORECAST_RELIABLE_HISTORY_START`'s original
+reasoning under "Spending forecast redesigned" above) — not a bug, just an unintended consequence
+of using a plain 12-month lookback everywhere. Rather than adding another code-level date clamp
+(the pattern that had already accumulated in two places), **the unreliable rows were deleted
+outright** (user decision, 2026-10-07): all 138 `Transaction` rows dated before 2026-01-01 removed
+from production via a proper migration (not an ad-hoc script — cascades to `TransactionSplit`; no
+`TransactionLink` rows referenced any of them, verified first). `points-goal-enrichment.ts`'s
+rolling-12-month window needed no code change after this — there's simply nothing before 2026 left
+to reach back into.
+- **`FORECAST_RELIABLE_HISTORY_START` removed from `lib/constants.ts`** — with the unreliable data
+  gone, hardcoding a floor date became dead weight. `forecast-service.ts`'s window is now fully
+  dynamic: a rolling 12 months if that much history exists, otherwise as far back as the earliest
+  transaction actually goes (`getEarliestTransactionDate()`, a new cheap standalone
+  `aggregation-service.ts` query — `prisma.transaction.aggregate({ _min: { date: true } })` — kept
+  separate from the main `getDashboardStats` call precisely so the minimum-history check can
+  early-exit without paying for the full aggregation when there isn't enough history).
+- This generalizes the service beyond this one dataset: it no longer has any assumption baked in
+  about *when* reliable data starts, so it keeps working correctly as more months accumulate or if
+  this is ever reused against a different history length.
 
 ---
 

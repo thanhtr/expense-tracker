@@ -18,6 +18,14 @@ export function invalidateDashboardCache(): void {
   _cache.clear();
 }
 
+// Cheap standalone query (not part of getDashboardStats' Promise.all) so callers that only
+// need to know how far back reliable data goes — e.g. the forecast's history window — don't
+// have to run the full aggregation first.
+export async function getEarliestTransactionDate(): Promise<Date | null> {
+  const result = await prisma.transaction.aggregate({ _min: { date: true } });
+  return result._min.date ?? null;
+}
+
 export async function getDashboardStats(
   dateFrom?: Date,
   dateTo?: Date,

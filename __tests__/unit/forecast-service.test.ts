@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/services/aggregation-service', () => ({
   getDashboardStats: vi.fn(),
+  getEarliestTransactionDate: vi.fn(),
 }));
 
-import { getDashboardStats } from '@/lib/services/aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from '@/lib/services/aggregation-service';
 import { forecastNextMonth } from '@/lib/services/forecast-service';
-import { FORECAST_RELIABLE_HISTORY_START } from '@/lib/constants';
 
 // Mirrors forecast-service's own month arithmetic, so fixtures line up with whatever
 // window the service actually computes. Uses local date components, not toISOString():
@@ -29,25 +29,19 @@ function monthRange(start: string, end: string): string[] {
   return months;
 }
 
-function historyMonths(): string[] {
+// Last full calendar month before "now", as the service computes `historyEnd`.
+function historyEndMonth(): string {
   const now = new Date();
-  const historyEnd = monthString(new Date(now.getFullYear(), now.getMonth(), 0));
-  return monthRange(FORECAST_RELIABLE_HISTORY_START.slice(0, 7), historyEnd);
+  return monthString(new Date(now.getFullYear(), now.getMonth(), 0));
 }
 
-// Pins "now" so the service's history window is exactly `monthCount` months long
-// (FORECAST_RELIABLE_HISTORY_START + monthCount), regardless of the real current date —
-// needed for tests whose probability math depends on a small, exact window size.
-async function withFixedWindow<T>(monthCount: number, fn: () => Promise<T>): Promise<T> {
-  vi.useFakeTimers({ toFake: ['Date'] });
-  try {
-    const fixedNow = new Date(FORECAST_RELIABLE_HISTORY_START);
-    fixedNow.setMonth(fixedNow.getMonth() + monthCount);
-    vi.setSystemTime(fixedNow);
-    return await fn();
-  } finally {
-    vi.useRealTimers();
-  }
+// Builds the exact `monthCount`-long window the service would use when the earliest
+// transaction is `monthCount - 1` months before `historyEnd` (so data never reaches back
+// the full rolling-12 default) — the window is then "as far as the data goes".
+function historyMonths(monthCount: number): string[] {
+  const end = historyEndMonth();
+  const start = addMonths(end, -(monthCount - 1));
+  return monthRange(start, end);
 }
 
 function makeStats(months: string[], opts: { constantCategory?: number; rareCategoryMonth?: string; rareCategoryAmount?: number } = {}) {
@@ -69,13 +63,23 @@ function makeStats(months: string[], opts: { constantCategory?: number; rareCate
   };
 }
 
+// Sets the mocked earliest-transaction date so the service's window ends up exactly
+// `monthCount` months long (never more, since the rolling cap is 12).
+function setEarliestDataMonths(monthCount: number) {
+  const end = historyEndMonth();
+  const startMonth = addMonths(end, -(monthCount - 1));
+  const [y, m] = startMonth.split('-').map(Number);
+  vi.mocked(getEarliestTransactionDate).mockResolvedValue(new Date(y!, m! - 1, 1));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('forecastNextMonth', () => {
   it('a category with the same amount every month gets a zero-width band at that amount', async () => {
-    const months = historyMonths();
+    const months = historyMonths(12);
+    setEarliestDataMonths(12);
     vi.mocked(getDashboardStats).mockResolvedValueOnce(makeStats(months) as never);
 
     const result = await forecastNextMonth();
@@ -89,43 +93,67 @@ describe('forecastNextMonth', () => {
     expect(constant!.monthsWithData).toBe(months.length);
   });
 
-  it('a category present in only one of three months gets a zero median and a positive p90 reflecting the rare spike', async () => {
-    // A fixed 3-month window (not the real "now"-derived one): the rare category's
-    // 1-in-3 occurrence probability keeps this comfortably away from the p90 cutoff
-    // (far more than the ~100-of-1000 trials needed to push p90 off zero), unlike a
-    // 1-in-9 window where the expected hit count sits right at that boundary and the
-    // outcome would depend on exactly how the fixed seed happens to land.
-    await withFixedWindow(3, async () => {
-      const months = historyMonths();
-      expect(months.length).toBe(3);
-      const rareMonth = months[0]!;
-      vi.mocked(getDashboardStats).mockResolvedValueOnce(
-        makeStats(months, { rareCategoryMonth: rareMonth, rareCategoryAmount: 500 }) as never,
-      );
+  it('caps the window at 12 months even when more history exists', async () => {
+    const months = historyMonths(12);
+    // Data actually goes back 24 months, but the window should still be capped at 12.
+    setEarliestDataMonths(24);
+    vi.mocked(getDashboardStats).mockResolvedValueOnce(makeStats(months) as never);
 
-      const result = await forecastNextMonth();
-      if ('insufficientData' in result) throw new Error('expected a forecast, got insufficientData');
+    const result = await forecastNextMonth();
+    if ('insufficientData' in result) throw new Error('expected a forecast, got insufficientData');
 
-      const rare = result.byCategory.find(c => c.category === 'Rare');
-      expect(rare).toBeDefined();
-      expect(rare!.monthsWithData).toBe(1);
-      expect(rare!.p50).toBe(0);
-      expect(rare!.p90).toBeGreaterThan(0);
-    });
+    expect(result.basedOnMonths).toBe(12);
+    expect(getDashboardStats).toHaveBeenCalledTimes(1);
+    const [calledFrom] = vi.mocked(getDashboardStats).mock.calls[0]!;
+    expect(monthString(calledFrom as Date)).toBe(months[0]);
   });
 
-  it('returns insufficientData when fewer than 3 history months are available', async () => {
-    await withFixedWindow(2, async () => {
-      const result = await forecastNextMonth();
+  it('a category present in only one of three months gets a zero median and a positive p90 reflecting the rare spike', async () => {
+    // A short, exact 3-month window (less than the full history actually available): the
+    // rare category's 1-in-3 occurrence probability keeps this comfortably away from the
+    // p90 cutoff (far more than the ~100-of-1000 trials needed to push p90 off zero),
+    // unlike a 1-in-9 window where the expected hit count sits right at that boundary and
+    // the outcome would depend on exactly how the fixed seed happens to land.
+    const months = historyMonths(3);
+    setEarliestDataMonths(3);
+    const rareMonth = months[0]!;
+    vi.mocked(getDashboardStats).mockResolvedValueOnce(
+      makeStats(months, { rareCategoryMonth: rareMonth, rareCategoryAmount: 500 }) as never,
+    );
 
-      expect('insufficientData' in result).toBe(true);
-      if ('insufficientData' in result) expect(result.monthsAvailable).toBe(2);
-      expect(getDashboardStats).not.toHaveBeenCalled();
-    });
+    const result = await forecastNextMonth();
+    if ('insufficientData' in result) throw new Error('expected a forecast, got insufficientData');
+
+    const rare = result.byCategory.find(c => c.category === 'Rare');
+    expect(rare).toBeDefined();
+    expect(rare!.monthsWithData).toBe(1);
+    expect(rare!.p50).toBe(0);
+    expect(rare!.p90).toBeGreaterThan(0);
+  });
+
+  it('returns insufficientData when fewer than 3 history months are available, without fetching stats', async () => {
+    setEarliestDataMonths(2);
+
+    const result = await forecastNextMonth();
+
+    expect('insufficientData' in result).toBe(true);
+    if ('insufficientData' in result) expect(result.monthsAvailable).toBe(2);
+    expect(getDashboardStats).not.toHaveBeenCalled();
+  });
+
+  it('treats no transactions at all as insufficient data', async () => {
+    vi.mocked(getEarliestTransactionDate).mockResolvedValue(null);
+
+    const result = await forecastNextMonth();
+
+    expect('insufficientData' in result).toBe(true);
+    if ('insufficientData' in result) expect(result.monthsAvailable).toBe(1);
+    expect(getDashboardStats).not.toHaveBeenCalled();
   });
 
   it('is deterministic for repeated calls', async () => {
-    const months = historyMonths();
+    const months = historyMonths(12);
+    setEarliestDataMonths(12);
     vi.mocked(getDashboardStats).mockResolvedValue(makeStats(months, { rareCategoryMonth: months[0], rareCategoryAmount: 500 }) as never);
 
     const a = await forecastNextMonth();
@@ -134,7 +162,8 @@ describe('forecastNextMonth', () => {
   });
 
   it('sorts categories by median descending', async () => {
-    const months = historyMonths();
+    const months = historyMonths(12);
+    setEarliestDataMonths(12);
     const stats = makeStats(months);
     // Add a second, larger constant category directly on the fixture.
     for (const row of stats.byCategoryMonth) row.Bigger = 9000;
