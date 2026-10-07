@@ -281,6 +281,48 @@ test.describe('Goals page', () => {
     expect(patchedBody).toMatchObject({ balance: 55_000 });
   });
 
+  test('populates the date field correctly when editing a reading (regression: full ISO datetime from the API)', async ({ page }) => {
+    // The real API returns a full ISO datetime for a balance's recordedAt (e.g.
+    // "2027-06-01T00:00:00.000Z"), not a plain YYYY-MM-DD string — <input type="date"> silently
+    // renders blank if fed the untrimmed value.
+    await page.route(/\/api\/points-goals/, async (route) => {
+      await route.fulfill({
+        json: [makeGoal({
+          balances: [{ id: 2, balance: 50_000, recordedAt: '2027-06-01T00:00:00.000Z', note: '' }],
+        })],
+      });
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: /Show readings/ }).click();
+    await page.getByRole('button', { name: 'Edit reading' }).click();
+
+    await expect(page.locator('input[type="date"]')).toHaveValue('2027-06-01');
+  });
+
+  test('preserves a non-Avios goal\'s unit when the unit field is cleared and saved (regression)', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'PATCH' && /\/api\/points-goals\/\d+$/.test(url)) {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: makeGoal({ unit: 'Tier points' }) });
+      } else {
+        await route.fulfill({ json: [makeGoal({ unit: 'Tier points' })] });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: /^Edit goal/ }).click();
+    await page.getByLabel('Unit').fill('');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    // Cleared -> falls back to the goal's own current unit, not the hardcoded 'Avios' default.
+    expect(patchedBody).toMatchObject({ unit: 'Tier points' });
+  });
+
   test('reverts a redeemed-but-upcoming flight back to planned', async ({ page }) => {
     let patchedBody: Record<string, unknown> | null = null;
     page.on('dialog', (d) => void d.accept());

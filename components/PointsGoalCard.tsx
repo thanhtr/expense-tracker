@@ -359,6 +359,8 @@ function GoalCard({
         const err = await res.json() as { error: string };
         toast.error(err.error ?? 'Failed to update reading');
       }
+    } catch {
+      toast.error('Failed to update reading');
     } finally {
       setSavingBalanceEdit(false);
     }
@@ -385,7 +387,10 @@ function GoalCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: goalEditForm.name.trim(),
-          unit: goalEditForm.unit.trim() || 'Avios',
+          // Preserve the goal's existing unit if the field is cleared — unlike creating a new
+          // goal, there's no sensible "default" to silently fall back to here, and falling back
+          // to 'Avios' would silently flip e.g. a "Tier points" goal's unit on an empty submit.
+          unit: goalEditForm.unit.trim() || goal.unit,
           note: goalEditForm.note,
         }),
       });
@@ -397,6 +402,8 @@ function GoalCard({
         const err = await res.json() as { error: string };
         toast.error(err.error ?? 'Failed to update goal');
       }
+    } catch {
+      toast.error('Failed to update goal');
     } finally {
       setSavingGoalEdit(false);
     }
@@ -490,6 +497,8 @@ function GoalCard({
         const err = await res.json() as { error: string };
         toast.error(err.error ?? 'Failed to update flight');
       }
+    } catch {
+      toast.error('Failed to update flight');
     } finally {
       setSavingFlightEdit(false);
     }
@@ -827,7 +836,7 @@ function GoalCard({
                     <span className="flex items-center gap-2">
                       <span className="mono">{fmtNumber(b.balance)}</span>
                       <button
-                        onClick={() => { setBalanceEditForm({ balance: String(b.balance), recordedAt: b.recordedAt, note: b.note }); setEditingBalanceId(b.id); }}
+                        onClick={() => { setBalanceEditForm({ balance: String(b.balance), recordedAt: b.recordedAt.slice(0, 10), note: b.note }); setEditingBalanceId(b.id); }}
                         className="hover:text-[var(--fg-1)] transition-colors"
                         aria-label="Edit reading"
                       >
