@@ -277,7 +277,9 @@ describe('PATCH /api/points-goals/[id]/flights/[flightId]', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.progress.redeemedFlights).toHaveLength(1);
+    // neededBy (2027-06-01) is still in the future, so it stays in the main list, not pastFlights.
+    expect(body.progress.flights).toHaveLength(1);
+    expect(body.progress.flights[0].status).toBe('redeemed');
   });
 
   it('requires redeemedAt when marking a flight redeemed', async () => {

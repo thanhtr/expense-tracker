@@ -44,7 +44,7 @@ interface Progress {
   totalPlannedPoints: number;
   observedPointsPerMonth: number | null;
   flights: FlightProgress[];
-  redeemedFlights: FlightProgress[];
+  pastFlights: FlightProgress[];
   nextFlightAtRisk: FlightProgress | null;
 }
 
@@ -138,6 +138,24 @@ function FlightProgressRow({ flight, unit }: { flight: FlightProgress; unit: str
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** An upcoming flight whose Avios (and usually cash fare) are already spent — the trip just
+ * hasn't happened yet. No progress bar (there's nothing left to cover), just a confirmation. */
+function RedeemedUpcomingRow({ flight, unit }: { flight: FlightProgress; unit: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 flex-wrap text-[13px]">
+      <span>
+        <span className="text-emerald-600 dark:text-emerald-400">✓</span>{' '}
+        <span className="font-medium">{flight.label}</span>
+        <span className="text-[11px] text-[var(--fg-3)]"> — flying {fmtDateLong(flight.neededBy)}</span>
+      </span>
+      <span className="text-[12px] text-[var(--fg-3)] mono">
+        {fmtNumber(flight.points)} {unit}
+        {flight.economyFareEur !== null && <> · fare {fmtEUR(flight.economyFareEur)}</>}
+      </span>
     </div>
   );
 }
@@ -313,14 +331,18 @@ function GoalCard({
         )}
       </div>
 
-      {/* Planned flights */}
+      {/* Flights: planned, plus upcoming trips already redeemed/paid for */}
       <div className="space-y-[14px] mb-3">
         {progress.flights.length === 0 && (
           <div className="text-[12px] text-[var(--fg-3)]">No flights tracked yet.</div>
         )}
         {progress.flights.map((f) => (
           <div key={f.id} className="space-y-1">
-            <FlightProgressRow flight={f} unit={goal.unit} />
+            {f.status === 'redeemed' ? (
+              <RedeemedUpcomingRow flight={f} unit={goal.unit} />
+            ) : (
+              <FlightProgressRow flight={f} unit={goal.unit} />
+            )}
             <div className="flex items-center gap-3 text-[11px]">
               {redeemingId === f.id ? (
                 <>
@@ -335,12 +357,14 @@ function GoalCard({
                 </>
               ) : (
                 <>
-                  <button
-                    className="text-[var(--fg-3)] hover:text-[var(--fg-1)] transition-colors"
-                    onClick={() => { setRedeemDate(today()); setRedeemingId(f.id); }}
-                  >
-                    Mark redeemed
-                  </button>
+                  {f.status === 'planned' && (
+                    <button
+                      className="text-[var(--fg-3)] hover:text-[var(--fg-1)] transition-colors"
+                      onClick={() => { setRedeemDate(today()); setRedeemingId(f.id); }}
+                    >
+                      Mark redeemed
+                    </button>
+                  )}
                   <button
                     className="text-[var(--fg-3)] hover:text-red-500 transition-colors"
                     onClick={() => void handleDeleteFlight(f.id, f.label)}
@@ -354,19 +378,19 @@ function GoalCard({
         ))}
       </div>
 
-      {/* Redeemed flights */}
-      {progress.redeemedFlights.length > 0 && (
+      {/* Past flights (redeemed, and the date has already happened) */}
+      {progress.pastFlights.length > 0 && (
         <div className="border-t border-[var(--border)] pt-3 mb-3">
           <button
             onClick={() => setRedeemedOpen((o) => !o)}
             className="text-[11px] text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
             aria-expanded={redeemedOpen}
           >
-            {redeemedOpen ? 'Hide' : 'Show'} redeemed ({progress.redeemedFlights.length})
+            {redeemedOpen ? 'Hide' : 'Show'} past ({progress.pastFlights.length})
           </button>
           {redeemedOpen && (
             <ul className="mt-[8px] space-y-[4px]">
-              {progress.redeemedFlights.map((f) => (
+              {progress.pastFlights.map((f) => (
                 <li key={f.id} className="flex items-center justify-between gap-3 text-[11px] text-[var(--fg-3)]">
                   <span>✓ {f.label} — redeemed {f.redeemedAt && fmtDateLong(f.redeemedAt)}</span>
                   <span className="flex items-center gap-2">

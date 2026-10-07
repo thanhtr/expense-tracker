@@ -65,7 +65,9 @@ export function computeAviosStrategy(
   progress: PointsGoalProgress,
   today: Date = new Date(),
 ): AviosStrategyResult {
-  const uncovered = progress.flights.filter((f) => f.remainingNow > 0);
+  // status === 'planned' is implied by remainingNow > 0 (an upcoming-redeemed flight is always
+  // fully covered), but checked explicitly so that's a stated invariant, not an accident.
+  const uncovered = progress.flights.filter((f) => f.status === 'planned' && f.remainingNow > 0);
   if (uncovered.length === 0) {
     return { allCovered: true, nextAtRisk: null, combined: null };
   }

@@ -274,8 +274,32 @@ describe('computePointsGoalProgress', () => {
         new Date('2026-07-01'),
       );
       expect(p.flights).toEqual([]);
-      expect(p.redeemedFlights).toHaveLength(1);
-      expect(p.redeemedFlights[0]!.onTrack).toBe(true);
+      expect(p.pastFlights).toHaveLength(1);
+      expect(p.pastFlights[0]!.onTrack).toBe(true);
+    });
+
+    it('keeps a redeemed flight in the main list while its date is still upcoming', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 5_778, recordedAt: '2026-10-07' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Japan return x 2',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2027-01-01', // still in the future relative to "today" below
+              status: 'redeemed',
+              redeemedAt: '2026-10-07',
+            },
+          ],
+        }),
+        new Date('2026-10-07'),
+      );
+      expect(p.pastFlights).toEqual([]);
+      expect(p.flights).toHaveLength(1);
+      expect(p.flights[0]!.status).toBe('redeemed');
+      expect(p.flights[0]!.remainingNow).toBe(0);
     });
 
     it('does not let a past redemption make a new flight look covered (regression)', () => {

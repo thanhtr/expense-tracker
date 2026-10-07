@@ -70,11 +70,16 @@ export interface PointsGoalProgress {
   totalPlannedPoints: number;
   /** Avios/month observed over the trailing 12 months; null with <2 readings in that window. */
   observedPointsPerMonth: number | null;
+  /** Planned flights, plus redeemed flights whose date hasn't happened yet (already paid/
+   * requested, but the trip itself is still upcoming) — everything still worth seeing day to
+   * day, merged and sorted by neededBy. */
   flights: PointsFlightProgress[];
-  redeemedFlights: PointsFlightProgress[];
-  /** First planned flight (by neededBy) that isn't fully covered by the current balance yet;
-   * null if every planned flight is already covered. Same selection avios-strategy.ts uses for
-   * its own "next at risk" conversion, so the two always agree on which flight that is. */
+  /** Redeemed flights whose date has already passed — archival history. */
+  pastFlights: PointsFlightProgress[];
+  /** First flight in `flights` that isn't fully covered by the current balance yet (always a
+   * planned one — an upcoming-redeemed flight is always already covered); null if none. Same
+   * selection avios-strategy.ts uses for its own "next at risk" conversion, so the two always
+   * agree on which flight that is. */
   nextFlightAtRisk: PointsFlightProgress | null;
 }
 
@@ -216,29 +221,40 @@ export function computePointsGoalProgress(
     };
   });
 
-  const redeemedFlights: PointsFlightProgress[] = redeemedFlightsAll
-    .slice()
-    .sort((a, b) => toDate(b.redeemedAt).getTime() - toDate(a.redeemedAt).getTime())
-    .map((f) => ({
-      id: f.id,
-      label: f.label,
-      points: f.points,
-      economyFareEur: f.economyFareEur,
-      neededBy: toDateStr(f.neededBy),
-      status: 'redeemed',
-      redeemedAt: toDateStr(f.redeemedAt),
-      coveredNow: f.points,
-      pctCoveredNow: 100,
-      remainingNow: 0,
-      cumulativeNeeded: f.points,
-      remainingCumulative: 0,
-      projectedAtDate: null,
-      shortfallAtDate: null,
-      pointsPerMonthNeeded: null,
-      onTrack: true,
-    }));
+  const redeemedProgress: PointsFlightProgress[] = redeemedFlightsAll.map((f) => ({
+    id: f.id,
+    label: f.label,
+    points: f.points,
+    economyFareEur: f.economyFareEur,
+    neededBy: toDateStr(f.neededBy),
+    status: 'redeemed',
+    redeemedAt: toDateStr(f.redeemedAt),
+    coveredNow: f.points,
+    pctCoveredNow: 100,
+    remainingNow: 0,
+    cumulativeNeeded: f.points,
+    remainingCumulative: 0,
+    projectedAtDate: null,
+    shortfallAtDate: null,
+    pointsPerMonthNeeded: null,
+    onTrack: true,
+  }));
 
-  const nextFlightAtRisk = flights.find((f) => f.remainingNow > 0) ?? null;
+  // A redeemed flight whose date hasn't happened yet is still a real upcoming trip — the Avios
+  // and cash are already spent, but you haven't flown it, so it stays in the main list rather
+  // than being archived alongside flights that have actually happened.
+  const upcomingRedeemed = redeemedProgress.filter((f) => toDate(f.neededBy) >= today);
+  const pastFlights = redeemedProgress
+    .filter((f) => toDate(f.neededBy) < today)
+    // redeemedAt is guaranteed non-null here — every entry came from redeemedFlightsAll, which
+    // is filtered to status === 'redeemed' && redeemedAt !== null above.
+    .sort((a, b) => toDate(b.redeemedAt!).getTime() - toDate(a.redeemedAt!).getTime());
+
+  const mergedFlights = [...flights, ...upcomingRedeemed].sort(
+    (a, b) => toDate(a.neededBy).getTime() - toDate(b.neededBy).getTime(),
+  );
+
+  const nextFlightAtRisk = mergedFlights.find((f) => f.remainingNow > 0) ?? null;
 
   return {
     latestBalance,
@@ -248,8 +264,8 @@ export function computePointsGoalProgress(
     totalRedeemedPoints,
     totalPlannedPoints,
     observedPointsPerMonth,
-    flights,
-    redeemedFlights,
+    flights: mergedFlights,
+    pastFlights,
     nextFlightAtRisk,
   };
 }

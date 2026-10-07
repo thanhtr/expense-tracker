@@ -42,7 +42,7 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       totalPlannedPoints: 160_000,
       observedPointsPerMonth: 10_000,
       flights: [makeFlight()],
-      redeemedFlights: [],
+      pastFlights: [],
       nextFlightAtRisk: makeFlight(),
     },
     strategy: {
@@ -99,7 +99,7 @@ test.describe('Goals page', () => {
     await page.route(/\/api\/points-goals$/, async (route) => {
       if (route.request().method() === 'POST') {
         const body = route.request().postDataJSON();
-        created = makeGoal({ name: body.name, progress: { ...makeGoal().progress, flights: [], redeemedFlights: [] }, strategy: undefined, cashPlan: undefined });
+        created = makeGoal({ name: body.name, progress: { ...makeGoal().progress, flights: [], pastFlights: [] }, strategy: undefined, cashPlan: undefined });
         await route.fulfill({ status: 201, json: created });
       } else {
         await route.fulfill({ json: created ? [created] : [] });
@@ -154,7 +154,7 @@ test.describe('Goals page', () => {
         addedBody = route.request().postDataJSON();
         await route.fulfill({ status: 201, json: makeGoal() });
       } else {
-        await route.fulfill({ json: [makeGoal({ progress: { ...makeGoal().progress, flights: [], redeemedFlights: [] }, strategy: undefined, cashPlan: undefined })] });
+        await route.fulfill({ json: [makeGoal({ progress: { ...makeGoal().progress, flights: [], pastFlights: [] }, strategy: undefined, cashPlan: undefined })] });
       }
     });
     await page.goto('/goals');
@@ -168,7 +168,7 @@ test.describe('Goals page', () => {
     expect(addedBody).toMatchObject({ label: 'Singapore outbound, 2 pax', points: 80_000, neededBy: '2027-11-01' });
   });
 
-  test('marking a flight redeemed keeps it covered after a lower balance reading', async ({ page }) => {
+  test('marking a flight redeemed keeps it covered after a lower balance reading, and keeps it visible until the trip happens', async ({ page }) => {
     let patchedBody: Record<string, unknown> | null = null;
     await page.route(/\/api\/points-goals/, async (route) => {
       const url = route.request().url();
@@ -183,8 +183,10 @@ test.describe('Goals page', () => {
               accruedPoints: 180_000,
               availableBalance: 20_000,
               totalRedeemedPoints: 160_000,
-              flights: [],
-              redeemedFlights: [{ ...makeFlight(), status: 'redeemed', redeemedAt: '2027-07-15', coveredNow: 160_000, remainingNow: 0, onTrack: true }],
+              // neededBy (2027-10-01, from makeFlight()) is still in the future, so the redeemed
+              // flight stays in the main list rather than moving to pastFlights.
+              flights: [{ ...makeFlight(), status: 'redeemed', redeemedAt: '2027-07-15', coveredNow: 160_000, remainingNow: 0, onTrack: true }],
+              pastFlights: [],
               nextFlightAtRisk: null,
             },
             strategy: { allCovered: true, nextAtRisk: null, combined: null },
@@ -202,7 +204,8 @@ test.describe('Goals page', () => {
     await expect.poll(() => patchedBody).not.toBeNull();
     expect(patchedBody).toMatchObject({ status: 'redeemed', redeemedAt: expect.any(String) });
     await expect(page.getByText('Every tracked flight is covered by your current balance.')).toBeVisible();
-    await page.getByRole('button', { name: /Show redeemed/ }).click();
-    await expect(page.getByText(/✓ Japan return, 2 pax/)).toBeVisible();
+    // Still shown in the main list (not archived under "Show past"), confirmed rather than planned.
+    await expect(page.getByText(/flying/)).toBeVisible();
+    await expect(page.getByRole('button', { name: /Show past/ })).toHaveCount(0);
   });
 });

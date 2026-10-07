@@ -54,7 +54,9 @@ export async function enrichPointsGoals<T extends PointsGoalInput & { unit: stri
     const cashPlan = computeCashPlan({
       netTwelveMonths,
       savingsGoals,
-      flights: goal.progress.flights.map((f) => {
+      // Planned only — an upcoming-redeemed flight is already paid for (both the fare and the
+      // Avios), so it has nothing left to plan cash for.
+      flights: goal.progress.flights.filter((f) => f.status === 'planned').map((f) => {
         const cumulativeShortfall = f.shortfallAtDate ?? f.remainingCumulative;
         const incrementalShortfall = Math.max(cumulativeShortfall - previousShortfall, 0);
         previousShortfall = cumulativeShortfall;
