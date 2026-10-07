@@ -156,6 +156,12 @@ export const createPointsBalanceSchema = z.object({
   note: z.string().max(500).optional().default(''),
 });
 
+export const updatePointsBalanceSchema = z.object({
+  balance: z.number().int().min(0).optional(),
+  recordedAt: dateField.optional(),
+  note: z.string().max(500).optional(),
+});
+
 const pointsFlightStatus = z.enum(['planned', 'redeemed']);
 
 export const createPointsFlightSchema = z.object({

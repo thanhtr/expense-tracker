@@ -1261,6 +1261,23 @@ monthly flow from zero, never counting cash already sitting in a bank `Asset`.
   Silver requalification, expiry staleness warnings) from a broader goal-tracking-improvement
   session; the other two are tracked for follow-up, not done in this change.
 
+### Goal tracking Phase 2: edit flight/goal/reading, un-redeem (branch: `feat/goal-edit-ui`)
+Phase 2 of the same goal-tracking improvement plan. The flight PATCH route already supported
+editing every field and un-redeeming, and the goal PATCH route already supported editing
+name/unit/note — none of it had a UI. Added:
+- Inline edit on a flight (label/points/economy fare/needed-by/note), reusing a new shared
+  `FlightEditForm` for both "+ Add flight" and editing an existing one.
+- "Revert to planned" on an upcoming-redeemed flight, clearing `redeemedAt` back to `null`.
+- Inline edit on the goal header (name/unit/note).
+- A new `PATCH /api/points-goals/[id]/balances?balanceId=` route (didn't exist before — only
+  add/delete did) + inline edit on a balance reading, same scoped-`updateMany` pattern as the
+  other edit/delete routes.
+- `PointsFlightInput`/`PointsFlightProgress` (`points-goal-service.ts`) gained a `note` field —
+  the schema/API always accepted it, but `computePointsGoalProgress` silently dropped it, so it
+  was unreadable anywhere. Now shown on both the planned-flight and upcoming-redeemed rows.
+- This is Phase 2 of 3; Phase 3 (purchase-vs-earn ledger, tier points, expiry warnings) is still
+  a follow-up, not done here.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
