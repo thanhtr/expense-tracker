@@ -858,30 +858,10 @@ stay resident for hours without a full reload.
 5. **Forecast seasonality**: once there's a full year of history (pre-2026 data was deleted),
    revisit blending same-month-last-year into the forecast (see "Spending forecast redesigned"
    above)
-6. **Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now** — user decision,
-   2026-10-07. Balance readings become the single source of truth (a reading may silently
-   include purchased/bonus Avios — accepted ambiguity) until purchase/pace aggregation is
-   derived from transactions instead of manual entry. Work on branch `chore/drop-points-purchase`:
-   - `lib/services/points-goal-service.ts`: remove the `PointsPurchase*` types, `purchases` from
-     `PointsGoalInput` and `POINTS_GOAL_INCLUDE`, `purchases`/`purchasedThisCalendarYearPoints`
-     from `PointsGoalProgress`. Pace series back to `balance + redeemedByThen` (no purchase
-     subtraction); `daysSinceLastActivity` counts readings and redemptions only.
-   - `lib/services/avios-strategy.ts`: `overCap = shortfallPoints > PURCHASE_CAP_PER_YEAR`
-     (drop the this-calendar-year purchase stacking).
-   - Delete `app/api/points-goals/[id]/purchases/` (both routes) and the purchase schemas in
-     `lib/validation.ts`.
-   - `components/PointsGoalCard.tsx`: remove the "Show purchases/bonuses" ledger, its state and
-     handlers; pace label back to "observed pace … (trailing 12mo)". `components/AviosExplainer.tsx`:
-     replace "Purchases, bonuses, and tier points" with a short tier-points note that says readings
-     include any purchased/bonus Avios, so a one-off top-up can inflate the observed pace.
-   - Tests: drop purchase fixtures, the `purchases` describe blocks, purchase-cap stacking tests
-     (`points-goal-service`, `avios-strategy`, `api/points-goals`, `points-goal-enrichment` unit
-     tests) and the "records a purchase/bonus" e2e test in `goals.spec.ts`.
-   - **Keep the `PointsPurchase` table and model in this PR.** The currently deployed code reads
-     it, so drop it in a follow-up migration after deploy (`prisma migrate deploy`, never
-     `migrate dev`/`reset`). No coverage is lost: purchased Avios are already in the next reading.
-   - Verify: grep for leftover `purchases`/`PointsPurchase` usages outside the schema, `tsc`,
-     unit tests, `goals.spec.ts`, and check `/goals` in the dev server.
+6. ~~**Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now**~~ — superseded same
+   day by "Goal tracking Phase 3" above, which built the ledger for real (purchase/bonus
+   tracking, organic-only pace, real purchase-cap check) and merged it as PR #182. This item
+   was an earlier, since-reversed decision that was never removed from this list.
 
 ---
 
