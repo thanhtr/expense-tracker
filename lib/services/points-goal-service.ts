@@ -28,9 +28,31 @@ export interface PointsFlightInput {
   note: string;
 }
 
+export type PointsPurchaseKind = 'purchased' | 'bonus';
+
+export interface PointsPurchaseInput {
+  id: number;
+  points: number;
+  costEur: number;
+  purchasedAt: Date | string;
+  // Same plain-string-column reasoning as PointsFlightInput.status.
+  kind: string;
+  note: string;
+}
+
 export interface PointsGoalInput {
   balances: PointsBalanceInput[];
   flights: PointsFlightInput[];
+  purchases: PointsPurchaseInput[];
+}
+
+export interface PointsPurchaseProgress {
+  id: number;
+  points: number;
+  costEur: number;
+  purchasedAt: string;
+  kind: PointsPurchaseKind;
+  note: string;
 }
 
 export interface PointsFlightProgress {
@@ -70,8 +92,19 @@ export interface PointsGoalProgress {
   availableBalance: number;
   totalRedeemedPoints: number;
   totalPlannedPoints: number;
-  /** Avios/month observed over the trailing 12 months; null with <2 readings in that window. */
+  /** Days since the most recent balance reading, redemption, or purchase — whichever is most
+   * recent counts as "activity" toward the 18-month no-activity expiry rule. Null when there's
+   * no activity recorded at all yet. */
+  daysSinceLastActivity: number | null;
+  /** Avios/month observed over the trailing 12 months, from organic earn only — purchases and
+   * bonuses are excluded so a one-off top-up doesn't inflate the projected future pace. Null
+   * with <2 readings in that window. */
   observedPointsPerMonth: number | null;
+  /** Purchases/bonuses recorded against this goal, newest first. */
+  purchases: PointsPurchaseProgress[];
+  /** Avios bought (kind: 'purchased', not 'bonus') within the current calendar year — checked
+   * against the yearly purchase cap in avios-strategy.ts. */
+  purchasedThisCalendarYearPoints: number;
   /** Planned flights, plus redeemed flights whose date hasn't happened yet (already paid/
    * requested, but the trip itself is still upcoming) — everything still worth seeing day to
    * day, merged and sorted by neededBy. */
@@ -89,6 +122,7 @@ export interface PointsGoalProgress {
 export const POINTS_GOAL_INCLUDE = {
   balances: { orderBy: { recordedAt: 'asc' as const } },
   flights: { orderBy: { neededBy: 'asc' as const } },
+  purchases: { orderBy: { purchasedAt: 'asc' as const } },
 };
 
 export function withProgress<T extends PointsGoalInput>(goal: T): T & { progress: PointsGoalProgress } {
@@ -143,7 +177,9 @@ export function computePointsGoalProgress(
 
   // Pace: the accrued-equivalent balance at each reading (balance + redemptions already baked
   // into it), restricted to the trailing 12 months, so a redemption never reads as negative
-  // earning and a stale reading from last year doesn't skew this year's pace.
+  // earning and a stale reading from last year doesn't skew this year's pace. Purchases/bonuses
+  // are further subtracted out for a separate "organic" figure — only organic earn should feed
+  // the pace used to project future accrual, since you can't assume a one-off top-up repeats.
   const paceWindowStart = new Date(today.getTime() - PACE_WINDOW_DAYS * 86_400_000);
   const accruedSeries = allBalances
     .map((b) => {
@@ -151,7 +187,10 @@ export function computePointsGoalProgress(
       const redeemedByThen = redeemedFlightsAll
         .filter((f) => toDate(f.redeemedAt).getTime() <= d.getTime())
         .reduce((sum, f) => sum + f.points, 0);
-      return { date: d, accrued: b.balance + redeemedByThen };
+      const purchasedByThen = goal.purchases
+        .filter((p) => toDate(p.purchasedAt).getTime() <= d.getTime())
+        .reduce((sum, p) => sum + p.points, 0);
+      return { date: d, organicAccrued: b.balance + redeemedByThen - purchasedByThen };
     })
     .filter((p) => p.date >= paceWindowStart && p.date <= today);
 
@@ -160,8 +199,23 @@ export function computePointsGoalProgress(
     const first = accruedSeries[0]!;
     const last = accruedSeries[accruedSeries.length - 1]!;
     const spanMonths = Math.max(monthsBetween(first.date, last.date), 1 / AVG_DAYS_PER_MONTH);
-    observedPointsPerMonth = (last.accrued - first.accrued) / spanMonths;
+    observedPointsPerMonth = (last.organicAccrued - first.organicAccrued) / spanMonths;
   }
+
+  const purchases: PointsPurchaseProgress[] = [...goal.purchases]
+    .sort((a, b) => toDate(b.purchasedAt).getTime() - toDate(a.purchasedAt).getTime())
+    .map((p) => ({
+      id: p.id,
+      points: p.points,
+      costEur: p.costEur,
+      purchasedAt: toDateStr(p.purchasedAt),
+      kind: p.kind === 'bonus' ? 'bonus' : 'purchased',
+      note: p.note,
+    }));
+  const currentYear = today.getFullYear();
+  const purchasedThisCalendarYearPoints = goal.purchases
+    .filter((p) => p.kind !== 'bonus' && toDate(p.purchasedAt).getFullYear() === currentYear)
+    .reduce((sum, p) => sum + p.points, 0);
 
   const plannedSorted = goal.flights
     .filter((f) => f.status === 'planned')
@@ -260,6 +314,14 @@ export function computePointsGoalProgress(
 
   const nextFlightAtRisk = mergedFlights.find((f) => f.remainingNow > 0) ?? null;
 
+  const activityDates = [
+    latestDate,
+    ...redeemedFlightsAll.map((f) => toDate(f.redeemedAt)),
+    ...goal.purchases.map((p) => toDate(p.purchasedAt)),
+  ].filter((d): d is Date => d !== null);
+  const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates.map((d) => d.getTime()))) : null;
+  const daysSinceLastActivity = lastActivityDate ? Math.max(daysBetween(lastActivityDate, today), 0) : null;
+
   return {
     latestBalance,
     latestRecordedAt,
@@ -267,7 +329,10 @@ export function computePointsGoalProgress(
     availableBalance,
     totalRedeemedPoints,
     totalPlannedPoints,
+    daysSinceLastActivity,
     observedPointsPerMonth,
+    purchases,
+    purchasedThisCalendarYearPoints,
     flights: mergedFlights,
     pastFlights,
     nextFlightAtRisk,

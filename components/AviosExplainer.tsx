@@ -96,11 +96,27 @@ export function AviosExplainer() {
             <h3 className="font-semibold text-[var(--fg-1)]">How the cash plan works</h3>
             <p>
               Separately from the Avios math above, the cash plan checks whether your real household cash flow can
-              fund it: rolling 12-month net income (income − expenses) ÷ 12, minus what your other savings goals
-              already require each month, leaves a discretionary monthly amount. Each tracked flight&apos;s real
-              economy fare plus its Avios shortfall (priced at the subscription rate — the conservative baseline, not
-              a hoped-for sale) is checked against that discretionary cash, accumulated month by month up to the
-              flight&apos;s date. Buying during a flash sale would only improve on this, never worsen it.
+              fund it — entirely from transactions and assets, never a manually-set savings goal. Rolling 12-month
+              net income (income − expenses) minus that same window&apos;s actual investing leaves a discretionary
+              monthly amount (this can go negative, if you&apos;re investing more than you&apos;re earning). Bank
+              balance above your FIRE emergency buffer counts as a one-time top-up on top of that monthly flow. Each
+              tracked flight&apos;s real economy fare plus its Avios shortfall (priced at the subscription rate — the
+              conservative baseline, not a hoped-for sale) is checked against that combined capacity, accumulated up
+              to the flight&apos;s date, with every Avios goal competing for the same pool. Buying during a flash
+              sale would only improve on this, never worsen it.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-semibold text-[var(--fg-1)]">Purchases, bonuses, and tier points</h3>
+            <p>
+              A balance reading is just a snapshot — it can&apos;t say whether a jump came from normal spending or a
+              one-off top-up. Recording a purchase or bonus separately keeps the observed pace above to organic card/
+              flight earn only, so a single bulk buy or welcome bonus doesn&apos;t make future projections look more
+              optimistic than they are, and lets the {fmtNumber(PURCHASE_CAP_PER_YEAR)}/yr purchase cap be checked
+              against what you&apos;ve actually bought this calendar year. Tracking tier points toward Silver
+              requalification uses this exact same mechanism — just create a goal with unit &quot;Tier points&quot;
+              instead of &quot;Avios&quot;; nothing new to learn.
             </p>
           </section>
 
