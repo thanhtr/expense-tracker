@@ -858,10 +858,10 @@ stay resident for hours without a full reload.
 5. **Forecast seasonality**: once there's a full year of history (pre-2026 data was deleted),
    revisit blending same-month-last-year into the forecast (see "Spending forecast redesigned"
    above)
-6. ~~**Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now**~~ — superseded same
-   day by "Goal tracking Phase 3" above, which built the ledger for real (purchase/bonus
-   tracking, organic-only pace, real purchase-cap check) and merged it as PR #182. This item
-   was an earlier, since-reversed decision that was never removed from this list.
+6. ~~**Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now**~~ — done, see "Avios
+   purchase/bonus ledger dropped" below. One follow-up remains: drop the now-unread
+   `PointsPurchase` table itself in a migration after this deploys (`prisma db execute` +
+   `migrate resolve --applied`, never `migrate dev`/`reset`, per this DB's established pattern).
 
 ---
 
@@ -1345,6 +1345,36 @@ to reach back into.
 - This generalizes the service beyond this one dataset: it no longer has any assumption baked in
   about *when* reliable data starts, so it keeps working correctly as more months accumulate or if
   this is ever reused against a different history length.
+
+### Avios purchase/bonus ledger dropped (branch: `chore/drop-points-purchase`)
+User decision (2026-10-07): balance readings become the single source of truth for every
+`PointsGoal`, superseding Phase 3's manual purchase/bonus ledger (PR #182). A reading may
+silently include purchased/bonus Avios — an accepted ambiguity — until purchase/pace
+aggregation can be derived from transactions instead of manual entry.
+- `lib/services/points-goal-service.ts`: removed `PointsPurchaseKind`/`PointsPurchaseInput`/
+  `PointsPurchaseProgress`, `purchases` from `PointsGoalInput`/`POINTS_GOAL_INCLUDE`, and
+  `purchases`/`purchasedThisCalendarYearPoints` from `PointsGoalProgress`. The pace series is
+  back to `balance + redeemedByThen` (no purchase subtraction); `daysSinceLastActivity` now
+  counts readings and redemptions only.
+- `lib/services/avios-strategy.ts`: `overCap` is back to a flat `shortfallPoints >
+  PURCHASE_CAP_PER_YEAR` check (no this-calendar-year purchase stacking).
+- Deleted `app/api/points-goals/[id]/purchases/` (both routes) and the purchase schemas in
+  `lib/validation.ts`.
+- `components/PointsGoalCard.tsx`: removed the "Show purchases/bonuses" ledger UI, its
+  state/handlers; pace label back to "observed pace … (trailing 12mo)".
+  `components/AviosExplainer.tsx`: the "Purchases, bonuses, and tier points" section is now a
+  short "Tier points" note explaining a reading may silently include a purchased/bonus top-up.
+- Tests: dropped the purchase fixtures/describe blocks and purchase-cap stacking tests across
+  `points-goal-service`, `avios-strategy`, `api/points-goals`, `points-goal-enrichment` unit
+  tests, and the "records a purchase/bonus" e2e test in `goals.spec.ts`.
+- **`PointsPurchase` table and Prisma model were kept in this PR** — deployed code still reads
+  them until this deploys. Dropping the table is a follow-up migration (tracked in "Next Steps"
+  above), applied via `prisma db execute` + `migrate resolve --applied` per this DB's established
+  pattern, never `migrate dev`/`reset`. No data is lost either way: purchased/bonus Avios are
+  already reflected in the next balance reading.
+- A PROJECT_SUMMARY.md mixup: this exact plan (written the same day as Phase 3) was mistakenly
+  struck out as "stale, superseded by Phase 3" in a later session, when it was in fact the real
+  next step the user still wanted done — restored and executed here.
 
 ---
 

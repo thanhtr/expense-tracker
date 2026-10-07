@@ -35,11 +35,7 @@ export interface AviosStrategyResult {
   combined: AviosStrategyConversion | null;
 }
 
-function convert(
-  flight: PointsFlightProgress,
-  today: Date,
-  purchasedThisCalendarYearPoints: number,
-): AviosStrategyConversion {
+function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConversion {
   // The projected shortfall (accounting for observed earn pace) when available; otherwise the
   // cumulative gap as of today — everything due by this date minus what's already accrued — is
   // the conservative, pace-agnostic fallback. This is cumulative, not just this flight's own
@@ -48,16 +44,7 @@ function convert(
   const monthsUntil = Math.max(monthsBetween(today, flight.neededBy), 0);
 
   const mrPoints = aviosToMrPoints(shortfallPoints);
-
-  // If this flight's own date falls within the current calendar year (or has already passed),
-  // check the real cap: what's already been bought this year, plus this shortfall. A flight due
-  // in a later year has more Januarys to spread purchases across, so it's only sanity-checked
-  // against a single year's cap in isolation, not stacked on top of this year's purchases.
-  const neededByYear = new Date(flight.neededBy).getFullYear();
-  const overCap =
-    neededByYear <= today.getFullYear()
-      ? purchasedThisCalendarYearPoints + shortfallPoints > PURCHASE_CAP_PER_YEAR
-      : shortfallPoints > PURCHASE_CAP_PER_YEAR;
+  const overCap = shortfallPoints > PURCHASE_CAP_PER_YEAR;
 
   return {
     flightId: flight.id,
@@ -88,8 +75,8 @@ export function computeAviosStrategy(
 
   const first = uncovered[0]!;
   const last = uncovered[uncovered.length - 1]!;
-  const nextAtRisk = convert(first, today, progress.purchasedThisCalendarYearPoints);
-  const combined = last.id !== first.id ? convert(last, today, progress.purchasedThisCalendarYearPoints) : null;
+  const nextAtRisk = convert(first, today);
+  const combined = last.id !== first.id ? convert(last, today) : null;
 
   return { allCovered: false, nextAtRisk, combined };
 }

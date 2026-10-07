@@ -14,17 +14,6 @@ interface Balance {
   note: string;
 }
 
-type PurchaseKind = 'purchased' | 'bonus';
-
-interface Purchase {
-  id: number;
-  points: number;
-  costEur: number;
-  purchasedAt: string;
-  kind: PurchaseKind;
-  note: string;
-}
-
 type FlightStatus = 'planned' | 'redeemed';
 
 interface FlightProgress {
@@ -55,8 +44,6 @@ interface Progress {
   totalRedeemedPoints: number;
   totalPlannedPoints: number;
   observedPointsPerMonth: number | null;
-  purchases: Purchase[];
-  purchasedThisCalendarYearPoints: number;
   daysSinceLastActivity: number | null;
   flights: FlightProgress[];
   pastFlights: FlightProgress[];
@@ -136,10 +123,6 @@ function flightFormFrom(f: FlightProgress) {
 }
 
 type FlightFormState = ReturnType<typeof defaultFlightForm>;
-
-function defaultPurchaseForm() {
-  return { points: '', costEur: '', purchasedAt: today(), kind: 'purchased' as PurchaseKind, note: '' };
-}
 
 function FlightEditForm({
   form,
@@ -325,11 +308,6 @@ function GoalCard({
   const [goalEditForm, setGoalEditForm] = useState({ name: goal.name, unit: goal.unit, note: goal.note });
   const [savingGoalEdit, setSavingGoalEdit] = useState(false);
 
-  const [purchasesOpen, setPurchasesOpen] = useState(false);
-  const [addingPurchase, setAddingPurchase] = useState(false);
-  const [purchaseForm, setPurchaseForm] = useState(defaultPurchaseForm);
-  const [savingPurchase, setSavingPurchase] = useState(false);
-
   const { progress } = goal;
 
   async function handleAddReading(e: React.FormEvent) {
@@ -391,49 +369,6 @@ function GoalCard({
       toast.error('Failed to update reading');
     } finally {
       setSavingBalanceEdit(false);
-    }
-  }
-
-  async function handleAddPurchase(e: React.FormEvent) {
-    e.preventDefault();
-    const points = parseInt(purchaseForm.points, 10);
-    const costEur = parseFloat(purchaseForm.costEur);
-    if (isNaN(points) || points <= 0 || isNaN(costEur) || costEur < 0 || !purchaseForm.purchasedAt) return;
-    setSavingPurchase(true);
-    try {
-      const res = await fetch(`/api/points-goals/${goal.id}/purchases`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          points,
-          costEur,
-          purchasedAt: purchaseForm.purchasedAt,
-          kind: purchaseForm.kind,
-          note: purchaseForm.note,
-        }),
-      });
-      if (res.ok) {
-        setPurchaseForm(defaultPurchaseForm());
-        setAddingPurchase(false);
-        setPurchasesOpen(true);
-        onUpdate(await res.json() as PointsGoal);
-        toast.success('Purchase recorded');
-      } else {
-        const err = await res.json() as { error: string };
-        toast.error(err.error ?? 'Failed to record purchase');
-      }
-    } finally {
-      setSavingPurchase(false);
-    }
-  }
-
-  async function handleDeletePurchase(purchaseId: number) {
-    if (!window.confirm('Remove this purchase?')) return;
-    const res = await fetch(`/api/points-goals/${goal.id}/purchases/${purchaseId}`, { method: 'DELETE' });
-    if (res.ok) {
-      onUpdate(await res.json() as PointsGoal);
-    } else {
-      toast.error('Failed to delete purchase');
     }
   }
 
@@ -684,7 +619,7 @@ function GoalCard({
           )}
         </div>
         {progress.observedPointsPerMonth !== null && (
-          <div className="text-[11px] text-[var(--fg-3)]">observed organic pace {fmtNumber(progress.observedPointsPerMonth)}/mo (trailing 12mo, excludes purchases/bonuses)</div>
+          <div className="text-[11px] text-[var(--fg-3)]">observed pace {fmtNumber(progress.observedPointsPerMonth)}/mo (trailing 12mo)</div>
         )}
       </div>
 
@@ -877,116 +812,6 @@ function GoalCard({
           </div>
         </div>
       )}
-
-      {/* Purchases/bonuses ledger */}
-      <div className="border-t border-[var(--border)] pt-3">
-        <button
-          onClick={() => setPurchasesOpen((o) => !o)}
-          className="text-[11px] text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
-          aria-expanded={purchasesOpen}
-        >
-          {purchasesOpen ? 'Hide' : 'Show'} purchases/bonuses ({progress.purchases.length})
-        </button>
-        {purchasesOpen && (
-          <ul className="mt-[8px] space-y-[4px]">
-            {progress.purchases.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-3 text-[11px] text-[var(--fg-3)]">
-                <span>
-                  {fmtDateLong(p.purchasedAt)} · {p.kind === 'bonus' ? 'bonus' : 'purchased'}
-                  {p.note && <span> — {p.note}</span>}
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="mono">{fmtNumber(p.points)} {goal.unit}</span>
-                  {p.costEur > 0 && <span className="mono">{fmtEUR(p.costEur)}</span>}
-                  <button
-                    onClick={() => void handleDeletePurchase(p.id)}
-                    className="hover:text-red-500 transition-colors"
-                    aria-label="Delete purchase"
-                  >
-                    ✕
-                  </button>
-                </span>
-              </li>
-            ))}
-            {progress.purchases.length === 0 && <li className="text-[11px] text-[var(--fg-3)]">None recorded yet</li>}
-          </ul>
-        )}
-        <div className="pt-2">
-          {addingPurchase ? (
-            <form onSubmit={(e) => void handleAddPurchase(e)} className="flex items-end gap-2 flex-wrap">
-              <label className="flex flex-col gap-[2px]">
-                <span className="text-[10px] text-[var(--fg-2)]">{goal.unit}</span>
-                <input
-                  type="number"
-                  className="date-input w-[110px]"
-                  value={purchaseForm.points}
-                  onChange={(e) => setPurchaseForm((p) => ({ ...p, points: e.target.value }))}
-                  required
-                  autoFocus
-                />
-              </label>
-              <label className="flex flex-col gap-[2px]">
-                <span className="text-[10px] text-[var(--fg-2)]">Cost €</span>
-                <input
-                  type="number"
-                  className="date-input w-[100px]"
-                  value={purchaseForm.costEur}
-                  onChange={(e) => setPurchaseForm((p) => ({ ...p, costEur: e.target.value }))}
-                  required
-                />
-              </label>
-              <label className="flex flex-col gap-[2px]">
-                <span className="text-[10px] text-[var(--fg-2)]">Date</span>
-                <input
-                  type="date"
-                  className="date-input"
-                  value={purchaseForm.purchasedAt}
-                  onChange={(e) => setPurchaseForm((p) => ({ ...p, purchasedAt: e.target.value }))}
-                  required
-                />
-              </label>
-              <label className="flex flex-col gap-[2px]">
-                <span className="text-[10px] text-[var(--fg-2)]">Kind</span>
-                <select
-                  className="date-input"
-                  value={purchaseForm.kind}
-                  onChange={(e) => setPurchaseForm((p) => ({ ...p, kind: e.target.value as PurchaseKind }))}
-                >
-                  <option value="purchased">Purchased</option>
-                  <option value="bonus">Bonus</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-[2px] flex-1 min-w-[120px]">
-                <span className="text-[10px] text-[var(--fg-2)]">Note (optional)</span>
-                <input
-                  type="text"
-                  className="date-input"
-                  placeholder="e.g. Amex welcome bonus"
-                  value={purchaseForm.note}
-                  onChange={(e) => setPurchaseForm((p) => ({ ...p, note: e.target.value }))}
-                />
-              </label>
-              <button type="submit" disabled={savingPurchase} className="btn-ghost text-[12px] disabled:opacity-40">
-                {savingPurchase ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-[12px] text-[var(--fg-3)]"
-                onClick={() => setAddingPurchase(false)}
-                disabled={savingPurchase}
-              >
-                Cancel
-              </button>
-              <div className="w-full text-[10px] text-[var(--fg-3)]">
-                Kept separate from balance readings so the observed pace above reflects organic earn only — a
-                purchase or bonus doesn&apos;t inflate it.
-              </div>
-            </form>
-          ) : (
-            <button className="btn-ghost text-[12px]" onClick={() => setAddingPurchase(true)}>+ Add purchase/bonus</button>
-          )}
-        </div>
-      </div>
 
       {/* Readings history */}
       <div className="border-t border-[var(--border)] pt-3">
