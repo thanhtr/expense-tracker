@@ -4,6 +4,7 @@ import { runFireCalculation, FIRE_DEFAULTS, type StoredFireConfig } from '@/lib/
 import { runMonteCarlo } from '@/lib/services/fire-monte-carlo';
 import { deriveFireInputs } from '@/lib/services/fire-inputs-service';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
+import { computeInvestableCash } from '@/lib/services/buffer-service';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
 
 async function getOrCreateConfig(): Promise<StoredFireConfig & { id: number; updatedAt: Date }> {
@@ -56,12 +57,14 @@ async function fetchPortfolioData(): Promise<PortfolioData> {
   return { investmentTotal, bankTotal, avgMonthlyIncome };
 }
 
-// Bank cash counts toward the FIRE portfolio only above an emergency-fund
-// buffer (emergencyFundMonths x trailing-12-month average income), so a
+// Bank cash counts toward the FIRE portfolio only above an emergency-fund buffer, so a
 // household's safety net isn't mistaken for FIRE progress.
 function computeBreakdown(data: PortfolioData, emergencyFundMonths: number): PortfolioBreakdown {
-  const bufferTarget = emergencyFundMonths * data.avgMonthlyIncome;
-  const investableCash = Math.max(0, data.bankTotal - bufferTarget);
+  const { bufferTarget, investableCash } = computeInvestableCash({
+    bankTotal: data.bankTotal,
+    avgMonthlyIncome: data.avgMonthlyIncome,
+    emergencyFundMonths,
+  });
   const currentPortfolio = data.investmentTotal + investableCash;
 
   return { currentPortfolio, ...data, bufferTarget, investableCash };

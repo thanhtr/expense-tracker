@@ -56,7 +56,7 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       combined: null,
     },
     cashPlan: {
-      monthlySurplus: 1_000, savingsMonthly: 300, discretionaryMonthly: 700, overcommitted: false,
+      monthlyDiscretionary: 700, liquidBufferAvailable: 500, overcommitted: false,
       flights: [{ id: 1, label: 'Japan return, 2 pax', neededBy: '2027-10-01', cashNeeded: 2_584.8, onTrack: false, shortBy: 1_784.8 }],
       onTrack: false,
     },

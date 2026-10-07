@@ -78,9 +78,8 @@ interface CashPlanFlight {
 }
 
 interface CashPlan {
-  monthlySurplus: number;
-  savingsMonthly: number;
-  discretionaryMonthly: number;
+  monthlyDiscretionary: number;
+  liquidBufferAvailable: number;
   overcommitted: boolean;
   flights: CashPlanFlight[];
   onTrack: boolean;
@@ -502,12 +501,13 @@ function GoalCard({
         <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
           <div className="font-semibold text-[var(--fg-1)]">Can I afford it?</div>
           <div className="text-[var(--fg-2)]">
-            Rolling 12mo surplus <span className="mono">{fmtEUR(goal.cashPlan.monthlySurplus)}</span>/mo
-            {' '}− savings goals <span className="mono">{fmtEUR(goal.cashPlan.savingsMonthly)}</span>/mo
-            {' '}= <span className={`mono font-medium ${goal.cashPlan.overcommitted ? 'text-red-600 dark:text-red-400' : ''}`}>
-              {fmtEUR(goal.cashPlan.discretionaryMonthly)}
-            </span>/mo discretionary
-            {goal.cashPlan.overcommitted && ' — already overcommitted to savings goals'}
+            <span className={`mono font-medium ${goal.cashPlan.overcommitted ? 'text-red-600 dark:text-red-400' : ''}`}>
+              {fmtEUR(goal.cashPlan.monthlyDiscretionary)}
+            </span>/mo discretionary (net income minus observed investing)
+            {goal.cashPlan.liquidBufferAvailable > 0 && (
+              <> · <span className="mono">{fmtEUR(goal.cashPlan.liquidBufferAvailable)}</span> spare in the bank, above your emergency buffer</>
+            )}
+            {goal.cashPlan.overcommitted && ' — investing already exceeds net income'}
           </div>
           {goal.cashPlan.flights.length > 0 && (
             <ul className="space-y-[2px] pl-4 list-disc text-[var(--fg-2)]">
