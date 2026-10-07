@@ -1,8 +1,8 @@
-import { getDashboardStats } from './aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
 import { mulberry32, percentile, monthString, shiftMonth } from './stats';
-import { FORECAST_RELIABLE_HISTORY_START } from '@/lib/constants';
 
 const MIN_HISTORY_MONTHS = 3;
+const MAX_HISTORY_MONTHS = 12;
 const TRIALS = 1000;
 const SEED = 20261006;
 
@@ -59,8 +59,8 @@ function monthRange(start: string, end: string): string[] {
 // distribution to, and intermittent categories don't have a sensible "distribution"
 // shape to begin with. Resampling observed months directly sidesteps that.
 //
-// Only uses history from FORECAST_RELIABLE_HISTORY_START onward (see its definition) —
-// older data has unreliable, legacy categorization.
+// Window is a rolling 12 months if there's at least that much history, otherwise as far
+// back as the data actually goes.
 export async function forecastNextMonth(
   trials = TRIALS,
   seed = SEED,
@@ -68,19 +68,23 @@ export async function forecastNextMonth(
   const now = new Date();
   const historyEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // last day of previous month
   const historyEnd = monthString(historyEndDate);
-  const historyStart = FORECAST_RELIABLE_HISTORY_START.slice(0, 7) > historyEnd
-    ? historyEnd
-    : FORECAST_RELIABLE_HISTORY_START.slice(0, 7);
+
+  const rollingStartDate = new Date(historyEndDate);
+  rollingStartDate.setMonth(rollingStartDate.getMonth() - (MAX_HISTORY_MONTHS - 1));
+  const rollingStart = monthString(rollingStartDate);
+
+  const earliestDataDate = await getEarliestTransactionDate();
+  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : historyEnd;
+  const dataStartsLater = earliestDataMonth > rollingStart;
+  const historyStart = dataStartsLater ? earliestDataMonth : rollingStart;
+  const historyStartDate = dataStartsLater ? earliestDataDate! : rollingStartDate;
 
   const months = monthRange(historyStart, historyEnd);
   if (months.length < MIN_HISTORY_MONTHS) {
     return { insufficientData: true, monthsAvailable: months.length, minHistoryMonths: MIN_HISTORY_MONTHS };
   }
 
-  const stats = await getDashboardStats(
-    new Date(FORECAST_RELIABLE_HISTORY_START),
-    historyEndDate,
-  );
+  const stats = await getDashboardStats(historyStartDate, historyEndDate);
 
   const totalByMonth = new Map(stats.byMonth.map(m => [m.month, m.amount]));
   const categoryByMonth = new Map(stats.byCategoryMonth.map(row => [String(row.month), row]));
