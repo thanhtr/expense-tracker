@@ -19,8 +19,11 @@ vi.mock('../../../lib/db', () => {
       updateMany: vi.fn(),
       deleteMany: vi.fn(),
     },
-    savingsGoal: {
+    asset: {
       findMany: vi.fn(),
+    },
+    fireConfig: {
+      findUnique: vi.fn(),
     },
     $transaction: vi.fn((fn) => fn(prismaMock)),
   };
@@ -64,8 +67,9 @@ const flightParams = (id: string, flightId: string) => Promise.resolve({ id, fli
 beforeEach(() => {
   vi.clearAllMocks();
   // Most tests don't care about the household-cash enrichment; give it a harmless default.
-  vi.mocked(getDashboardStats).mockResolvedValue({ net: 0 } as never);
-  vi.mocked(prisma.savingsGoal.findMany).mockResolvedValue([]);
+  vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalInvestments: 0, totalIncome: 0, byMonthIncome: [] } as never);
+  vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
 });
 
 describe('GET /api/points-goals', () => {
@@ -81,7 +85,7 @@ describe('GET /api/points-goals', () => {
 
   it('attaches strategy and cashPlan for an Avios-unit goal', async () => {
     vi.mocked(prisma.pointsGoal.findMany).mockResolvedValueOnce([makeGoal()]);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ net: 12_000 } as never);
+    vi.mocked(getDashboardStats).mockResolvedValueOnce({ net: 12_000, totalInvestments: 0, totalIncome: 0, byMonthIncome: [] } as never);
     const res = await GET();
     const body = await res.json();
     expect(body[0].strategy).toBeDefined();

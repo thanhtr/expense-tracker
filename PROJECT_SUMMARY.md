@@ -1226,6 +1226,41 @@ year on top of the Avios balance itself.
   strictly better, not worse). `SourceLinks` was extracted from `FireDashboard.tsx` into a shared
   `components/SourceLinks.tsx` for both explainers to use.
 
+### Avios cash plan: derived from real data instead of the retired SavingsGoal feature (branch: `feat/goal-money-capacity`)
+A post-merge review of the whole goal-tracking area found three real bugs in the "Can I afford
+it?" cash plan: (1) it netted out `SavingsGoal` rows — a feature with no UI at all since PR #98's
+removal of `GoalsCard`/`BudgetCard` ("GuidelinePanel is sufficient; investments are the primary
+savings vehicle") — and did so using the *stale* `currentAmount` column, while `GET /api/goals`
+computes a live linked-category total it never writes back; (2) every Avios-unit `PointsGoal` got
+its own cash plan computed independently, each assuming it alone owned the full monthly surplus,
+so two goals could both show "on track" while jointly over-committed; (3) it only ever accrued
+monthly flow from zero, never counting cash already sitting in a bank `Asset`.
+- **Money capacity is now 100% derived from transactions/assets, never a manual goal record** —
+  the user's explicit decision: money goals stay retired, and "money" in goal tracking means
+  exactly "can the planned flights on this page actually be paid for."
+  `lib/services/money-capacity-service.ts`'s `deriveMoneyCapacity()`: `monthlyDiscretionary` =
+  rolling-12-month net income minus the same window's actual Investments-category outflow (the
+  household's *observed* ongoing investing, not a configured target) — this can be negative, and
+  for this household's real data (aggressive FIRE investing) it currently is, correctly flagged as
+  `overcommitted`. `liquidBufferAvailable` = bank `Asset` total minus the emergency-fund buffer —
+  reusing FIRE's own buffer formula, extracted from `app/api/fire/route.ts` into
+  `lib/services/buffer-service.ts`'s `computeInvestableCash()` so both pages agree on what counts
+  as spare cash.
+- `lib/services/cash-plan-service.ts` takes `monthlyDiscretionary` + `liquidBufferAvailable`
+  directly now (no more `savingsGoals` input) and spends the liquid buffer once, on the earliest
+  flights first, on top of the accruing monthly flow — a near-term flight can be covered by
+  existing bank cash even when monthly flow alone wouldn't reach it in time.
+- `lib/services/points-goal-enrichment.ts` now merges every Avios-unit goal's planned flights
+  into one list (ordered by `neededBy` across goals) before calling `computeCashPlan` once, then
+  splits the results back out per goal — so multiple Avios goals correctly compete for the same
+  pool instead of each claiming it in full.
+- `SavingsGoal` is no longer read anywhere in the Avios path; the model/API/`GoalsCard.tsx` files
+  themselves are untouched and still dormant.
+- This was the first of three planned phases (correctness → quick UI wins for editing an existing
+  flight/goal/reading → new Avios-specific tracking: purchase-vs-earn ledger, tier points toward
+  Silver requalification, expiry staleness warnings) from a broader goal-tracking-improvement
+  session; the other two are tracked for follow-up, not done in this change.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

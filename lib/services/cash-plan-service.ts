@@ -1,16 +1,12 @@
-// Whether real household cash flow can actually fund the flights tracked on an Avios goal: the
-// real economy fare (cash) plus the € cost of closing each flight's Avios gap (at the sourced
-// subscription rate — see avios-strategy.ts), checked against rolling-12-month net income minus
-// what's already committed to other savings goals. Pure function; the caller supplies the real
-// numbers (dashboard aggregation, SavingsGoal rows) so this stays testable without a DB.
+// Whether real household cash flow can actually fund the flights tracked across every Avios
+// goal: each flight's real economy fare (cash) plus the € cost of closing its Avios gap (at the
+// sourced subscription rate — see avios-strategy.ts), checked against money-capacity-service's
+// derived monthly discretionary income and one-time liquid buffer. Pure function; the caller
+// (points-goal-enrichment.ts) supplies the real numbers and the flights in neededBy order,
+// already merged across every Avios-unit goal so they all compete for the same pool instead of
+// each goal assuming it alone owns the full capacity.
 
 import { monthsBetween } from './points-goal-service';
-
-export interface CashPlanSavingsGoalInput {
-  targetAmount: number;
-  currentAmount: number;
-  targetDate: Date | string;
-}
 
 export interface CashPlanFlightInput {
   id: number;
@@ -25,10 +21,13 @@ export interface CashPlanFlightInput {
 }
 
 export interface CashPlanInput {
-  /** Net income over the trailing 12 months (income - expenses), from getDashboardStats. */
-  netTwelveMonths: number;
-  savingsGoals: CashPlanSavingsGoalInput[];
-  /** Planned flights only, in neededBy order. */
+  /** Rolling-12mo net income minus observed ongoing investing (money-capacity-service). Can be
+   * negative if investing already exceeds net income. */
+  monthlyDiscretionary: number;
+  /** One-time bank cash above the emergency-fund buffer (money-capacity-service), spent on the
+   * earliest flights first, on top of the accruing monthly discretionary flow. */
+  liquidBufferAvailable: number;
+  /** Planned flights across every Avios-unit goal, in neededBy order. */
   flights: CashPlanFlightInput[];
 }
 
@@ -44,9 +43,8 @@ export interface CashPlanFlightResult {
 }
 
 export interface CashPlanResult {
-  monthlySurplus: number;
-  savingsMonthly: number;
-  discretionaryMonthly: number;
+  monthlyDiscretionary: number;
+  liquidBufferAvailable: number;
   overcommitted: boolean;
   flights: CashPlanFlightResult[];
   onTrack: boolean;
@@ -58,23 +56,12 @@ function toDate(d: Date | string): Date {
 }
 
 export function computeCashPlan(input: CashPlanInput, today: Date = new Date()): CashPlanResult {
-  const monthlySurplus = input.netTwelveMonths / 12;
-
-  const savingsMonthly = input.savingsGoals.reduce((sum, g) => {
-    const remaining = g.targetAmount - g.currentAmount;
-    const monthsRemaining = monthsBetween(today, g.targetDate);
-    if (remaining <= 0 || monthsRemaining <= 0) return sum; // done, or already overdue
-    return sum + remaining / monthsRemaining;
-  }, 0);
-
-  const discretionaryMonthly = monthlySurplus - savingsMonthly;
-
   let cumulativeCashNeeded = 0;
   const flights: CashPlanFlightResult[] = input.flights.map((f) => {
     const cashNeeded = (f.economyFareEur ?? 0) + f.aviosShortfallEur;
     cumulativeCashNeeded += cashNeeded;
     const monthsUntil = Math.max(monthsBetween(today, f.neededBy), 0);
-    const cumulativeAvailableByDate = discretionaryMonthly * monthsUntil;
+    const cumulativeAvailableByDate = input.liquidBufferAvailable + input.monthlyDiscretionary * monthsUntil;
     const shortBy = Math.max(cumulativeCashNeeded - cumulativeAvailableByDate, 0);
 
     return {
@@ -92,10 +79,9 @@ export function computeCashPlan(input: CashPlanInput, today: Date = new Date()):
   const firstShortfall = flights.find((f) => !f.onTrack) ?? null;
 
   return {
-    monthlySurplus,
-    savingsMonthly,
-    discretionaryMonthly,
-    overcommitted: discretionaryMonthly < 0,
+    monthlyDiscretionary: input.monthlyDiscretionary,
+    liquidBufferAvailable: input.liquidBufferAvailable,
+    overcommitted: input.monthlyDiscretionary < 0,
     flights,
     onTrack: firstShortfall === null,
     firstShortfallFlightId: firstShortfall?.id ?? null,
