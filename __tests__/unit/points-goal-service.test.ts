@@ -1,53 +1,46 @@
 import { describe, it, expect } from 'vitest';
 import { computePointsGoalProgress, type PointsGoalInput } from '../../lib/services/points-goal-service';
 
-const LEVELS = [
-  { id: 1, label: 'Minimum', targetPoints: 80_000 },
-  { id: 2, label: 'Extended', targetPoints: 160_000 },
-];
-
 function goal(overrides: Partial<PointsGoalInput> = {}): PointsGoalInput {
   return {
-    periodStart: '2026-01-01',
-    periodEnd: '2026-12-31',
-    levels: LEVELS,
     balances: [],
+    flights: [],
     ...overrides,
   };
 }
 
 describe('computePointsGoalProgress', () => {
-  it('reports 0 balance and 0% for a goal with no readings', () => {
+  it('reports 0 balance and no flights for an empty goal', () => {
     const p = computePointsGoalProgress(goal(), new Date('2026-07-01'));
     expect(p.latestBalance).toBe(0);
     expect(p.latestRecordedAt).toBeNull();
+    expect(p.accruedPoints).toBe(0);
+    expect(p.availableBalance).toBe(0);
     expect(p.observedPointsPerMonth).toBeNull();
-    expect(p.projectedEndBalance).toBeNull();
-    for (const l of p.levels) {
-      expect(l.reached).toBe(false);
-      expect(l.pctOfTarget).toBe(0);
-    }
+    expect(p.flights).toEqual([]);
+    expect(p.nextFlightAtRisk).toBeNull();
   });
 
-  it('uses the latest reading as the current balance regardless of period boundaries', () => {
+  it('uses the latest reading as the current balance', () => {
     const p = computePointsGoalProgress(
       goal({ balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }] }),
       new Date('2026-07-01'),
     );
     expect(p.latestBalance).toBe(50_000);
     expect(p.latestRecordedAt).toBe('2026-06-01');
+    expect(p.accruedPoints).toBe(50_000);
+    expect(p.availableBalance).toBe(50_000);
   });
 
-  it('does not compute pace or a projection from a single reading', () => {
+  it('does not compute pace from a single reading', () => {
     const p = computePointsGoalProgress(
       goal({ balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }] }),
       new Date('2026-07-01'),
     );
     expect(p.observedPointsPerMonth).toBeNull();
-    expect(p.projectedEndBalance).toBeNull();
   });
 
-  it('computes pace and a projection from two readings inside the period', () => {
+  it('computes pace from two readings in the trailing 12 months', () => {
     const p = computePointsGoalProgress(
       goal({
         balances: [
@@ -59,69 +52,230 @@ describe('computePointsGoalProgress', () => {
     );
     expect(p.observedPointsPerMonth).not.toBeNull();
     expect(p.observedPointsPerMonth!).toBeCloseTo(5_000, -2);
-    expect(p.projectedEndBalance).not.toBeNull();
-    // ~6 more months at ~5000/mo on top of 30,000
-    expect(p.projectedEndBalance!).toBeCloseTo(60_000, -3);
   });
 
-  it('ignores a reading taken before the period when computing pace', () => {
+  it('ignores a reading older than 12 months when computing pace', () => {
     const p = computePointsGoalProgress(
       goal({
         balances: [
-          { id: 1, balance: 10_000, recordedAt: '2025-06-01' }, // outside the 2026 period
+          { id: 1, balance: 10_000, recordedAt: '2024-01-01' }, // >12mo before "today"
           { id: 2, balance: 30_000, recordedAt: '2026-07-01' },
         ],
       }),
       new Date('2026-07-01'),
     );
-    // Only one reading falls inside the period, so no pace/projection is computed.
     expect(p.observedPointsPerMonth).toBeNull();
-    // But the latest reading overall still sets the current balance.
     expect(p.latestBalance).toBe(30_000);
   });
 
-  it('marks the minimum level reached while the extended level is not', () => {
-    const p = computePointsGoalProgress(
-      goal({ balances: [{ id: 1, balance: 90_000, recordedAt: '2026-06-01' }] }),
-      new Date('2026-07-01'),
-    );
-    const min = p.levels.find((l) => l.targetPoints === 80_000)!;
-    const ext = p.levels.find((l) => l.targetPoints === 160_000)!;
-    expect(min.reached).toBe(true);
-    expect(min.pointsPerMonthNeeded).toBeNull();
-    expect(min.onTrack).toBe(true);
-    expect(ext.reached).toBe(false);
-    expect(ext.remaining).toBe(70_000);
-    expect(ext.pointsPerMonthNeeded).not.toBeNull();
+  describe('redemptions', () => {
+    it('adds a redemption dated before the latest reading back into accruedPoints (no double count)', () => {
+      // The reading already reflects the spend; accrued = what you'd have today if you hadn't spent it.
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 52_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Japan outbound',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2027-01-01',
+              status: 'redeemed',
+              redeemedAt: '2026-05-01', // before the reading
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.accruedPoints).toBe(132_000);
+      expect(p.availableBalance).toBe(52_000); // already deducted, nothing further to subtract
+      expect(p.totalRedeemedPoints).toBe(80_000);
+    });
+
+    it('subtracts a redemption dated after the latest reading from availableBalance', () => {
+      // Real-world balance already dropped but no new reading reflects it yet.
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 132_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Japan outbound',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2027-01-01',
+              status: 'redeemed',
+              redeemedAt: '2026-06-15', // after the reading
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.accruedPoints).toBe(132_000); // not baked into the reading yet
+      expect(p.availableBalance).toBe(52_000); // real spendable balance right now
+    });
+
+    it('does not count a redemption as negative earning in the pace calculation', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [
+            { id: 1, balance: 40_000, recordedAt: '2026-01-01' },
+            { id: 2, balance: 5_000, recordedAt: '2026-07-01' }, // dropped because of a redemption
+          ],
+          flights: [
+            {
+              id: 1,
+              label: 'Redeemed flight',
+              points: 40_000,
+              economyFareEur: null,
+              neededBy: '2026-06-01',
+              status: 'redeemed',
+              redeemedAt: '2026-04-01', // between the two readings
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      // Accrued-equivalent at each reading: 40,000 and (5,000 + 40,000) = 45,000 → positive pace.
+      expect(p.observedPointsPerMonth).not.toBeNull();
+      expect(p.observedPointsPerMonth!).toBeGreaterThan(0);
+    });
   });
 
-  it('marks both levels reached once the balance clears the higher target', () => {
-    const p = computePointsGoalProgress(
-      goal({ balances: [{ id: 1, balance: 200_000, recordedAt: '2026-06-01' }] }),
-      new Date('2026-07-01'),
-    );
-    expect(p.levels.every((l) => l.reached)).toBe(true);
-    expect(p.levels.every((l) => l.remaining === 0)).toBe(true);
-  });
+  describe('flight coverage', () => {
+    it('fully covers a planned flight once the balance meets it', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 90_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Minimum upgrade',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2027-01-01',
+              status: 'planned',
+              redeemedAt: null,
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      const f = p.flights[0]!;
+      expect(f.coveredNow).toBe(80_000);
+      expect(f.pctCoveredNow).toBe(100);
+      expect(f.remainingNow).toBe(0);
+      expect(f.onTrack).toBe(true);
+      expect(p.nextFlightAtRisk).toBeNull();
+    });
 
-  it('flags a level as behind pace when the projection falls short of its target', () => {
-    const p = computePointsGoalProgress(
-      goal({
-        balances: [
-          { id: 1, balance: 0, recordedAt: '2026-01-01' },
-          { id: 2, balance: 1_000, recordedAt: '2026-07-01' }, // far too slow for 80k/yr
-        ],
-      }),
-      new Date('2026-07-01'),
-    );
-    const min = p.levels.find((l) => l.targetPoints === 80_000)!;
-    expect(min.onTrack).toBe(false);
-  });
+    it('allocates available balance across multiple flights in neededBy order', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Later flight',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2027-06-01',
+              status: 'planned',
+              redeemedAt: null,
+            },
+            {
+              id: 2,
+              label: 'Sooner flight',
+              points: 40_000,
+              economyFareEur: null,
+              neededBy: '2026-12-01',
+              status: 'planned',
+              redeemedAt: null,
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      // Sooner flight (id 2) should be first in the sorted list and fully covered first.
+      const sooner = p.flights.find((f) => f.id === 2)!;
+      const later = p.flights.find((f) => f.id === 1)!;
+      expect(sooner.coveredNow).toBe(40_000);
+      expect(sooner.remainingNow).toBe(0);
+      expect(later.coveredNow).toBe(10_000);
+      expect(later.remainingNow).toBe(70_000);
+      expect(later.cumulativeNeeded).toBe(120_000);
+    });
 
-  it('clamps period-elapsed percentage to [0, 100] outside the period', () => {
-    const before = computePointsGoalProgress(goal(), new Date('2025-01-01'));
-    expect(before.periodElapsedPct).toBe(0);
-    const after = computePointsGoalProgress(goal(), new Date('2027-06-01'));
-    expect(after.periodElapsedPct).toBe(100);
+    it('flags a flight as not on track when the projection falls short', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [
+            { id: 1, balance: 0, recordedAt: '2026-01-01' },
+            { id: 2, balance: 1_000, recordedAt: '2026-07-01' }, // far too slow for 80k by year-end
+          ],
+          flights: [
+            {
+              id: 1,
+              label: 'Minimum upgrade',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2026-12-31',
+              status: 'planned',
+              redeemedAt: null,
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      const f = p.flights[0]!;
+      expect(f.onTrack).toBe(false);
+      expect(f.shortfallAtDate).not.toBeNull();
+      expect(p.nextFlightAtRisk?.id).toBe(1);
+    });
+
+    it('returns null onTrack without a pace and the flight is not yet covered', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 10_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Minimum upgrade',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2026-12-31',
+              status: 'planned',
+              redeemedAt: null,
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.flights[0]!.onTrack).toBeNull();
+    });
+
+    it('lists redeemed flights separately, always covered', () => {
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 10_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Already redeemed',
+              points: 80_000,
+              economyFareEur: null,
+              neededBy: '2026-05-01',
+              status: 'redeemed',
+              redeemedAt: '2026-04-01',
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.flights).toEqual([]);
+      expect(p.redeemedFlights).toHaveLength(1);
+      expect(p.redeemedFlights[0]!.onTrack).toBe(true);
+    });
   });
 });

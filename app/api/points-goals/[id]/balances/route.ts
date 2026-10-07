@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { createPointsBalanceSchema, parseBody, parseId, parseRouteId } from '@/lib/validation';
-import { computePointsGoalProgress } from '@/lib/services/points-goal-service';
+import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
+import { enrichPointsGoal } from '@/lib/services/points-goal-enrichment';
 
 export async function POST(
   request: NextRequest,
@@ -22,14 +23,11 @@ export async function POST(
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
-      include: {
-        levels: { orderBy: { targetPoints: 'asc' } },
-        balances: { orderBy: { recordedAt: 'asc' } },
-      },
+      include: POINTS_GOAL_INCLUDE,
     });
     if (!goal) return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
 
-    return NextResponse.json({ ...goal, progress: computePointsGoalProgress(goal) }, { status: 201 });
+    return NextResponse.json(await enrichPointsGoal(goal), { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
       return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
@@ -62,14 +60,11 @@ export async function DELETE(
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
-      include: {
-        levels: { orderBy: { targetPoints: 'asc' } },
-        balances: { orderBy: { recordedAt: 'asc' } },
-      },
+      include: POINTS_GOAL_INCLUDE,
     });
     if (!goal) return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
 
-    return NextResponse.json({ ...goal, progress: computePointsGoalProgress(goal) });
+    return NextResponse.json(await enrichPointsGoal(goal));
   } catch (error) {
     console.error('Failed to delete points balance:', error);
     return NextResponse.json({ error: 'Failed to delete points balance' }, { status: 500 });

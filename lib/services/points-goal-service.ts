@@ -1,15 +1,11 @@
-// Pure computation for a points goal (e.g. Finnair Avios) with manually-recorded balance
-// readings. Phase 1: the balance is entered by hand (same as Asset balances), since neither
-// Avios earn rules nor redemption/transfer activity can be read reliably from transactions
-// yet (see PROJECT_SUMMARY.md, "Avios goal tracking"). No earn-rate assumptions are made here.
+// Pure computation for a points goal (e.g. Finnair Avios) tracked against a list of specific
+// flights, with manually-recorded balance readings (same pattern as Asset balances — Avios earn
+// rules can't be read reliably from transactions yet, see PROJECT_SUMMARY.md "Avios goal
+// tracking"). A goal is "done" when every tracked flight is covered or redeemed; there's no
+// separate period or level target.
 
 const AVG_DAYS_PER_MONTH = 30.4375; // 365.25 / 12 — used only for day->month duration conversion
-
-export interface PointsGoalLevelInput {
-  id: number;
-  label: string;
-  targetPoints: number;
-}
+const PACE_WINDOW_DAYS = 365; // observed pace/projection use only the trailing 12 months
 
 export interface PointsBalanceInput {
   id: number;
@@ -17,124 +13,238 @@ export interface PointsBalanceInput {
   recordedAt: Date | string;
 }
 
-export interface PointsGoalInput {
-  periodStart: Date | string;
-  periodEnd: Date | string;
-  levels: PointsGoalLevelInput[];
-  balances: PointsBalanceInput[];
-}
+export type PointsFlightStatus = 'planned' | 'redeemed';
 
-export interface PointsGoalLevelProgress {
+export interface PointsFlightInput {
   id: number;
   label: string;
-  targetPoints: number;
-  reached: boolean;
-  /** Can exceed 100 once the level is reached. */
-  pctOfTarget: number;
-  remaining: number;
-  expectedByToday: number;
-  /** null once reached, or once the period has ended. */
+  points: number;
+  economyFareEur: number | null;
+  neededBy: Date | string;
+  // Prisma's column is a plain string (no DB enum); application code only ever writes
+  // 'planned' | 'redeemed', so every comparison below checks against those literals explicitly.
+  status: string;
+  redeemedAt: Date | string | null;
+}
+
+export interface PointsGoalInput {
+  balances: PointsBalanceInput[];
+  flights: PointsFlightInput[];
+}
+
+export interface PointsFlightProgress {
+  id: number;
+  label: string;
+  points: number;
+  economyFareEur: number | null;
+  neededBy: string;
+  status: PointsFlightStatus;
+  redeemedAt: string | null;
+  /** Avios applied from the current available balance, in neededBy order. */
+  coveredNow: number;
+  pctCoveredNow: number;
+  remainingNow: number;
+  /** Avios still needed, cumulative across this and every earlier (by neededBy) planned flight. */
+  cumulativeNeeded: number;
+  /** cumulativeNeeded minus what's already accrued — the real gap for everything due by this
+   * date, as opposed to remainingNow which only reflects this one flight's own allocation. */
+  remainingCumulative: number;
+  /** Projected total accrued Avios at this flight's neededBy date; null without a pace. */
+  projectedAtDate: number | null;
+  /** null once covered now, or without a pace to project from. */
+  shortfallAtDate: number | null;
+  /** null once covered now, or once the date has passed. */
   pointsPerMonthNeeded: number | null;
-  /** null when there isn't yet a pace to project from (fewer than 2 readings in the period). */
+  /** true once coveredNow >= points; else null without a pace, else the projection vs cumulativeNeeded. */
   onTrack: boolean | null;
 }
 
 export interface PointsGoalProgress {
   latestBalance: number;
   latestRecordedAt: string | null;
-  /** 0–100, clamped to the period's bounds. */
-  periodElapsedPct: number;
-  monthsElapsed: number;
-  monthsRemaining: number;
-  /** Avios/month between the first and last reading taken inside the period; null with <2 readings. */
+  /** latestBalance + flights redeemed on or before latestRecordedAt (already reflected in it). */
+  accruedPoints: number;
+  /** latestBalance minus flights redeemed after latestRecordedAt (real-world spend not yet re-read). */
+  availableBalance: number;
+  totalRedeemedPoints: number;
+  totalPlannedPoints: number;
+  /** Avios/month observed over the trailing 12 months; null with <2 readings in that window. */
   observedPointsPerMonth: number | null;
-  /** Straight-line projection of observedPointsPerMonth out to periodEnd; null with <2 readings. */
-  projectedEndBalance: number | null;
-  levels: PointsGoalLevelProgress[];
+  flights: PointsFlightProgress[];
+  redeemedFlights: PointsFlightProgress[];
+  /** First planned flight (by neededBy) that isn't covered now and isn't on track; null if none. */
+  nextFlightAtRisk: PointsFlightProgress | null;
+}
+
+/** Shared Prisma include for every route that returns a goal with progress attached. */
+export const POINTS_GOAL_INCLUDE = {
+  balances: { orderBy: { recordedAt: 'asc' as const } },
+  flights: { orderBy: { neededBy: 'asc' as const } },
+};
+
+export function withProgress<T extends PointsGoalInput>(goal: T): T & { progress: PointsGoalProgress } {
+  return { ...goal, progress: computePointsGoalProgress(goal) };
 }
 
 function toDate(d: Date | string): Date {
   return d instanceof Date ? d : new Date(d);
 }
 
+function toDateStr(d: Date | string): string {
+  return toDate(d).toISOString().slice(0, 10);
+}
+
 function daysBetween(a: Date, b: Date): number {
   return (b.getTime() - a.getTime()) / 86_400_000;
+}
+
+function monthsBetween(a: Date, b: Date): number {
+  return daysBetween(a, b) / AVG_DAYS_PER_MONTH;
 }
 
 export function computePointsGoalProgress(
   goal: PointsGoalInput,
   today: Date = new Date(),
 ): PointsGoalProgress {
-  const periodStart = toDate(goal.periodStart);
-  const periodEnd = toDate(goal.periodEnd);
-  const totalDays = Math.max(daysBetween(periodStart, periodEnd), 1);
-  const elapsedDays = Math.min(Math.max(daysBetween(periodStart, today), 0), totalDays);
-  const periodElapsedPct = (elapsedDays / totalDays) * 100;
-  const monthsElapsed = elapsedDays / AVG_DAYS_PER_MONTH;
-  const monthsRemaining = (totalDays - elapsedDays) / AVG_DAYS_PER_MONTH;
-
   const allBalances = [...goal.balances].sort(
     (a, b) => toDate(a.recordedAt).getTime() - toDate(b.recordedAt).getTime(),
   );
   const latest = allBalances.length > 0 ? allBalances[allBalances.length - 1] : undefined;
   const latestBalance = latest?.balance ?? 0;
-  const latestRecordedAt = latest ? toDate(latest.recordedAt).toISOString().slice(0, 10) : null;
+  const latestDate = latest ? toDate(latest.recordedAt) : null;
+  const latestRecordedAt = latestDate ? toDateStr(latestDate) : null;
 
-  // Pace/projection use only readings taken inside the goal's own period — a reading from a
-  // previous year's goal isn't a fact about this period's earn rate.
-  const inPeriod = allBalances.filter((b) => {
-    const d = toDate(b.recordedAt);
-    return d >= periodStart && d <= periodEnd;
-  });
+  const redeemedFlightsAll = goal.flights.filter(
+    (f): f is PointsFlightInput & { redeemedAt: Date | string } =>
+      f.status === 'redeemed' && f.redeemedAt !== null,
+  );
+  // A redemption dated on/before the latest reading is already baked into that balance; a later
+  // one means the real-world balance has already dropped but no new reading reflects it yet.
+  const redeemedBeforeOrOnLatest = redeemedFlightsAll.filter(
+    (f) => latestDate === null || toDate(f.redeemedAt).getTime() <= latestDate.getTime(),
+  );
+  const redeemedAfterLatest = redeemedFlightsAll.filter(
+    (f) => latestDate !== null && toDate(f.redeemedAt).getTime() > latestDate.getTime(),
+  );
+  const totalRedeemedPoints = redeemedFlightsAll.reduce((sum, f) => sum + f.points, 0);
+  const accruedPoints =
+    latestBalance + redeemedBeforeOrOnLatest.reduce((sum, f) => sum + f.points, 0);
+  const availableBalance =
+    latestBalance - redeemedAfterLatest.reduce((sum, f) => sum + f.points, 0);
+
+  // Pace: the accrued-equivalent balance at each reading (balance + redemptions already baked
+  // into it), restricted to the trailing 12 months, so a redemption never reads as negative
+  // earning and a stale reading from last year doesn't skew this year's pace.
+  const paceWindowStart = new Date(today.getTime() - PACE_WINDOW_DAYS * 86_400_000);
+  const accruedSeries = allBalances
+    .map((b) => {
+      const d = toDate(b.recordedAt);
+      const redeemedByThen = redeemedFlightsAll
+        .filter((f) => toDate(f.redeemedAt).getTime() <= d.getTime())
+        .reduce((sum, f) => sum + f.points, 0);
+      return { date: d, accrued: b.balance + redeemedByThen };
+    })
+    .filter((p) => p.date >= paceWindowStart && p.date <= today);
 
   let observedPointsPerMonth: number | null = null;
-  let projectedEndBalance: number | null = null;
-  if (inPeriod.length >= 2) {
-    const first = inPeriod[0]!;
-    const last = inPeriod[inPeriod.length - 1]!;
-    const firstDate = toDate(first.recordedAt);
-    const lastDate = toDate(last.recordedAt);
-    const spanMonths = Math.max(daysBetween(firstDate, lastDate) / AVG_DAYS_PER_MONTH, 1 / AVG_DAYS_PER_MONTH);
-    observedPointsPerMonth = (last.balance - first.balance) / spanMonths;
-    const monthsToEnd = Math.max(daysBetween(lastDate, periodEnd) / AVG_DAYS_PER_MONTH, 0);
-    projectedEndBalance = last.balance + observedPointsPerMonth * monthsToEnd;
+  if (accruedSeries.length >= 2) {
+    const first = accruedSeries[0]!;
+    const last = accruedSeries[accruedSeries.length - 1]!;
+    const spanMonths = Math.max(monthsBetween(first.date, last.date), 1 / AVG_DAYS_PER_MONTH);
+    observedPointsPerMonth = (last.accrued - first.accrued) / spanMonths;
   }
 
-  const levels: PointsGoalLevelProgress[] = [...goal.levels]
-    .sort((a, b) => a.targetPoints - b.targetPoints)
-    .map((level) => {
-      const reached = latestBalance >= level.targetPoints;
-      const pctOfTarget = level.targetPoints > 0 ? (latestBalance / level.targetPoints) * 100 : 0;
-      const remaining = Math.max(level.targetPoints - latestBalance, 0);
-      const expectedByToday = level.targetPoints * (periodElapsedPct / 100);
-      const pointsPerMonthNeeded = reached
-        ? null
-        : monthsRemaining > 0
-          ? remaining / monthsRemaining
-          : null;
-      const onTrack = reached ? true : projectedEndBalance !== null ? projectedEndBalance >= level.targetPoints : null;
+  const plannedSorted = goal.flights
+    .filter((f) => f.status === 'planned')
+    .sort((a, b) => toDate(a.neededBy).getTime() - toDate(b.neededBy).getTime());
+  const totalPlannedPoints = plannedSorted.reduce((sum, f) => sum + f.points, 0);
 
-      return {
-        id: level.id,
-        label: level.label,
-        targetPoints: level.targetPoints,
-        reached,
-        pctOfTarget,
-        remaining,
-        expectedByToday,
-        pointsPerMonthNeeded,
-        onTrack,
-      };
-    });
+  let runningAvailable = availableBalance;
+  let cumulativeNeeded = 0;
+  const flights: PointsFlightProgress[] = plannedSorted.map((f) => {
+    cumulativeNeeded += f.points;
+    const coveredNow = Math.max(Math.min(runningAvailable, f.points), 0);
+    runningAvailable = Math.max(runningAvailable - coveredNow, 0);
+    const pctCoveredNow = f.points > 0 ? (coveredNow / f.points) * 100 : 100;
+    const remainingNow = Math.max(f.points - coveredNow, 0);
+    const neededByDate = toDate(f.neededBy);
+    const monthsUntil = Math.max(monthsBetween(today, neededByDate), 0);
+
+    const projectedAtDate =
+      observedPointsPerMonth !== null ? accruedPoints + observedPointsPerMonth * monthsUntil : null;
+    const reached = remainingNow === 0;
+    const shortfallAtDate = reached
+      ? null
+      : projectedAtDate !== null
+        ? Math.max(cumulativeNeeded - projectedAtDate, 0)
+        : null;
+    const remainingCumulative = Math.max(cumulativeNeeded - accruedPoints, 0);
+    const pointsPerMonthNeeded =
+      reached || remainingCumulative === 0
+        ? null
+        : monthsUntil > 0
+          ? remainingCumulative / monthsUntil
+          : null;
+    const onTrack = reached
+      ? true
+      : projectedAtDate !== null
+        ? projectedAtDate >= cumulativeNeeded
+        : null;
+
+    return {
+      id: f.id,
+      label: f.label,
+      points: f.points,
+      economyFareEur: f.economyFareEur,
+      neededBy: toDateStr(f.neededBy),
+      status: 'planned',
+      redeemedAt: f.redeemedAt ? toDateStr(f.redeemedAt) : null,
+      coveredNow,
+      pctCoveredNow,
+      remainingNow,
+      cumulativeNeeded,
+      remainingCumulative,
+      projectedAtDate,
+      shortfallAtDate,
+      pointsPerMonthNeeded,
+      onTrack,
+    };
+  });
+
+  const redeemedFlights: PointsFlightProgress[] = redeemedFlightsAll
+    .slice()
+    .sort((a, b) => toDate(b.redeemedAt).getTime() - toDate(a.redeemedAt).getTime())
+    .map((f) => ({
+      id: f.id,
+      label: f.label,
+      points: f.points,
+      economyFareEur: f.economyFareEur,
+      neededBy: toDateStr(f.neededBy),
+      status: 'redeemed',
+      redeemedAt: toDateStr(f.redeemedAt),
+      coveredNow: f.points,
+      pctCoveredNow: 100,
+      remainingNow: 0,
+      cumulativeNeeded: f.points,
+      remainingCumulative: 0,
+      projectedAtDate: null,
+      shortfallAtDate: null,
+      pointsPerMonthNeeded: null,
+      onTrack: true,
+    }));
+
+  const nextFlightAtRisk = flights.find((f) => f.onTrack === false) ?? null;
 
   return {
     latestBalance,
     latestRecordedAt,
-    periodElapsedPct,
-    monthsElapsed,
-    monthsRemaining,
+    accruedPoints,
+    availableBalance,
+    totalRedeemedPoints,
+    totalPlannedPoints,
     observedPointsPerMonth,
-    projectedEndBalance,
-    levels,
+    flights,
+    redeemedFlights,
+    nextFlightAtRisk,
   };
 }
