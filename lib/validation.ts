@@ -174,9 +174,17 @@ export const updatePointsFlightSchema = z.object({
   status: pointsFlightStatus.optional(),
   redeemedAt: dateField.optional().nullable(),
   note: z.string().max(500).optional(),
-}).refine(d => d.status !== 'redeemed' || d.redeemedAt !== undefined, {
+}).refine(d => d.status !== 'redeemed' || d.redeemedAt != null, {
+  // Loose `!= null` (not `!== undefined`) so an explicit `redeemedAt: null` alongside
+  // `status: 'redeemed'` is rejected too, not just an omitted redeemedAt.
   message: 'redeemedAt is required when marking a flight redeemed',
   path: ['redeemedAt'],
+}).refine(d => d.redeemedAt !== null || d.status === 'planned', {
+  // Clearing redeemedAt only makes sense together with reverting status to 'planned' — otherwise
+  // a flight already 'redeemed' in the DB could end up with redeemedAt: null and match neither
+  // the planned nor the redeemed filter in computePointsGoalProgress.
+  message: "status must be set to 'planned' when clearing redeemedAt",
+  path: ['status'],
 });
 
 export const createBudgetSchema = z.object({

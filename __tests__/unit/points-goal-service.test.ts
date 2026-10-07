@@ -277,5 +277,42 @@ describe('computePointsGoalProgress', () => {
       expect(p.redeemedFlights).toHaveLength(1);
       expect(p.redeemedFlights[0]!.onTrack).toBe(true);
     });
+
+    it('does not let a past redemption make a new flight look covered (regression)', () => {
+      // Balance is 50,000 after a 150,000-point flight was already redeemed — accruedPoints
+      // (200,000) must never be used as "available for a new flight", only availableBalance.
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }],
+          flights: [
+            {
+              id: 1,
+              label: 'Already redeemed',
+              points: 150_000,
+              economyFareEur: null,
+              neededBy: '2026-05-01',
+              status: 'redeemed',
+              redeemedAt: '2026-05-01',
+            },
+            {
+              id: 2,
+              label: 'New flight',
+              points: 180_000,
+              economyFareEur: null,
+              neededBy: '2027-01-01',
+              status: 'planned',
+              redeemedAt: null,
+            },
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.accruedPoints).toBe(200_000);
+      expect(p.availableBalance).toBe(50_000);
+      const f = p.flights[0]!;
+      expect(f.remainingNow).toBe(130_000);
+      expect(f.remainingCumulative).toBe(130_000);
+      expect(f.onTrack).not.toBe(true);
+    });
   });
 });

@@ -17,6 +17,7 @@ import {
   transactionQuerySchema,
   exportQuerySchema,
   splitCommaParam,
+  updatePointsFlightSchema,
 } from '../../lib/validation';
 
 
@@ -355,5 +356,39 @@ describe('splitCommaParam', () => {
 
   it('drops empty segments', () => {
     expect(splitCommaParam('Shopping,,Dining Out')).toEqual(['Shopping', 'Dining Out']);
+  });
+});
+
+describe('updatePointsFlightSchema', () => {
+  it('accepts marking a flight redeemed with a redeemedAt date', () => {
+    const r = updatePointsFlightSchema.safeParse({ status: 'redeemed', redeemedAt: '2026-10-05' });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects status: redeemed with no redeemedAt', () => {
+    const r = updatePointsFlightSchema.safeParse({ status: 'redeemed' });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects status: redeemed with an explicit redeemedAt: null (regression)', () => {
+    const r = updatePointsFlightSchema.safeParse({ status: 'redeemed', redeemedAt: null });
+    expect(r.success).toBe(false);
+  });
+
+  it('rejects clearing redeemedAt without reverting status to planned (regression)', () => {
+    // Sent alone (status omitted), this would otherwise leave a DB row with status: 'redeemed'
+    // and redeemedAt: null — invisible to both the planned and redeemed filters.
+    const r = updatePointsFlightSchema.safeParse({ redeemedAt: null });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts clearing redeemedAt together with status: planned', () => {
+    const r = updatePointsFlightSchema.safeParse({ status: 'planned', redeemedAt: null });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts an update that touches neither status nor redeemedAt', () => {
+    const r = updatePointsFlightSchema.safeParse({ label: 'Renamed' });
+    expect(r.success).toBe(true);
   });
 });

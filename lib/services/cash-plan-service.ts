@@ -4,7 +4,7 @@
 // what's already committed to other savings goals. Pure function; the caller supplies the real
 // numbers (dashboard aggregation, SavingsGoal rows) so this stays testable without a DB.
 
-const AVG_DAYS_PER_MONTH = 30.4375;
+import { monthsBetween } from './points-goal-service';
 
 export interface CashPlanSavingsGoalInput {
   targetAmount: number;
@@ -18,7 +18,9 @@ export interface CashPlanFlightInput {
   neededBy: Date | string;
   /** Real cash base fare for this flight; excluded from the plan until it's known. */
   economyFareEur: number | null;
-  /** € cost of closing this flight's Avios gap at the subscription rate (0 once covered). */
+  /** This flight's own incremental € cost of closing its share of the Avios gap at the
+   * subscription rate (0 once covered) — NOT cumulative across earlier flights; this function
+   * does its own running total below, so a cumulative value here would double-count. */
   aviosShortfallEur: number;
 }
 
@@ -55,16 +57,12 @@ function toDate(d: Date | string): Date {
   return d instanceof Date ? d : new Date(d);
 }
 
-function monthsBetween(a: Date, b: Date): number {
-  return (b.getTime() - a.getTime()) / 86_400_000 / AVG_DAYS_PER_MONTH;
-}
-
 export function computeCashPlan(input: CashPlanInput, today: Date = new Date()): CashPlanResult {
   const monthlySurplus = input.netTwelveMonths / 12;
 
   const savingsMonthly = input.savingsGoals.reduce((sum, g) => {
     const remaining = g.targetAmount - g.currentAmount;
-    const monthsRemaining = monthsBetween(today, toDate(g.targetDate));
+    const monthsRemaining = monthsBetween(today, g.targetDate);
     if (remaining <= 0 || monthsRemaining <= 0) return sum; // done, or already overdue
     return sum + remaining / monthsRemaining;
   }, 0);
@@ -75,7 +73,7 @@ export function computeCashPlan(input: CashPlanInput, today: Date = new Date()):
   const flights: CashPlanFlightResult[] = input.flights.map((f) => {
     const cashNeeded = (f.economyFareEur ?? 0) + f.aviosShortfallEur;
     cumulativeCashNeeded += cashNeeded;
-    const monthsUntil = Math.max(monthsBetween(today, toDate(f.neededBy)), 0);
+    const monthsUntil = Math.max(monthsBetween(today, f.neededBy), 0);
     const cumulativeAvailableByDate = discretionaryMonthly * monthsUntil;
     const shortBy = Math.max(cumulativeCashNeeded - cumulativeAvailableByDate, 0);
 

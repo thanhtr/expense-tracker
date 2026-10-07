@@ -9,26 +9,20 @@ import {
   VISA_AVIOS_PER_EUR,
   aviosToMrPoints,
 } from '@/lib/avios-facts';
-import type { PointsFlightProgress, PointsGoalProgress } from './points-goal-service';
-
-const AVG_DAYS_PER_MONTH = 30.4375;
+import { monthsBetween, type PointsFlightProgress, type PointsGoalProgress } from './points-goal-service';
 
 export interface AviosStrategyConversion {
   flightId: number;
   flightLabel: string;
   neededBy: string;
   shortfallPoints: number;
+  /** Divide any *Total figure by this to get a per-month amount, if needed. */
   monthsUntil: number;
   eurTotal: number;
-  eurPerMonth: number;
   mrPoints: number;
-  mrPerMonth: number;
   visaSpendBasicTotal: number;
-  visaSpendBasicPerMonth: number;
   visaSpendSilverTotal: number;
-  visaSpendSilverPerMonth: number;
   amexSpendTotal: number;
-  amexSpendPerMonth: number;
   overCap: boolean;
 }
 
@@ -47,16 +41,9 @@ function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConver
   // the conservative, pace-agnostic fallback. This is cumulative, not just this flight's own
   // remainingNow, so a later flight's conversion reflects the full commitment up to its date.
   const shortfallPoints = flight.shortfallAtDate ?? flight.remainingCumulative;
-  const neededByDate = new Date(flight.neededBy);
-  const monthsUntil = Math.max((neededByDate.getTime() - today.getTime()) / 86_400_000 / AVG_DAYS_PER_MONTH, 0);
-  const divisor = monthsUntil > 0 ? monthsUntil : 1;
+  const monthsUntil = Math.max(monthsBetween(today, flight.neededBy), 0);
 
-  const eurTotal = shortfallPoints * SUBSCRIPTION_EUR_PER_AVIOS;
   const mrPoints = aviosToMrPoints(shortfallPoints);
-  const visaSpendBasicTotal = shortfallPoints / VISA_AVIOS_PER_EUR.basic;
-  const visaSpendSilverTotal = shortfallPoints / VISA_AVIOS_PER_EUR.silver;
-  // Amex earns MR, not Avios directly — spend enough to generate the MR needed, then transfer.
-  const amexSpendTotal = mrPoints / AMEX_MR_PER_EUR;
 
   return {
     flightId: flight.id,
@@ -64,16 +51,12 @@ function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConver
     neededBy: flight.neededBy,
     shortfallPoints,
     monthsUntil,
-    eurTotal,
-    eurPerMonth: eurTotal / divisor,
+    eurTotal: shortfallPoints * SUBSCRIPTION_EUR_PER_AVIOS,
     mrPoints,
-    mrPerMonth: mrPoints / divisor,
-    visaSpendBasicTotal,
-    visaSpendBasicPerMonth: visaSpendBasicTotal / divisor,
-    visaSpendSilverTotal,
-    visaSpendSilverPerMonth: visaSpendSilverTotal / divisor,
-    amexSpendTotal,
-    amexSpendPerMonth: amexSpendTotal / divisor,
+    visaSpendBasicTotal: shortfallPoints / VISA_AVIOS_PER_EUR.basic,
+    visaSpendSilverTotal: shortfallPoints / VISA_AVIOS_PER_EUR.silver,
+    // Amex earns MR, not Avios directly — spend enough to generate the MR needed, then transfer.
+    amexSpendTotal: mrPoints / AMEX_MR_PER_EUR,
     overCap: shortfallPoints > PURCHASE_CAP_PER_YEAR,
   };
 }

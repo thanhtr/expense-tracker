@@ -4,7 +4,7 @@
 // tracking"). A goal is "done" when every tracked flight is covered or redeemed; there's no
 // separate period or level target.
 
-const AVG_DAYS_PER_MONTH = 30.4375; // 365.25 / 12 — used only for day->month duration conversion
+export const AVG_DAYS_PER_MONTH = 30.4375; // 365.25 / 12 — used only for day->month duration conversion
 const PACE_WINDOW_DAYS = 365; // observed pace/projection use only the trailing 12 months
 
 export interface PointsBalanceInput {
@@ -72,7 +72,9 @@ export interface PointsGoalProgress {
   observedPointsPerMonth: number | null;
   flights: PointsFlightProgress[];
   redeemedFlights: PointsFlightProgress[];
-  /** First planned flight (by neededBy) that isn't covered now and isn't on track; null if none. */
+  /** First planned flight (by neededBy) that isn't fully covered by the current balance yet;
+   * null if every planned flight is already covered. Same selection avios-strategy.ts uses for
+   * its own "next at risk" conversion, so the two always agree on which flight that is. */
   nextFlightAtRisk: PointsFlightProgress | null;
 }
 
@@ -98,8 +100,8 @@ function daysBetween(a: Date, b: Date): number {
   return (b.getTime() - a.getTime()) / 86_400_000;
 }
 
-function monthsBetween(a: Date, b: Date): number {
-  return daysBetween(a, b) / AVG_DAYS_PER_MONTH;
+export function monthsBetween(a: Date | string, b: Date | string): number {
+  return daysBetween(toDate(a), toDate(b)) / AVG_DAYS_PER_MONTH;
 }
 
 export function computePointsGoalProgress(
@@ -170,15 +172,18 @@ export function computePointsGoalProgress(
     const neededByDate = toDate(f.neededBy);
     const monthsUntil = Math.max(monthsBetween(today, neededByDate), 0);
 
+    // Projected from availableBalance (the real spendable amount today), not accruedPoints —
+    // accruedPoints adds past redemptions back in for pace purposes only, and would otherwise
+    // double-count Avios already spent as if still available for a new flight.
     const projectedAtDate =
-      observedPointsPerMonth !== null ? accruedPoints + observedPointsPerMonth * monthsUntil : null;
+      observedPointsPerMonth !== null ? availableBalance + observedPointsPerMonth * monthsUntil : null;
     const reached = remainingNow === 0;
     const shortfallAtDate = reached
       ? null
       : projectedAtDate !== null
         ? Math.max(cumulativeNeeded - projectedAtDate, 0)
         : null;
-    const remainingCumulative = Math.max(cumulativeNeeded - accruedPoints, 0);
+    const remainingCumulative = Math.max(cumulativeNeeded - availableBalance, 0);
     const pointsPerMonthNeeded =
       reached || remainingCumulative === 0
         ? null
@@ -233,7 +238,7 @@ export function computePointsGoalProgress(
       onTrack: true,
     }));
 
-  const nextFlightAtRisk = flights.find((f) => f.onTrack === false) ?? null;
+  const nextFlightAtRisk = flights.find((f) => f.remainingNow > 0) ?? null;
 
   return {
     latestBalance,

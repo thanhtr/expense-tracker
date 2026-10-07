@@ -44,16 +44,28 @@ export async function enrichPointsGoals<T extends PointsGoalInput & { unit: stri
     if (goal.unit !== 'Avios') return goal;
 
     const strategy = computeAviosStrategy(goal.progress);
+
+    // f.shortfallAtDate/remainingCumulative are already cumulative across every earlier (by
+    // neededBy) flight — cash-plan-service.ts does its own running total, so feeding it a
+    // cumulative figure directly would double-count. Diff consecutive cumulative shortfalls to
+    // get each flight's own incremental share instead; the running sum telescopes back to the
+    // same cumulative shortfall at each point.
+    let previousShortfall = 0;
     const cashPlan = computeCashPlan({
       netTwelveMonths,
       savingsGoals,
-      flights: goal.progress.flights.map((f) => ({
-        id: f.id,
-        label: f.label,
-        neededBy: f.neededBy,
-        economyFareEur: f.economyFareEur,
-        aviosShortfallEur: (f.shortfallAtDate ?? f.remainingCumulative) * SUBSCRIPTION_EUR_PER_AVIOS,
-      })),
+      flights: goal.progress.flights.map((f) => {
+        const cumulativeShortfall = f.shortfallAtDate ?? f.remainingCumulative;
+        const incrementalShortfall = Math.max(cumulativeShortfall - previousShortfall, 0);
+        previousShortfall = cumulativeShortfall;
+        return {
+          id: f.id,
+          label: f.label,
+          neededBy: f.neededBy,
+          economyFareEur: f.economyFareEur,
+          aviosShortfallEur: incrementalShortfall * SUBSCRIPTION_EUR_PER_AVIOS,
+        };
+      }),
     });
 
     return { ...goal, strategy, cashPlan };
