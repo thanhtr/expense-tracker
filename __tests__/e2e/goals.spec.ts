@@ -42,8 +42,6 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       totalRedeemedPoints: 0,
       totalPlannedPoints: 160_000,
       observedPointsPerMonth: 10_000,
-      purchases: [],
-      purchasedThisCalendarYearPoints: 0,
       daysSinceLastActivity: 30,
       flights: [makeFlight()],
       pastFlights: [],
@@ -352,31 +350,6 @@ test.describe('Goals page', () => {
 
     await expect.poll(() => patchedBody).not.toBeNull();
     expect(patchedBody).toMatchObject({ status: 'planned', redeemedAt: null });
-  });
-
-  test('records a purchase/bonus', async ({ page }) => {
-    let addedBody: Record<string, unknown> | null = null;
-    await page.route(/\/api\/points-goals/, async (route) => {
-      const url = route.request().url();
-      const method = route.request().method();
-      if (method === 'POST' && url.includes('/purchases')) {
-        addedBody = route.request().postDataJSON();
-        await route.fulfill({ status: 201, json: makeGoal() });
-      } else {
-        await route.fulfill({ json: [makeGoal()] });
-      }
-    });
-    await page.goto('/goals');
-
-    await page.getByRole('button', { name: /Show purchases/ }).click();
-    await page.getByRole('button', { name: '+ Add purchase/bonus' }).click();
-    await page.locator('input[type="number"]').first().fill('85000');
-    await page.locator('input[type="number"]').nth(1).fill('1071');
-    await page.getByRole('combobox').selectOption('bonus');
-    await page.getByRole('button', { name: 'Save' }).click();
-
-    await expect.poll(() => addedBody).not.toBeNull();
-    expect(addedBody).toMatchObject({ points: 85_000, costEur: 1_071, kind: 'bonus' });
   });
 
   test('shows a staleness warning once activity is 18+ months old', async ({ page }) => {

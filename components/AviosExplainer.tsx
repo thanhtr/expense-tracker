@@ -108,15 +108,13 @@ export function AviosExplainer() {
           </section>
 
           <section className="space-y-2">
-            <h3 className="font-semibold text-[var(--fg-1)]">Purchases, bonuses, and tier points</h3>
+            <h3 className="font-semibold text-[var(--fg-1)]">Tier points</h3>
             <p>
-              A balance reading is just a snapshot — it can&apos;t say whether a jump came from normal spending or a
-              one-off top-up. Recording a purchase or bonus separately keeps the observed pace above to organic card/
-              flight earn only, so a single bulk buy or welcome bonus doesn&apos;t make future projections look more
-              optimistic than they are, and lets the {fmtNumber(PURCHASE_CAP_PER_YEAR)}/yr purchase cap be checked
-              against what you&apos;ve actually bought this calendar year. Tracking tier points toward Silver
-              requalification uses this exact same mechanism — just create a goal with unit &quot;Tier points&quot;
-              instead of &quot;Avios&quot;; nothing new to learn.
+              Tracking tier points toward Silver requalification uses the exact same goal mechanism as Avios — just
+              create a goal with unit &quot;Tier points&quot; instead of &quot;Avios&quot;; nothing new to learn.
+              Balance readings are the single source of truth for every goal: a reading may silently include a
+              purchased or bonus top-up, so a one-off bulk buy or welcome bonus can make the observed pace above look
+              more optimistic than ongoing earn really is.
             </p>
           </section>
 
