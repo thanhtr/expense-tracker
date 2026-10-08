@@ -15,10 +15,10 @@ export async function POST(
 
     const parsed = parseBody(createPointsBalanceSchema, await request.json());
     if ('error' in parsed) return parsed.error;
-    const { balance, recordedAt, note } = parsed.data;
+    const { balance, amexMr, recordedAt, note } = parsed.data;
 
     await prisma.pointsBalance.create({
-      data: { goalId: idResult.id, balance, note, recordedAt: new Date(recordedAt) },
+      data: { goalId: idResult.id, balance, amexMr, note, recordedAt: new Date(recordedAt) },
     });
 
     const goal = await prisma.pointsGoal.findUnique({
@@ -52,10 +52,11 @@ export async function PATCH(
 
     const parsed = parseBody(updatePointsBalanceSchema, await request.json());
     if ('error' in parsed) return parsed.error;
-    const { balance, recordedAt, note } = parsed.data;
+    const { balance, amexMr, recordedAt, note } = parsed.data;
 
     const data: Parameters<typeof prisma.pointsBalance.updateMany>[0]['data'] = {};
     if (balance !== undefined) data.balance = balance;
+    if (amexMr !== undefined) data.amexMr = amexMr;
     if (recordedAt !== undefined) data.recordedAt = new Date(recordedAt);
     if (note !== undefined) data.note = note;
 

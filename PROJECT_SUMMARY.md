@@ -1376,6 +1376,76 @@ aggregation can be derived from transactions instead of manual entry.
   struck out as "stale, superseded by Phase 3" in a later session, when it was in fact the real
   next step the user still wanted done — restored and executed here.
 
+### Goal readings visible by default, Amex MR tracked per reading
+Two small `/goals` UX gaps, raised alongside a broader ask to improve how the Goal feature is used
+(see the "Can I afford it?" rebuild right below, from the same session):
+- **Readings were hidden by default.** `historyOpen` now starts `true`; the "Show/Hide readings"
+  toggle became a `Readings (N)` heading with "+ Add reading" next to it, rows moved from the
+  faint `--fg-3`/11px to `--fg-2`/12px, and the list caps at the latest 5 with a "Show all (N)"
+  link beyond that.
+- **No way to record Amex MR.** Untransferred Membership Rewards points are effectively Avios you
+  already hold (17 MR → 10 Avios, official rate, `lib/avios-facts.ts`). Per user decision
+  (2026-10-08), an optional "Amex MR" field on each reading now **counts toward available Avios**,
+  not just display:
+  - `PointsBalance.amexMr Int @default(0)`, migration `20261008000000_points_balance_amex_mr`
+    (`prisma db execute` + `migrate resolve --applied`, per this DB's established drift
+    workaround).
+  - New `mrToAvios(mr)` in `lib/avios-facts.ts` — inverse of the existing `aviosToMrPoints`,
+    rounding **down** to whole 17-MR transfer units (a partial unit isn't spendable yet).
+  - `points-goal-service.ts`'s `computePointsGoalProgress` folds the latest reading's MR-as-Avios
+    into both `accruedPoints` and `availableBalance`, and into the trailing-12-month pace series
+    per-reading — so transferring MR into Avios between two readings doesn't read as a pace spike.
+    New `latestAmexMr`/`amexMrAviosEquivalent` on `PointsGoalProgress`. Strategy and cash plan
+    inherit this for free since both read `progress`.
+  - UI (Avios-unit goals only): an "Amex MR" input in the add/edit reading forms; the balance
+    summary reads `6,000 Avios + 20,000 MR (≈ 11,760 Avios) = 17,760 available`; reading rows show
+    `· 20,000 MR` when non-zero. `AviosExplainer.tsx` gets one line on the 17:10 rate.
+- **Investigation (not built in this PR):** checked production data for higher-value next steps —
+  deriving expected MR/Avios earn from existing Amex/Finnair-Visa transaction categories (to
+  reconcile against the observed pace), deriving tier points from Visa spend automatically (no
+  manual reading needed), and a "last reading N days ago" nudge. Also surfaced, while checking the
+  cash-plan math for the Amex MR change, the "Can I afford it?" issue fixed right below.
+
+### "Can I afford it?" rebuilt around surplus and the balance sheet, not raw net income
+`deriveMoneyCapacity` (`lib/services/money-capacity-service.ts`) computed `(net - investments) /
+12`, which read as permanently, deeply negative for this household despite a healthy real
+surplus. Checked against production data (Jan–Oct 2026): real surplus ≈€2.5–2.7k/mo, but
+investments include irregular lumps (e.g. €21.5k in one month) paid out of existing savings (an
+Internal Transfer drew down the "Emergency" asset the same month), not from that month's income —
+treating every investment euro as a recurring monthly cost made the number wrong, not
+conservative. The 12-month divisor also overstated history by ~25% once pre-2026 rows were
+deleted (only ~9 completed months exist).
+- **`money-capacity-service.ts` rewritten**: `monthlySurplus` = income − expenses over completed
+  calendar months only (never a partial current month; a rolling 12, or fewer if less history
+  exists — same windowing `forecast-service.ts` already uses, for the same reason).
+  `regularInvesting` = the **median** monthly Investments-category total over that window, so a
+  one-off lump funded from savings doesn't inflate the "committed" baseline (a plain average
+  would). `freeMonthlyFlow` = surplus − regularInvesting (can be negative). `liquidNetWorth` =
+  bank + investment + crypto assets (`LIQUID_ASSET_TYPES`), shown as context and as the ceiling
+  for a flight that has to draw on existing wealth.
+- **`cash-plan-service.ts` rewritten**: the cumulative, by-date logic is unchanged, but a binary
+  on-track/short-by became a three-tier `CashPlanTier`: **funded** (spare cash + free monthly flow
+  alone covers it), **tradeoff** (covered only if regular investing is temporarily reduced — shown
+  as the exact €/mo reduction needed), **wealth** (short even pausing investing entirely — shown as
+  a € amount and a % of liquid net worth). Each flight also gets `setAsidePerMonth`/
+  `setAsidePctOfSurplus` — its own incremental cost spread over the months until its date,
+  independent of tier.
+- **`points-goal-enrichment.ts`**: `fetchMoneyCapacity` now also calls
+  `getEarliestTransactionDate()` (window clamping) and a new `fetchMonthlyInvestments()` (buckets
+  Investments-category transactions by calendar month, zero-filled, for the median). `monthRange`
+  was extracted from `forecast-service.ts` into the shared `lib/services/stats.ts` (alongside the
+  existing `monthString`/`shiftMonth`) since both modules now need it.
+- Real effect on this household's own data: the cash plan's header went from "−1,955 €/mo
+  discretionary ... investing already exceeds net income" (in red) to "Surplus 2,500 €/mo ·
+  regular investing 2,000 €/mo · free 500 €/mo · 26,976 € spare cash · 132,146 € liquid net worth".
+- Tests: `money-capacity-service.test.ts` and `cash-plan-service.test.ts` rewritten for the new
+  shapes/tiers; `points-goal-enrichment.test.ts`'s five cross-goal-sharing regression tests
+  adapted to the new fields (same assertions, now phrased in terms of `tier` instead of
+  `onTrack`/`shortBy`).
+- Not done here (raised, not built): deriving expected Avios/MR earn from Amex/Finnair-Visa
+  transaction categories to reconcile against the observed pace, and deriving tier points from
+  Visa spend automatically — same investigation that surfaced this fix.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

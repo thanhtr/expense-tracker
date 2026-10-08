@@ -58,9 +58,13 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       combined: null,
     },
     cashPlan: {
-      monthlyDiscretionary: 700, liquidBufferAvailable: 500, overcommitted: false,
-      flights: [{ id: 1, label: 'Japan return, 2 pax', neededBy: '2027-10-01', cashNeeded: 2_584.8, onTrack: false, shortBy: 1_784.8 }],
-      onTrack: false,
+      monthlySurplus: 2_700, regularInvesting: 2_000, freeMonthlyFlow: 700, liquidBufferAvailable: 500, liquidNetWorth: 50_000,
+      flights: [{
+        id: 1, label: 'Japan return, 2 pax', neededBy: '2027-10-01', cashNeeded: 2_584.8,
+        tier: 'wealth', setAsidePerMonth: 646.2, setAsidePctOfSurplus: 23.9,
+        tradeOffReductionPerMonth: null, wealthNeeded: 1_784.8, wealthPctOfNetWorth: 3.6,
+      }],
+      allFundedOrTradeoff: false,
     },
     ...overrides,
   };
@@ -93,7 +97,7 @@ test.describe('Goals page', () => {
     await expect(page.getByText('Closing the Avios gap')).toBeVisible();
     await expect(page.getByText(/70,000 Avios short/)).toBeVisible();
     await expect(page.getByText('Can I afford it?')).toBeVisible();
-    await expect(page.getByText(/short by/)).toBeVisible();
+    await expect(page.getByText(/from investments\/savings/)).toBeVisible();
   });
 
   test('creates a goal with a POST body matching the form', async ({ page }) => {
@@ -113,6 +117,56 @@ test.describe('Goals page', () => {
     await page.getByRole('button', { name: 'Create goal' }).click();
 
     await expect(page.getByText('No flights tracked yet.')).toBeVisible();
+  });
+
+  test('readings are visible without clicking a toggle', async ({ page }) => {
+    await page.route(/\/api\/points-goals/, async (route) => {
+      await route.fulfill({ json: [makeGoal()] });
+    });
+    await page.goto('/goals');
+
+    // No click needed — both readings' dates should already be on screen.
+    await expect(page.getByText('card + flight earn')).toBeVisible();
+  });
+
+  test('shows the Amex MR balance and its Avios equivalent alongside the reading', async ({ page }) => {
+    await page.route(/\/api\/points-goals/, async (route) => {
+      await route.fulfill({
+        json: [makeGoal({
+          progress: {
+            ...makeGoal().progress,
+            latestAmexMr: 20_000,
+            amexMrAviosEquivalent: 11_760,
+          },
+        })],
+      });
+    });
+    await page.goto('/goals');
+
+    await expect(page.getByText(/20,000.*MR.*11,760.*Avios/)).toBeVisible();
+  });
+
+  test('adds a balance reading with an Amex MR value', async ({ page }) => {
+    let addedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/points-goals/, async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      if (method === 'POST' && url.includes('/balances')) {
+        addedBody = route.request().postDataJSON();
+        await route.fulfill({ status: 201, json: makeGoal() });
+      } else {
+        await route.fulfill({ json: [makeGoal()] });
+      }
+    });
+    await page.goto('/goals');
+
+    await page.getByRole('button', { name: /Add reading/ }).click();
+    await page.getByLabel('Balance (Avios)').fill('60000');
+    await page.getByLabel('Amex MR (optional)').fill('5000');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect.poll(() => addedBody).not.toBeNull();
+    expect(addedBody).toMatchObject({ balance: 60_000, amexMr: 5_000 });
   });
 
   test('adds a balance reading', async ({ page }) => {
@@ -272,10 +326,8 @@ test.describe('Goals page', () => {
     });
     await page.goto('/goals');
 
-    await page.getByRole('button', { name: /Show readings/ }).click();
     await page.getByRole('button', { name: 'Edit reading' }).first().click();
-    const balanceInputs = page.locator('input[type="number"]');
-    await balanceInputs.last().fill('55000');
+    await page.getByLabel('Avios', { exact: true }).fill('55000');
     await page.getByRole('button', { name: 'Save' }).click();
 
     await expect.poll(() => patchedBody).not.toBeNull();
@@ -295,7 +347,6 @@ test.describe('Goals page', () => {
     });
     await page.goto('/goals');
 
-    await page.getByRole('button', { name: /Show readings/ }).click();
     await page.getByRole('button', { name: 'Edit reading' }).click();
 
     await expect(page.locator('input[type="date"]')).toHaveValue('2027-06-01');

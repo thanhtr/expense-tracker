@@ -364,4 +364,44 @@ describe('computePointsGoalProgress', () => {
       expect(p.daysSinceLastActivity).toBeNull();
     });
   });
+
+  describe('Amex MR', () => {
+    it('folds untransferred MR into accrued/available at 17:10, rounded down to whole units', () => {
+      const p = computePointsGoalProgress(
+        goal({ balances: [{ id: 1, balance: 50_000, amexMr: 20_000, recordedAt: '2026-06-01' }] }),
+        new Date('2026-07-01'),
+      );
+      // floor(20000/17) = 1176 whole units * 10 = 11_760
+      expect(p.latestAmexMr).toBe(20_000);
+      expect(p.amexMrAviosEquivalent).toBe(11_760);
+      expect(p.accruedPoints).toBe(61_760);
+      expect(p.availableBalance).toBe(61_760);
+    });
+
+    it('defaults to 0 when amexMr is absent, leaving existing behavior unchanged', () => {
+      const p = computePointsGoalProgress(
+        goal({ balances: [{ id: 1, balance: 50_000, recordedAt: '2026-06-01' }] }),
+        new Date('2026-07-01'),
+      );
+      expect(p.latestAmexMr).toBe(0);
+      expect(p.amexMrAviosEquivalent).toBe(0);
+      expect(p.accruedPoints).toBe(50_000);
+      expect(p.availableBalance).toBe(50_000);
+    });
+
+    it('does not read a transfer from MR into Avios as a jump in pace', () => {
+      // 17,000 MR == 10,000 Avios exactly. Transferring it between readings shifts balance/amexMr
+      // but the accrued-equivalent total (and therefore the pace) should stay flat.
+      const p = computePointsGoalProgress(
+        goal({
+          balances: [
+            { id: 1, balance: 40_000, amexMr: 17_000, recordedAt: '2026-01-01' }, // accrued-eq 50,000
+            { id: 2, balance: 50_000, amexMr: 0, recordedAt: '2026-07-01' }, // accrued-eq 50,000
+          ],
+        }),
+        new Date('2026-07-01'),
+      );
+      expect(p.observedPointsPerMonth).toBeCloseTo(0, 5);
+    });
+  });
 });

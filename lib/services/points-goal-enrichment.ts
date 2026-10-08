@@ -3,13 +3,17 @@
 // points-goal-service.ts so that file can stay a pure function with no DB dependency.
 
 import { prisma } from '@/lib/db';
-import { getDashboardStats } from './aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
 import { FIRE_DEFAULTS } from './fire-service';
 import { deriveMoneyCapacity, type MoneyCapacity } from './money-capacity-service';
+import { monthString, monthRange } from './stats';
+import { LIQUID_ASSET_TYPES } from '@/lib/constants';
 import { SUBSCRIPTION_EUR_PER_AVIOS } from '@/lib/avios-facts';
 import { withProgress, POINTS_GOAL_INCLUDE, type PointsGoalInput, type PointsGoalProgress } from './points-goal-service';
 import { computeAviosStrategy, type AviosStrategyResult } from './avios-strategy';
 import { computeCashPlan, type CashPlanFlightInput, type CashPlanResult } from './cash-plan-service';
+
+const CAPACITY_WINDOW_MONTHS = 12;
 
 type GoalWithProgress<T> = T & { progress: PointsGoalProgress };
 type EnrichedGoal<T> = GoalWithProgress<T> & {
@@ -17,28 +21,68 @@ type EnrichedGoal<T> = GoalWithProgress<T> & {
   cashPlan?: CashPlanResult;
 };
 
+// One Investments-category total per month in `months` (zero-filled), used so
+// money-capacity-service.ts can take the *median* rather than the window total — a one-off lump
+// funded from existing savings shouldn't skew the "regular investing" baseline.
+async function fetchMonthlyInvestments(start: Date, end: Date, months: string[]): Promise<number[]> {
+  const rows = await prisma.transaction.findMany({
+    where: { type: 'Expense', category: 'Investments', date: { gte: start, lte: end } },
+    select: { date: true, amount: true },
+  });
+  const byMonth = new Map<string, number>();
+  for (const row of rows) {
+    const m = monthString(row.date);
+    byMonth.set(m, (byMonth.get(m) ?? 0) + Math.abs(row.amount));
+  }
+  return months.map((m) => byMonth.get(m) ?? 0);
+}
+
 // Entirely derived from real data — never from a manually-maintained goal. SavingsGoal/GoalsCard
 // were retired (PR #98) and are not read here.
+//
+// Window is completed calendar months only (never a partial current month), a rolling 12 if that
+// much history exists, otherwise as far back as the data actually goes — same pattern
+// forecast-service.ts uses, for the same reason (pre-2026 data was deleted; dividing by a fixed
+// 12 would understate the real monthly average).
 async function fetchMoneyCapacity(): Promise<MoneyCapacity> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const twelveMonthsAgo = new Date(today);
-  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const now = new Date();
+  const windowEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of previous month
+  const windowEndMonth = monthString(windowEnd);
 
-  const [stats, bankAssets, fireConfig] = await Promise.all([
-    getDashboardStats(twelveMonthsAgo, today),
+  const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
+  rollingStart.setMonth(rollingStart.getMonth() - (CAPACITY_WINDOW_MONTHS - 1));
+
+  // No transactions at all (fresh install, wiped DB) falls back to the full rolling window —
+  // getDashboardStats/fetchMonthlyInvestments just return zeros in that case. Guards against
+  // earliestDataDate being null while still "later than rollingStart" by month-string comparison
+  // (null's fallback month would otherwise equal windowEndMonth, always later), which would pass
+  // a null Date as the Prisma query's `gte` filter below.
+  const earliestDataDate = await getEarliestTransactionDate();
+  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
+  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
+  const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
+
+  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
+
+  const [stats, monthlyInvestments, bankAssets, liquidAssets, fireConfig] = await Promise.all([
+    getDashboardStats(windowStart, windowEnd),
+    fetchMonthlyInvestments(windowStart, windowEnd, months),
     prisma.asset.findMany({ where: { type: 'bank' } }),
+    prisma.asset.findMany({ where: { type: { in: Array.from(LIQUID_ASSET_TYPES) } } }),
     prisma.fireConfig.findUnique({ where: { id: 1 } }),
   ]);
 
   const bankTotal = bankAssets.reduce((sum, a) => sum + a.balance, 0);
-  const avgMonthlyIncome = stats.totalIncome / Math.max(1, stats.byMonthIncome.length);
+  const liquidAssetTotal = liquidAssets.reduce((sum, a) => sum + a.balance, 0);
+  const avgMonthlyIncome = stats.totalIncome / Math.max(1, months.length);
   const emergencyFundMonths = fireConfig?.emergencyFundMonths ?? FIRE_DEFAULTS.emergencyFundMonths;
 
   return deriveMoneyCapacity({
-    netTwelveMonths: stats.net,
-    investmentsTwelveMonths: stats.totalInvestments,
+    netOverWindow: stats.net,
+    monthCount: months.length,
+    monthlyInvestments,
     bankTotal,
+    liquidAssetTotal,
     avgMonthlyIncome,
     emergencyFundMonths,
   });
@@ -92,8 +136,11 @@ function buildSharedCashPlan(
   });
 
   const shared = computeCashPlan({
-    monthlyDiscretionary: capacity.monthlyDiscretionary,
+    monthlySurplus: capacity.monthlySurplus,
+    regularInvesting: capacity.regularInvesting,
+    freeMonthlyFlow: capacity.freeMonthlyFlow,
     liquidBufferAvailable: capacity.liquidBufferAvailable,
+    liquidNetWorth: capacity.liquidNetWorth,
     flights: flightInputs,
   });
 
@@ -119,15 +166,17 @@ export async function enrichPointsGoals<T extends PointsGoalInput & { unit: stri
     const strategy = computeAviosStrategy(goal.progress);
     const ownPlannedIds = new Set(goal.progress.flights.filter((f) => f.status === 'planned').map((f) => f.id));
     const cashPlanFlights = Array.from(sharedFlightResults.values()).filter((f) => ownPlannedIds.has(f.id));
-    const firstShortfall = cashPlanFlights.find((f) => !f.onTrack) ?? null;
+    const firstWealthTier = cashPlanFlights.find((f) => f.tier === 'wealth') ?? null;
 
     const cashPlan: CashPlanResult = {
-      monthlyDiscretionary: capacity.monthlyDiscretionary,
+      monthlySurplus: capacity.monthlySurplus,
+      regularInvesting: capacity.regularInvesting,
+      freeMonthlyFlow: capacity.freeMonthlyFlow,
       liquidBufferAvailable: capacity.liquidBufferAvailable,
-      overcommitted: capacity.monthlyDiscretionary < 0,
+      liquidNetWorth: capacity.liquidNetWorth,
       flights: cashPlanFlights,
-      onTrack: firstShortfall === null,
-      firstShortfallFlightId: firstShortfall?.id ?? null,
+      allFundedOrTradeoff: firstWealthTier === null,
+      firstWealthTierFlightId: firstWealthTier?.id ?? null,
     };
 
     return { ...goal, strategy, cashPlan };

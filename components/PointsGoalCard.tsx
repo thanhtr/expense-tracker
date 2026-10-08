@@ -10,6 +10,7 @@ import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS } f
 interface Balance {
   id: number;
   balance: number;
+  amexMr: number;
   recordedAt: string;
   note: string;
 }
@@ -39,6 +40,8 @@ interface FlightProgress {
 interface Progress {
   latestBalance: number;
   latestRecordedAt: string | null;
+  latestAmexMr: number;
+  amexMrAviosEquivalent: number;
   accruedPoints: number;
   availableBalance: number;
   totalRedeemedPoints: number;
@@ -70,21 +73,29 @@ interface AviosStrategy {
   combined: AviosStrategyConversion | null;
 }
 
+type CashPlanTier = 'funded' | 'tradeoff' | 'wealth';
+
 interface CashPlanFlight {
   id: number;
   label: string;
   neededBy: string;
   cashNeeded: number;
-  onTrack: boolean;
-  shortBy: number;
+  tier: CashPlanTier;
+  setAsidePerMonth: number | null;
+  setAsidePctOfSurplus: number | null;
+  tradeOffReductionPerMonth: number | null;
+  wealthNeeded: number | null;
+  wealthPctOfNetWorth: number | null;
 }
 
 interface CashPlan {
-  monthlyDiscretionary: number;
+  monthlySurplus: number;
+  regularInvesting: number;
+  freeMonthlyFlow: number;
   liquidBufferAvailable: number;
-  overcommitted: boolean;
+  liquidNetWorth: number;
   flights: CashPlanFlight[];
-  onTrack: boolean;
+  allFundedOrTradeoff: boolean;
 }
 
 interface PointsGoal {
@@ -286,13 +297,15 @@ function GoalCard({
 }) {
   const [addingReading, setAddingReading] = useState(false);
   const [readingBalance, setReadingBalance] = useState('');
+  const [readingAmexMr, setReadingAmexMr] = useState('');
   const [readingDate, setReadingDate] = useState(today());
   const [readingNote, setReadingNote] = useState('');
   const [savingReading, setSavingReading] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
+  const [allReadingsShown, setAllReadingsShown] = useState(false);
   const [redeemedOpen, setRedeemedOpen] = useState(false);
   const [editingBalanceId, setEditingBalanceId] = useState<number | null>(null);
-  const [balanceEditForm, setBalanceEditForm] = useState({ balance: '', recordedAt: '', note: '' });
+  const [balanceEditForm, setBalanceEditForm] = useState({ balance: '', amexMr: '', recordedAt: '', note: '' });
   const [savingBalanceEdit, setSavingBalanceEdit] = useState(false);
 
   const [addingFlight, setAddingFlight] = useState(false);
@@ -313,16 +326,18 @@ function GoalCard({
   async function handleAddReading(e: React.FormEvent) {
     e.preventDefault();
     const balance = parseInt(readingBalance, 10);
-    if (isNaN(balance) || balance < 0) return;
+    const amexMr = readingAmexMr ? parseInt(readingAmexMr, 10) : 0;
+    if (isNaN(balance) || balance < 0 || isNaN(amexMr) || amexMr < 0) return;
     setSavingReading(true);
     try {
       const res = await fetch(`/api/points-goals/${goal.id}/balances`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ balance, recordedAt: readingDate, note: readingNote }),
+        body: JSON.stringify({ balance, amexMr, recordedAt: readingDate, note: readingNote }),
       });
       if (res.ok) {
         setReadingBalance('');
+        setReadingAmexMr('');
         setReadingNote('');
         setAddingReading(false);
         onUpdate(await res.json() as PointsGoal);
@@ -349,13 +364,14 @@ function GoalCard({
   async function handleSaveBalanceEdit(e: React.FormEvent, balanceId: number) {
     e.preventDefault();
     const balance = parseInt(balanceEditForm.balance, 10);
-    if (isNaN(balance) || balance < 0 || !balanceEditForm.recordedAt) return;
+    const amexMr = balanceEditForm.amexMr ? parseInt(balanceEditForm.amexMr, 10) : 0;
+    if (isNaN(balance) || balance < 0 || isNaN(amexMr) || amexMr < 0 || !balanceEditForm.recordedAt) return;
     setSavingBalanceEdit(true);
     try {
       const res = await fetch(`/api/points-goals/${goal.id}/balances?balanceId=${balanceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ balance, recordedAt: balanceEditForm.recordedAt, note: balanceEditForm.note }),
+        body: JSON.stringify({ balance, amexMr, recordedAt: balanceEditForm.recordedAt, note: balanceEditForm.note }),
       });
       if (res.ok) {
         setEditingBalanceId(null);
@@ -613,6 +629,13 @@ function GoalCard({
       <div className="mb-4 text-[12px] space-y-[2px]">
         <div className="text-[var(--fg-2)]">
           Balance: <span className="mono font-semibold">{fmtNumber(progress.latestBalance)} {goal.unit}</span>
+          {progress.latestAmexMr > 0 && (
+            <span className="text-[var(--fg-3)]">
+              {' '}+ <span className="mono">{fmtNumber(progress.latestAmexMr)}</span> MR (≈{' '}
+              <span className="mono">{fmtNumber(progress.amexMrAviosEquivalent)}</span> {goal.unit}) ={' '}
+              <span className="mono font-semibold">{fmtNumber(progress.latestBalance + progress.amexMrAviosEquivalent)}</span> available
+            </span>
+          )}
           {progress.latestRecordedAt && <span className="text-[var(--fg-3)]"> as of {fmtDateLong(progress.latestRecordedAt)}</span>}
           {progress.totalRedeemedPoints > 0 && (
             <span className="text-[var(--fg-3)]"> · {fmtNumber(progress.totalRedeemedPoints)} redeemed</span>
@@ -784,23 +807,41 @@ function GoalCard({
         <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
           <div className="font-semibold text-[var(--fg-1)]">Can I afford it?</div>
           <div className="text-[var(--fg-2)]">
-            <span className={`mono font-medium ${goal.cashPlan.overcommitted ? 'text-red-600 dark:text-red-400' : ''}`}>
-              {fmtEUR(goal.cashPlan.monthlyDiscretionary)}
-            </span>/mo discretionary (net income minus observed investing)
+            Surplus <span className="mono">{fmtEUR(goal.cashPlan.monthlySurplus)}</span>/mo · regular investing{' '}
+            <span className="mono">{fmtEUR(goal.cashPlan.regularInvesting)}</span>/mo · free{' '}
+            <span className={`mono ${goal.cashPlan.freeMonthlyFlow < 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+              {fmtEUR(goal.cashPlan.freeMonthlyFlow)}
+            </span>/mo
             {goal.cashPlan.liquidBufferAvailable > 0 && (
-              <> · <span className="mono">{fmtEUR(goal.cashPlan.liquidBufferAvailable)}</span> spare in the bank, above your emergency buffer</>
+              <> · <span className="mono">{fmtEUR(goal.cashPlan.liquidBufferAvailable)}</span> spare cash</>
             )}
-            {goal.cashPlan.overcommitted && ' — investing already exceeds net income'}
+            {' '}· <span className="mono">{fmtEUR(goal.cashPlan.liquidNetWorth)}</span> liquid net worth
           </div>
           {goal.cashPlan.flights.length > 0 && (
-            <ul className="space-y-[2px] pl-4 list-disc text-[var(--fg-2)]">
+            <ul className="space-y-1 pl-4 list-disc text-[var(--fg-2)]">
               {goal.cashPlan.flights.map((f) => (
                 <li key={f.id}>
-                  {f.label}: needs <span className="mono">{fmtEUR(f.cashNeeded)}</span> by {fmtDateLong(f.neededBy)} —{' '}
-                  {f.onTrack ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">on track</span>
-                  ) : (
-                    <span className="text-amber-600 dark:text-amber-400">short by {fmtEUR(f.shortBy)}</span>
+                  {f.label}: needs <span className="mono">{fmtEUR(f.cashNeeded)}</span> by {fmtDateLong(f.neededBy)}
+                  {f.setAsidePerMonth !== null && (
+                    <>
+                      {' '}— <span className="mono">{fmtEUR(f.setAsidePerMonth)}</span>/mo set aside
+                      {f.setAsidePctOfSurplus !== null && <> ({f.setAsidePctOfSurplus.toFixed(0)}% of surplus)</>}
+                    </>
+                  )}
+                  <br />
+                  {f.tier === 'funded' && (
+                    <span className="text-emerald-600 dark:text-emerald-400">Covered by spare cash and free monthly flow</span>
+                  )}
+                  {f.tier === 'tradeoff' && f.tradeOffReductionPerMonth !== null && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Invest <span className="mono">{fmtEUR(f.tradeOffReductionPerMonth)}</span>/mo less to make this date
+                    </span>
+                  )}
+                  {f.tier === 'wealth' && f.wealthNeeded !== null && (
+                    <span className="text-red-600 dark:text-red-400">
+                      Needs <span className="mono">{fmtEUR(f.wealthNeeded)}</span> from investments/savings
+                      {f.wealthPctOfNetWorth !== null && <> ({f.wealthPctOfNetWorth.toFixed(1)}% of liquid net worth)</>}
+                    </span>
                   )}
                 </li>
               ))}
@@ -813,89 +854,125 @@ function GoalCard({
         </div>
       )}
 
-      {/* Readings history */}
+      {/* Readings */}
       <div className="border-t border-[var(--border)] pt-3">
-        <button
-          onClick={() => setHistoryOpen((o) => !o)}
-          className="text-[11px] text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
-          aria-expanded={historyOpen}
-        >
-          {historyOpen ? 'Hide' : 'Show'} readings ({goal.balances.length})
-        </button>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <button
+            onClick={() => setHistoryOpen((o) => !o)}
+            className="text-[12px] font-semibold text-[var(--fg-1)] hover:text-[var(--fg-2)] transition-colors"
+            aria-expanded={historyOpen}
+          >
+            Readings ({goal.balances.length}) {historyOpen ? '▾' : '▸'}
+          </button>
+          {!addingReading && (
+            <button className="btn-ghost text-[12px]" onClick={() => { setReadingDate(today()); setAddingReading(true); }}>
+              + Add reading
+            </button>
+          )}
+        </div>
         {historyOpen && (
-          <ul className="mt-[8px] space-y-[4px]">
-            {[...goal.balances].reverse().map((b) => (
-              <li key={b.id} className="text-[11px] text-[var(--fg-3)]">
-                {editingBalanceId === b.id ? (
-                  <form onSubmit={(e) => void handleSaveBalanceEdit(e, b.id)} className="flex items-end gap-2 flex-wrap py-[2px]">
-                    <input
-                      type="number"
-                      className="date-input w-[100px]"
-                      value={balanceEditForm.balance}
-                      onChange={(e) => setBalanceEditForm((p) => ({ ...p, balance: e.target.value }))}
-                      required
-                      autoFocus
-                    />
-                    <input
-                      type="date"
-                      className="date-input"
-                      value={balanceEditForm.recordedAt}
-                      onChange={(e) => setBalanceEditForm((p) => ({ ...p, recordedAt: e.target.value }))}
-                      required
-                    />
-                    <input
-                      type="text"
-                      className="date-input flex-1 min-w-[100px]"
-                      value={balanceEditForm.note}
-                      onChange={(e) => setBalanceEditForm((p) => ({ ...p, note: e.target.value }))}
-                    />
-                    <button type="submit" disabled={savingBalanceEdit} className="btn-ghost text-[11px] disabled:opacity-40">
-                      {savingBalanceEdit ? 'Saving…' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-ghost text-[11px] text-[var(--fg-3)]"
-                      onClick={() => setEditingBalanceId(null)}
-                      disabled={savingBalanceEdit}
-                    >
-                      Cancel
-                    </button>
-                  </form>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <span>
-                      {fmtDateLong(b.recordedAt)}
-                      {b.note && <span className="text-[var(--fg-3)]"> — {b.note}</span>}
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="mono">{fmtNumber(b.balance)}</span>
-                      <button
-                        onClick={() => { setBalanceEditForm({ balance: String(b.balance), recordedAt: b.recordedAt.slice(0, 10), note: b.note }); setEditingBalanceId(b.id); }}
-                        className="hover:text-[var(--fg-1)] transition-colors"
-                        aria-label="Edit reading"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => void handleDeleteReading(b.id)}
-                        className="hover:text-red-500 transition-colors"
-                        aria-label="Delete reading"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  </div>
-                )}
-              </li>
-            ))}
-            {goal.balances.length === 0 && <li className="text-[11px] text-[var(--fg-3)]">No readings yet</li>}
-          </ul>
+          <>
+            <ul className="space-y-[4px]">
+              {(() => {
+                const reversed = [...goal.balances].reverse();
+                const shown = allReadingsShown ? reversed : reversed.slice(0, 5);
+                return shown.map((b) => (
+                  <li key={b.id} className="text-[12px] text-[var(--fg-2)]">
+                    {editingBalanceId === b.id ? (
+                      <form onSubmit={(e) => void handleSaveBalanceEdit(e, b.id)} className="flex items-end gap-2 flex-wrap py-[2px]">
+                        <label className="flex flex-col gap-[2px]">
+                          <span className="text-[10px] text-[var(--fg-3)]">{goal.unit}</span>
+                          <input
+                            type="number"
+                            className="date-input w-[100px]"
+                            value={balanceEditForm.balance}
+                            onChange={(e) => setBalanceEditForm((p) => ({ ...p, balance: e.target.value }))}
+                            required
+                            autoFocus
+                          />
+                        </label>
+                        {goal.unit === 'Avios' && (
+                          <label className="flex flex-col gap-[2px]">
+                            <span className="text-[10px] text-[var(--fg-3)]">Amex MR</span>
+                            <input
+                              type="number"
+                              className="date-input w-[100px]"
+                              value={balanceEditForm.amexMr}
+                              onChange={(e) => setBalanceEditForm((p) => ({ ...p, amexMr: e.target.value }))}
+                            />
+                          </label>
+                        )}
+                        <input
+                          type="date"
+                          className="date-input"
+                          value={balanceEditForm.recordedAt}
+                          onChange={(e) => setBalanceEditForm((p) => ({ ...p, recordedAt: e.target.value }))}
+                          required
+                        />
+                        <input
+                          type="text"
+                          className="date-input flex-1 min-w-[100px]"
+                          value={balanceEditForm.note}
+                          onChange={(e) => setBalanceEditForm((p) => ({ ...p, note: e.target.value }))}
+                        />
+                        <button type="submit" disabled={savingBalanceEdit} className="btn-ghost text-[11px] disabled:opacity-40">
+                          {savingBalanceEdit ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost text-[11px] text-[var(--fg-3)]"
+                          onClick={() => setEditingBalanceId(null)}
+                          disabled={savingBalanceEdit}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <span>
+                          {fmtDateLong(b.recordedAt)}
+                          {b.note && <span className="text-[var(--fg-3)]"> — {b.note}</span>}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span className="mono">{fmtNumber(b.balance)}</span>
+                          {b.amexMr > 0 && <span className="mono text-[var(--fg-3)]">· {fmtNumber(b.amexMr)} MR</span>}
+                          <button
+                            onClick={() => { setBalanceEditForm({ balance: String(b.balance), amexMr: b.amexMr ? String(b.amexMr) : '', recordedAt: b.recordedAt.slice(0, 10), note: b.note }); setEditingBalanceId(b.id); }}
+                            className="hover:text-[var(--fg-1)] transition-colors"
+                            aria-label="Edit reading"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteReading(b.id)}
+                            className="hover:text-red-500 transition-colors"
+                            aria-label="Delete reading"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      </div>
+                    )}
+                  </li>
+                ));
+              })()}
+              {goal.balances.length === 0 && <li className="text-[12px] text-[var(--fg-3)]">No readings yet</li>}
+            </ul>
+            {goal.balances.length > 5 && !allReadingsShown && (
+              <button
+                onClick={() => setAllReadingsShown(true)}
+                className="mt-[6px] text-[11px] text-[var(--fg-3)] hover:text-[var(--fg-2)] transition-colors"
+              >
+                Show all ({goal.balances.length})
+              </button>
+            )}
+          </>
         )}
       </div>
 
       {/* Add reading */}
-      <div className="pt-3">
-        {addingReading ? (
+      {addingReading && (
+        <div className="pt-3">
           <form onSubmit={(e) => void handleAddReading(e)} className="flex items-end gap-2 flex-wrap">
             <label className="flex flex-col gap-[2px]">
               <span className="text-[10px] text-[var(--fg-2)]">Balance ({goal.unit})</span>
@@ -908,6 +985,17 @@ function GoalCard({
                 autoFocus
               />
             </label>
+            {goal.unit === 'Avios' && (
+              <label className="flex flex-col gap-[2px]">
+                <span className="text-[10px] text-[var(--fg-2)]">Amex MR (optional)</span>
+                <input
+                  type="number"
+                  className="date-input w-[110px]"
+                  value={readingAmexMr}
+                  onChange={(e) => setReadingAmexMr(e.target.value)}
+                />
+              </label>
+            )}
             <label className="flex flex-col gap-[2px]">
               <span className="text-[10px] text-[var(--fg-2)]">Date</span>
               <input
@@ -940,12 +1028,8 @@ function GoalCard({
               Cancel
             </button>
           </form>
-        ) : (
-          <button className="btn-ghost text-[12px]" onClick={() => { setReadingDate(today()); setAddingReading(true); }}>
-            + Add reading
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
