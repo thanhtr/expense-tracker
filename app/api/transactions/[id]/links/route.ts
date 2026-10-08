@@ -97,7 +97,7 @@ export async function POST(
           reimbursementTransactionId,
         },
       });
-      revalidateTag('data', 'max');
+      revalidateTag('data', { expire: 0 });
       return NextResponse.json(link, { status: 201 });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
@@ -136,7 +136,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Link not found' }, { status: 404 });
     }
 
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete link:', error);

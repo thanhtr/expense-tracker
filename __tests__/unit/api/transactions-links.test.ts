@@ -88,7 +88,7 @@ describe('POST /api/transactions/[id]/links', () => {
     const body = await res.json();
     expect(body.expenseTransactionId).toBe(1);
     expect(body.reimbursementTransactionId).toBe(2);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('rejects a reimbursement that would exceed the expense amount', async () => {
@@ -196,7 +196,7 @@ describe('DELETE /api/transactions/[id]/links', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('returns 404 when no matching link exists', async () => {

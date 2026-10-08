@@ -45,7 +45,7 @@ describe('PATCH /api/transactions/[id]', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('does not invalidate the cache when the transaction is not found', async () => {
@@ -68,6 +68,6 @@ describe('DELETE /api/transactions/[id]', () => {
     const res = await DELETE(makeReq('http://localhost/api/transactions/1', 'DELETE'), { params: params('1') });
 
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 });

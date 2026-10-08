@@ -54,7 +54,7 @@ export async function PUT(
     ]);
 
     void ops;
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
 
     const result = await prisma.transactionSplit.findMany({
       where: { transactionId: idResult.id },

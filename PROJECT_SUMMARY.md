@@ -1608,6 +1608,33 @@ invalidate only on those events.
   endpoint, its tag validation, and its token auth all behave correctly. All test assets/config
   changes made during verification were cleaned up afterward.
 
+**Found in code review before merge (three more real bugs, all fixed):**
+- **`revalidateTag(tag, 'max')` is not an immediate invalidation** — confirmed by reading Next's
+  own source (`revalidate.js`): passing a named profile like `'max'` takes the stale-while-
+  revalidate path (`pathWasRevalidated` is deliberately *not* set), unlike passing no profile or
+  `{ expire: 0 }`. Every one of the ~45 call sites this PR added (plus two pre-existing ones in
+  the categories routes) used `'max'`, undermining the whole point of this change — a request
+  right after a mutation could still see stale data. Changed every call site to
+  `revalidateTag(tag, { expire: 0 })`, the documented way to force an immediate, blocking
+  invalidation from a Route Handler. Re-verified live: a `PUT /api/fire` config change is now
+  reflected in that same response and the very next `GET`, confirmed by rereading the actual
+  values (not just checking the HTTP status).
+- **Auth bypass in the new `/api/cache/revalidate` endpoint** (and, found while fixing it, the
+  same pre-existing bug in `/api/upload`): `proxy.ts` only requires a session when the
+  `x-api-token` header is entirely *absent* (`req.headers.has(...)`), but both routes checked the
+  header's *truthiness* (`const token = request.headers.get(...); if (token && token !== ...)`) —
+  a request with the header present but empty slips past both the proxy's session gate and the
+  route's own check, invalidating the cache (or uploading data) with no credentials at all. Fixed
+  both routes to check presence (`.has`) before comparing the value, verified live: an empty-but-
+  present header now correctly 401s, a valid session still succeeds.
+- **UTC-vs-local day-boundary mismatch** in FIRE's `fetchPortfolioData` cache key — it truncated
+  its own window to *local* midnight (`today.setHours(0,0,0,0)`) but derived the day-string cache
+  key via `toISOString().slice(0,10)`, which reports the *UTC* calendar day; in Helsinki's
+  positive UTC offset, the cache would roll over a few hours early relative to the boundary it
+  was meant to key — the same class of bug `forecast-service.ts`'s `monthString` was already
+  fixed for elsewhere in this codebase. Fixed by building the day-key from local date components
+  directly instead of round-tripping through UTC.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

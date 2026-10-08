@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       // assetSnapshot table may not exist yet — proceed without snapshot
     }
 
-    revalidateTag('readings', 'max');
+    revalidateTag('readings', { expire: 0 });
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
     console.error('Failed to create asset:', error);

@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { ids } = parsed.data;
 
     const result = await prisma.transaction.deleteMany({ where: { id: { in: ids } } });
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
     return NextResponse.json({ deleted: result.count });
   } catch (error) {
     console.error('Bulk delete error:', error);

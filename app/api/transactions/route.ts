@@ -54,7 +54,7 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
     return NextResponse.json({ deleted: result.count, total: result.count, failures: [] });
   } catch (error) {
     console.error('Bulk delete error:', error);

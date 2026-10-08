@@ -39,7 +39,7 @@ describe('PUT /api/transactions/[id]/splits', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('does not invalidate the cache when the transaction is not found', async () => {

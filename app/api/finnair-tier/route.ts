@@ -17,6 +17,6 @@ export async function PATCH(request: NextRequest) {
     create: { id: 1, tier },
     update: { tier },
   });
-  revalidateTag('config', 'max');
+  revalidateTag('config', { expire: 0 });
   return NextResponse.json({ tier: row.tier });
 }

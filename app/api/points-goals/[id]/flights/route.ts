@@ -28,7 +28,7 @@ export async function POST(
         note,
       },
     });
-    revalidateTag('readings', 'max');
+    revalidateTag('readings', { expire: 0 });
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },

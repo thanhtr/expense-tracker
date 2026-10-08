@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
   try {
     const member = await prisma.householdMember.create({ data: { name: name.trim(), slug } });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json(member, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'A member with that name already exists' }, { status: 409 });

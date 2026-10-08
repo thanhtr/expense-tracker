@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       data: { name, unit, note },
       include: POINTS_GOAL_INCLUDE,
     });
-    revalidateTag('readings', 'max');
+    revalidateTag('readings', { expire: 0 });
 
     return NextResponse.json(await enrichPointsGoal(goal), { status: 201 });
   } catch (error) {

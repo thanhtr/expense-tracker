@@ -18,7 +18,7 @@ export async function DELETE(
     }
 
     await prisma.budget.delete({ where: { id: idResult.id } });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete budget:', error);

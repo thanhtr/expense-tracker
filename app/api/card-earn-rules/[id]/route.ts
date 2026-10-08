@@ -15,7 +15,7 @@ export async function PATCH(
   if ('error' in parsed) return parsed.error;
   try {
     const rule = await prisma.cardEarnRule.update({ where: { id: idResult.id }, data: parsed.data });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json(rule);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
@@ -34,7 +34,7 @@ export async function DELETE(
   if ('error' in idResult) return idResult.error;
   try {
     await prisma.cardEarnRule.delete({ where: { id: idResult.id } });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json({ success: true });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

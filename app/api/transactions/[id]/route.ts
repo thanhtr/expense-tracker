@@ -60,7 +60,7 @@ export async function PATCH(
       await recordCorrection(tx.merchant, updateData.category);
     }
     const updated = await prisma.transaction.update({ where: { id: idResult.id }, data: updateData });
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
 
     return NextResponse.json({ id: idResult.id, category: updated.category, tags: updated.tags, success: true });
   } catch (error) {
@@ -82,7 +82,7 @@ export async function DELETE(
     if ('error' in idResult) return idResult.error;
 
     await prisma.transaction.delete({ where: { id: idResult.id } });
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       update: {},
       create: { type, value },
     });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json(exclusion);
   } catch (error) {

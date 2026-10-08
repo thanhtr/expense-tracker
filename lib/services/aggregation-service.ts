@@ -47,7 +47,7 @@ export async function getDashboardStats(
   accounts?: string[],
   forceRefresh = false,
 ): Promise<DashboardAggregation> {
-  if (forceRefresh) revalidateTag('data', 'max');
+  if (forceRefresh) revalidateTag('data', { expire: 0 });
   return getDashboardStatsCached(dateFrom, dateTo, categories, paidBy, accounts);
 }
 

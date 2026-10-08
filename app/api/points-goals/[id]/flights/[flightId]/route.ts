@@ -36,7 +36,7 @@ export async function PATCH(
       data,
     });
     if (count === 0) return NextResponse.json({ error: 'Flight not found' }, { status: 404 });
-    revalidateTag('readings', 'max');
+    revalidateTag('readings', { expire: 0 });
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
@@ -66,7 +66,7 @@ export async function DELETE(
       where: { id: flightIdResult.id, goalId: idResult.id },
     });
     if (count === 0) return NextResponse.json({ error: 'Flight not found' }, { status: 404 });
-    revalidateTag('readings', 'max');
+    revalidateTag('readings', { expire: 0 });
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },

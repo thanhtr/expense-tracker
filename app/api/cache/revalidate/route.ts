@@ -10,9 +10,14 @@ type CacheTag = typeof CACHE_TAGS[number];
 // routes (and therefore never fires the routes' own revalidateTag calls).
 export async function POST(request: NextRequest) {
   // Token auth for a pipeline step; session auth (via proxy.ts) for the Settings button.
-  const token = request.headers.get('x-api-token');
-  if (token && token !== process.env.API_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Checked by presence (`.has`), not truthiness of the value (`.get` alone) — proxy.ts's own
+  // gate skips the session check whenever the header is merely *present*, so an empty-but-present
+  // `x-api-token:` header must still be rejected here rather than treated as "no token supplied".
+  if (request.headers.has('x-api-token')) {
+    const token = request.headers.get('x-api-token');
+    if (token !== process.env.API_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const body = await request.json().catch(() => ({})) as { tags?: unknown };
@@ -23,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No valid tags in request' }, { status: 400 });
   }
 
-  for (const tag of tags) revalidateTag(tag, 'max');
+  for (const tag of tags) revalidateTag(tag, { expire: 0 });
 
   return NextResponse.json({ success: true, invalidated: tags });
 }

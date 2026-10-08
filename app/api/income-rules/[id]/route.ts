@@ -13,7 +13,7 @@ export async function DELETE(
   if ('error' in idResult) return idResult.error;
   try {
     await prisma.incomeRule.delete({ where: { id: idResult.id } });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json({ success: true });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

@@ -125,7 +125,7 @@ describe('POST /api/points-goals', () => {
     vi.mocked(prisma.pointsGoal.create).mockResolvedValueOnce(makeGoal());
     const res = await POST(makeReq('http://localhost/api/points-goals', 'POST', { name: 'Avios 2027' }));
     expect(res.status).toBe(201);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for missing name', async () => {
@@ -144,7 +144,7 @@ describe('PATCH /api/points-goals/[id]', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.name).toBe('Renamed');
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for invalid id', async () => {
@@ -173,7 +173,7 @@ describe('DELETE /api/points-goals/[id]', () => {
     vi.mocked(prisma.pointsGoal.delete).mockResolvedValueOnce(makeGoal());
     const res = await DELETE(makeReq('http://localhost/api/points-goals/1', 'DELETE'), { params: params('1') });
     expect(res.status).toBe(200);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 });
 
@@ -192,7 +192,7 @@ describe('POST /api/points-goals/[id]/balances', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.progress.latestBalance).toBe(50_000);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for a negative balance', async () => {
@@ -252,7 +252,7 @@ describe('PATCH /api/points-goals/[id]/balances', () => {
     });
     const body = await res.json();
     expect(body.progress.latestBalance).toBe(60_000);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 404 when the reading does not belong to that goal', async () => {
@@ -301,7 +301,7 @@ describe('DELETE /api/points-goals/[id]/balances', () => {
     expect(prisma.pointsBalance.deleteMany).toHaveBeenCalledWith({ where: { id: 2, goalId: 1 } });
     const body = await res.json();
     expect(body.id).toBe(1);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 404 when the reading does not belong to that goal', async () => {
@@ -340,7 +340,7 @@ describe('POST /api/points-goals/[id]/flights', () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.progress.flights).toHaveLength(1);
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for a non-positive points value', async () => {
@@ -382,7 +382,7 @@ describe('PATCH /api/points-goals/[id]/flights/[flightId]', () => {
     // neededBy (2027-06-01) is still in the future, so it stays in the main list, not pastFlights.
     expect(body.progress.flights).toHaveLength(1);
     expect(body.progress.flights[0].status).toBe('redeemed');
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('requires redeemedAt when marking a flight redeemed', async () => {
@@ -416,7 +416,7 @@ describe('DELETE /api/points-goals/[id]/flights/[flightId]', () => {
     );
     expect(res.status).toBe(200);
     expect(prisma.pointsFlight.deleteMany).toHaveBeenCalledWith({ where: { id: 2, goalId: 1 } });
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 404 for a cross-goal flight id', async () => {

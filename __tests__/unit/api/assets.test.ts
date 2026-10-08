@@ -165,7 +165,7 @@ describe('POST /api/assets', () => {
   it('invalidates the readings cache on create (regression)', async () => {
     vi.mocked(prisma.asset.create).mockResolvedValueOnce(makeAsset());
     await POST(makeReq('POST', { name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: '2026-08-01' }));
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for invalid asset type', async () => {
@@ -234,7 +234,7 @@ describe('PATCH /api/assets/[id]', () => {
   it('invalidates the readings cache on update (regression)', async () => {
     vi.mocked(prisma.asset.update).mockResolvedValueOnce(makeAsset({ balance: 12000 }));
     await PATCH(makeReq('PATCH', { balance: 12000 }), { params: params('1') });
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for invalid id', async () => {
@@ -262,7 +262,7 @@ describe('DELETE /api/assets/[id]', () => {
   it('invalidates the readings cache on delete (regression)', async () => {
     vi.mocked(prisma.asset.delete).mockResolvedValueOnce(makeAsset());
     await DELETE(makeReq('DELETE'), { params: params('1') });
-    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('readings', { expire: 0 });
   });
 
   it('returns 400 for invalid id', async () => {

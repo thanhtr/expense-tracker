@@ -102,6 +102,6 @@ export async function processUpload(
   }
 
   const result = await upsertTransactions(rows, accountOwner);
-  revalidateTag('data', 'max');
+  revalidateTag('data', { expire: 0 });
   return { ...result, detectedBank: detected };
 }

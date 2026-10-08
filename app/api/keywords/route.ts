@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
     invalidateRulesCache();
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json(
       { id: row.id, keyword: row.normalizedKey, category: row.category, count: row.count },

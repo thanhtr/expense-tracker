@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.transaction.updateMany({ where, data: { category } });
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
     return NextResponse.json({ updated: result.count });
   } catch (error) {
     console.error('Bulk categorize error:', error);

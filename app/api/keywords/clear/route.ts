@@ -7,7 +7,7 @@ export async function POST() {
   try {
     const result = await prisma.learnedRule.deleteMany({});
     invalidateRulesCache();
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json({
       success: true,

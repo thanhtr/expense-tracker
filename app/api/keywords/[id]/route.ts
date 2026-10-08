@@ -42,7 +42,7 @@ export async function PUT(
     });
 
     invalidateRulesCache();
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json({
       id: updated.id,
@@ -72,7 +72,7 @@ export async function DELETE(
 
     await prisma.learnedRule.delete({ where: { id: idResult.id } });
     invalidateRulesCache();
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json({ success: true });
   } catch (error) {

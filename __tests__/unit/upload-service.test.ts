@@ -117,7 +117,7 @@ describe('processUpload', () => {
     const result = await processUpload('csv', 'op', 'tung', false) as { detectedBank: string; created: number };
 
     expect(upsertTransactions).toHaveBeenCalledTimes(1);
-    expect(revalidateTag).toHaveBeenCalledWith('data', 'max');
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
     expect(result.detectedBank).toBe('op');
     expect(result.created).toBe(1);
   });

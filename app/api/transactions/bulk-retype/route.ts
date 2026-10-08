@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       where: { id: { in: ids } },
       data: { type },
     });
-    revalidateTag('data', 'max');
+    revalidateTag('data', { expire: 0 });
     return NextResponse.json({ updated: result.count });
   } catch (error) {
     console.error('Bulk retype error:', error);

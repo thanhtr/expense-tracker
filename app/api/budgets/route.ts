@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       update: { monthlyLimit, ...(rollover !== undefined ? { rollover } : {}) },
       create: { category, monthlyLimit, rollover: rollover ?? false },
     });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json({ ...budget, rolloverAmount: 0, effectiveLimit: budget.monthlyLimit });
   } catch (error) {

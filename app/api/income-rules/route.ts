@@ -13,6 +13,6 @@ export async function POST(request: NextRequest) {
   if ('error' in parsed) return parsed.error;
   const { label, merchantPattern, category } = parsed.data;
   const rule = await prisma.incomeRule.create({ data: { label, merchantPattern, category } });
-  revalidateTag('config', 'max');
+  revalidateTag('config', { expire: 0 });
   return NextResponse.json(rule, { status: 201 });
 }

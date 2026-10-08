@@ -15,7 +15,7 @@ export async function DELETE(
 
   try {
     await prisma.recurringExclusion.delete({ where: { id: numId } });
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Exclusion not found' }, { status: 404 });

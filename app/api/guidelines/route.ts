@@ -70,7 +70,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         update: { targetPct: b.targetPct, categories: JSON.stringify(b.categories) },
       })
     ));
-    revalidateTag('config', 'max');
+    revalidateTag('config', { expire: 0 });
 
     return NextResponse.json({ success: true });
   } catch (error) {
