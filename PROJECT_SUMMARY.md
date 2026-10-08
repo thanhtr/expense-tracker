@@ -859,9 +859,8 @@ stay resident for hours without a full reload.
    revisit blending same-month-last-year into the forecast (see "Spending forecast redesigned"
    above)
 6. ~~**Drop the Avios purchase/bonus ledger (`PointsPurchase`) for now**~~ — done, see "Avios
-   purchase/bonus ledger dropped" below. One follow-up remains: drop the now-unread
-   `PointsPurchase` table itself in a migration after this deploys (`prisma db execute` +
-   `migrate resolve --applied`, never `migrate dev`/`reset`, per this DB's established pattern).
+   purchase/bonus ledger dropped" below. ~~One follow-up remains: drop the now-unread
+   `PointsPurchase` table itself~~ — done, see "`PointsPurchase` table dropped" below.
 
 ---
 
@@ -1445,6 +1444,25 @@ deleted (only ~9 completed months exist).
 - Not done here (raised, not built): deriving expected Avios/MR earn from Amex/Finnair-Visa
   transaction categories to reconcile against the observed pace, and deriving tier points from
   Visa spend automatically — same investigation that surfaced this fix.
+
+**Found in code review before merge:** `fetchMoneyCapacity` dereferenced `earliestDataDate!` with
+a non-null assertion even when `getEarliestTransactionDate()` returned null (an empty
+`Transaction` table — fresh install or wiped DB). `earliestDataMonth` fell back to `windowEndMonth`
+in that case, which is always later than the rolling-window start, so the code took the
+"data-starts-later" branch and passed a literal `null` as the window-start `Date` straight into
+Prisma's `date: { gte: ... }` filter. Fixed by only taking that branch when `earliestDataDate` is
+non-null, falling back to the full rolling window otherwise (matching `forecast-service.ts`'s own
+guard for the same no-history case). Not reachable with this household's real data (transactions
+go back to Jan 2026), but any fresh/test database would have hit it on the first goals-page load.
+
+### `PointsPurchase` table dropped (migration `20261008010000_drop_points_purchase`)
+Follow-up from "Avios purchase/bonus ledger dropped" above: the table had been unread by
+application code since that PR and held 0 rows in production (confirmed before dropping). Removed
+the `PointsPurchase` model and `PointsGoal.purchases` relation from `prisma/schema.prisma` and
+dropped the table, applied via the established `prisma db execute` + `migrate resolve --applied`
+pattern (never `migrate dev`/`reset`, per this DB's pre-existing migration drift). No data lost —
+purchased/bonus Avios were already folded into the next balance reading before this table stopped
+being read.
 
 ---
 

@@ -213,7 +213,6 @@ model PointsGoal {
   updatedAt  DateTime         @updatedAt
   balances   PointsBalance[]
   flights    PointsFlight[]
-  purchases  PointsPurchase[]
 }
 
 model PointsBalance {
@@ -245,25 +244,6 @@ model PointsFlight {
   goal           PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, neededBy])
-}
-
-// A recorded acquisition of points NOT earned through normal card/flight spend — a cash
-// purchase (subscription, flash sale) or a one-off bonus (e.g. a card's welcome offer). Kept
-// separate from PointsBalance (a point-in-time snapshot of the total, not a transaction) so the
-// pace/projection math can tell organic earn apart from a one-off top-up, and so the yearly
-// purchase cap can be checked against what was actually bought rather than inferred.
-model PointsPurchase {
-  id          Int        @id @default(autoincrement())
-  goalId      Int
-  points      Int
-  costEur     Float
-  purchasedAt DateTime   @db.Date
-  kind        String     @default("purchased") // "purchased" | "bonus"
-  note        String     @default("")
-  createdAt   DateTime   @default(now())
-  goal        PointsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
-
-  @@index([goalId, purchasedAt])
 }
 
 model CsvImport {
