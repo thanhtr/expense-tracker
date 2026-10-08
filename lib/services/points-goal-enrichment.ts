@@ -52,12 +52,17 @@ async function fetchMoneyCapacity(): Promise<MoneyCapacity> {
   const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
   rollingStart.setMonth(rollingStart.getMonth() - (CAPACITY_WINDOW_MONTHS - 1));
 
+  // No transactions at all (fresh install, wiped DB) falls back to the full rolling window —
+  // getDashboardStats/fetchMonthlyInvestments just return zeros in that case. Guards against
+  // earliestDataDate being null while still "later than rollingStart" by month-string comparison
+  // (null's fallback month would otherwise equal windowEndMonth, always later), which would pass
+  // a null Date as the Prisma query's `gte` filter below.
   const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : windowEndMonth;
-  const dataStartsLater = earliestDataMonth > monthString(rollingStart);
+  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
+  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
   const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
 
-  const months = monthRange(dataStartsLater ? earliestDataMonth : monthString(rollingStart), windowEndMonth);
+  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
 
   const [stats, monthlyInvestments, bankAssets, liquidAssets, fireConfig] = await Promise.all([
     getDashboardStats(windowStart, windowEnd),

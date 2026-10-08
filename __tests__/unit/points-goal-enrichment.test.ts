@@ -70,6 +70,16 @@ describe('enrichPointsGoal cashPlan', () => {
     expect(enriched.cashPlan!.liquidNetWorth).toBe(20_000);
   });
 
+  it('does not crash when there are no transactions at all (regression: null earliestDataDate)', async () => {
+    vi.mocked(getEarliestTransactionDate).mockResolvedValueOnce(null);
+    vi.mocked(getDashboardStats).mockResolvedValueOnce({ net: 0, totalIncome: 0 } as never);
+
+    const enriched = await enrichPointsGoal(goalWithFlights(1, []));
+    expect(enriched.cashPlan!.monthlySurplus).toBe(0);
+    // The real query call (not just the mock) must receive a real Date, not null, as `gte`.
+    expect(vi.mocked(getDashboardStats).mock.calls[0]![0]).toBeInstanceOf(Date);
+  });
+
   it('does not double-count the cumulative Avios shortfall across multiple flights in one goal', async () => {
     const enriched = await enrichPointsGoal(
       goalWithFlights(1, [
