@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { getDashboardStats } from './aggregation-service';
-import { mulberry32, percentile, monthString, shiftMonth, resolveCompletedMonthsWindow } from './stats';
+import { mulberry32, percentile, monthString, shiftMonth } from './stats';
+import { resolveCompletedMonthsWindow } from './completed-months-window';
 
 const MIN_HISTORY_MONTHS = 3;
 const MAX_HISTORY_MONTHS = 12;
