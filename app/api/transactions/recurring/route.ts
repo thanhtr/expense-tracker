@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
+import { monthString } from '@/lib/services/stats';
 import type { RecurringCharge, RecurringExclusion } from '@/lib/types';
 
 export type { RecurringCharge, RecurringExclusion };
@@ -12,9 +14,15 @@ function median(values: number[]): number {
     : (sorted[mid] ?? 0);
 }
 
-export async function GET(): Promise<NextResponse> {
-  const since = new Date();
-  since.setFullYear(since.getFullYear() - 1);
+// `monthKey` is unused inside the body — present only so unstable_cache's argument-based cache
+// key naturally rolls over with the calendar month, since `since` is computed from `new Date()`
+// (a rolling 1-year window) rather than taken as an argument. Tagged with both 'data' (the
+// transactions themselves) and 'config' (RecurringExclusion rows).
+const detectRecurringCharges = unstable_cache(
+  async (monthKey: string) => {
+    void monthKey;
+    const since = new Date();
+    since.setFullYear(since.getFullYear() - 1);
 
   const [rows, exclusions] = await Promise.all([
     prisma.transaction.findMany({
@@ -76,9 +84,16 @@ export async function GET(): Promise<NextResponse> {
     });
   }
 
-  recurring.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
+    recurring.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
 
-  const totalMonthly = recurring.reduce((s, r) => s + r.monthlyEstimate, 0);
+    const totalMonthly = recurring.reduce((s, r) => s + r.monthlyEstimate, 0);
 
-  return NextResponse.json({ recurring, totalMonthly, count: recurring.length, exclusions });
+    return { recurring, totalMonthly, count: recurring.length, exclusions };
+  },
+  ['recurring-charges'],
+  { tags: ['data', 'config'], revalidate: false },
+);
+
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json(await detectRecurringCharges(monthString(new Date())));
 }

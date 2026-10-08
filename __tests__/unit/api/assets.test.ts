@@ -19,6 +19,7 @@ vi.mock('../../../lib/db', () => ({
 import { GET, POST } from '../../../app/api/assets/route';
 import { GET as GET_ONE, PATCH, DELETE } from '../../../app/api/assets/[id]/route';
 import { prisma } from '../../../lib/db';
+import { revalidateTag } from 'next/cache';
 
 const makeAsset = (overrides = {}) => ({
   id: 1,
@@ -161,6 +162,12 @@ describe('POST /api/assets', () => {
     expect(res.status).toBe(201);
   });
 
+  it('invalidates the readings cache on create (regression)', async () => {
+    vi.mocked(prisma.asset.create).mockResolvedValueOnce(makeAsset());
+    await POST(makeReq('POST', { name: 'OP Savings', type: 'bank', balance: 10000, recordedAt: '2026-08-01' }));
+    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+  });
+
   it('returns 400 for invalid asset type', async () => {
     const res = await POST(makeReq('POST', { name: 'Gold', type: 'precious-metal', balance: 5000, recordedAt: '2026-08-01' }));
     expect(res.status).toBe(400);
@@ -224,6 +231,12 @@ describe('PATCH /api/assets/[id]', () => {
     expect(res.status).toBe(200);
   });
 
+  it('invalidates the readings cache on update (regression)', async () => {
+    vi.mocked(prisma.asset.update).mockResolvedValueOnce(makeAsset({ balance: 12000 }));
+    await PATCH(makeReq('PATCH', { balance: 12000 }), { params: params('1') });
+    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
+  });
+
   it('returns 400 for invalid id', async () => {
     const res = await PATCH(makeReq('PATCH', { balance: 12000 }), { params: params('xyz') });
     expect(res.status).toBe(400);
@@ -244,6 +257,12 @@ describe('DELETE /api/assets/[id]', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  it('invalidates the readings cache on delete (regression)', async () => {
+    vi.mocked(prisma.asset.delete).mockResolvedValueOnce(makeAsset());
+    await DELETE(makeReq('DELETE'), { params: params('1') });
+    expect(revalidateTag).toHaveBeenCalledWith('readings', 'max');
   });
 
   it('returns 400 for invalid id', async () => {

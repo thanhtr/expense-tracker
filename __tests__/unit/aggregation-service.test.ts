@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getDashboardStats, invalidateDashboardCache } from '../../lib/services/aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from '../../lib/services/aggregation-service';
 
 vi.mock('../../lib/db', () => ({
   prisma: {
@@ -101,7 +101,6 @@ function setupMocks(opts: {
 describe('getDashboardStats', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    invalidateDashboardCache();
   });
 
   it('should compute totalExpenses correctly', async () => {
@@ -456,5 +455,20 @@ describe('getDashboardStats', () => {
     // the category-level netting against the expense still applies regardless of the
     // reimbursement's own date, since it's netting a specific expense's true cost
     expect(stats.byCategory.find(c => c.category === 'Dining Out')?.amount).toBeCloseTo(50);
+  });
+});
+
+describe('getEarliestTransactionDate', () => {
+  it('returns a real Date instance, not a serialized string (regression: unstable_cache round-trips its return value through serialization, which turns a cached Date into a plain string — callers like forecast-service/points-goal-enrichment call .getFullYear()/.getMonth() on this directly)', async () => {
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValueOnce({ _min: { date: new Date('2026-01-15') } } as never);
+    const result = await getEarliestTransactionDate();
+    expect(result).toBeInstanceOf(Date);
+    expect(result?.getFullYear()).toBe(2026);
+  });
+
+  it('returns null when there are no transactions', async () => {
+    vi.mocked(prisma.transaction.aggregate).mockResolvedValueOnce({ _min: { date: null } } as never);
+    const result = await getEarliestTransactionDate();
+    expect(result).toBeNull();
   });
 });

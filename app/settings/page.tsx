@@ -8,6 +8,7 @@ import { KeywordManager } from '@/components/KeywordManager';
 import { IncomeRuleManager } from '@/components/IncomeRuleManager';
 import { AssetManager } from '@/components/AssetManager';
 import { CardEarnRuleManager } from '@/components/CardEarnRuleManager';
+import { CacheControls } from '@/components/CacheControls';
 
 const TABS = [
   { slug: 'household',     label: 'Household' },
@@ -86,6 +87,7 @@ export default function SettingsPage() {
       <Suspense>
         <SettingsTabs />
       </Suspense>
+      <CacheControls />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_cache, revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { runFireCalculation, FIRE_DEFAULTS, type StoredFireConfig } from '@/lib/services/fire-service';
 import { runMonteCarlo } from '@/lib/services/fire-monte-carlo';
-import { deriveFireInputs } from '@/lib/services/fire-inputs-service';
+import { deriveFireInputsCached } from '@/lib/services/fire-inputs-service';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
 import { computeInvestableCash } from '@/lib/services/buffer-service';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
@@ -30,9 +31,11 @@ interface PortfolioData {
   avgMonthlyIncome: number;
 }
 
-// Independent of FireConfig, so this can run concurrently with the config
-// upsert/fetch instead of serializing after it.
-async function fetchPortfolioData(): Promise<PortfolioData> {
+// `dayKey` is unused inside the body — present only so unstable_cache's argument-based cache key
+// rolls over once per day, since `today`/`twelveMonthsAgo` are computed internally rather than
+// taken as arguments (same idiom as forecast-service.ts's monthKey).
+async function fetchPortfolioDataUncached(dayKey: string): Promise<PortfolioData> {
+  void dayKey;
   // Truncate to a day boundary (not the exact request timestamp) so repeated
   // calls within the same day share a cache key in aggregation-service's
   // dashboard cache, instead of missing on every single request.
@@ -57,6 +60,19 @@ async function fetchPortfolioData(): Promise<PortfolioData> {
   return { investmentTotal, bankTotal, avgMonthlyIncome };
 }
 
+const fetchPortfolioDataCached = unstable_cache(
+  fetchPortfolioDataUncached,
+  ['fire-portfolio-data'],
+  // 'data' (transactions, via getDashboardStats), 'readings' (Asset rows).
+  { tags: ['data', 'readings'], revalidate: false },
+);
+
+// Independent of FireConfig, so this can run concurrently with the config
+// upsert/fetch instead of serializing after it.
+async function fetchPortfolioData(): Promise<PortfolioData> {
+  return fetchPortfolioDataCached(new Date().toISOString().slice(0, 10));
+}
+
 // Bank cash counts toward the FIRE portfolio only above an emergency-fund buffer, so a
 // household's safety net isn't mistaken for FIRE progress.
 function computeBreakdown(data: PortfolioData, emergencyFundMonths: number): PortfolioBreakdown {
@@ -72,7 +88,7 @@ function computeBreakdown(data: PortfolioData, emergencyFundMonths: number): Por
 
 // Combines the saved settings with inputs derived from transaction data and runs the model.
 async function respond(stored: StoredFireConfig, portfolioData: PortfolioData): Promise<NextResponse> {
-  const derived = await deriveFireInputs(stored);
+  const derived = await deriveFireInputsCached(stored);
   const fireConfig = { ...stored, ...derived.inputs };
   const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
   const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
@@ -116,6 +132,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       }),
       fetchPortfolioData(),
     ]);
+    revalidateTag('config', 'max');
 
     return await respond(storedFields(updated), portfolioData);
   } catch (err) {

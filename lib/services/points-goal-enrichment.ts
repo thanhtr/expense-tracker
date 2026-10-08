@@ -2,6 +2,7 @@
 // affordability plan) to goals already enriched with `progress`. Kept separate from
 // points-goal-service.ts so that file can stay a pure function with no DB dependency.
 
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
 import { FIRE_DEFAULTS } from './fire-service';
@@ -85,7 +86,7 @@ async function fetchMonthlyInvestments(start: Date, end: Date, months: string[])
 // much history exists, otherwise as far back as the data actually goes — same pattern
 // forecast-service.ts uses, for the same reason (pre-2026 data was deleted; dividing by a fixed
 // 12 would understate the real monthly average).
-async function fetchMoneyCapacity(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
+async function fetchMoneyCapacityUncached(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
   const { windowStart, windowEnd, months } = window;
 
   const [stats, monthlyInvestments, bankAssets, liquidAssets, fireConfig] = await Promise.all([
@@ -112,10 +113,18 @@ async function fetchMoneyCapacity(window: CompletedMonthsWindow): Promise<MoneyC
   });
 }
 
+// 'data' (transactions, via getDashboardStats/fetchMonthlyInvestments), 'readings' (Asset rows),
+// 'config' (FireConfig.emergencyFundMonths).
+const fetchMoneyCapacity = unstable_cache(
+  fetchMoneyCapacityUncached,
+  ['points-goal-money-capacity'],
+  { tags: ['data', 'readings', 'config'], revalidate: false },
+);
+
 // Raw Amex + Finnair Visa outflow rows in the window, classified by avios-earn-service.ts's pure
-// classifyTransaction against the user-maintained CardEarnRule rows. `take` capped the same way
+// classifyTransaction against the user-maintained CardEarnRule rules. `take` capped the same way
 // as the structurally identical incomeRows/reimbRows queries in aggregation-service.ts.
-async function fetchCardTransactions(start: Date, end: Date): Promise<CardTransactionInput[]> {
+async function fetchCardTransactionsUncached(start: Date, end: Date): Promise<CardTransactionInput[]> {
   const rows = await prisma.transaction.findMany({
     where: {
       account: { in: Array.from(CARD_ACCOUNTS) },
@@ -129,15 +138,33 @@ async function fetchCardTransactions(start: Date, end: Date): Promise<CardTransa
   return rows;
 }
 
-async function fetchCardEarnRules(): Promise<CardEarnRuleInput[]> {
+const fetchCardTransactions = unstable_cache(
+  fetchCardTransactionsUncached,
+  ['points-goal-card-transactions'],
+  { tags: ['data'], revalidate: false },
+);
+
+async function fetchCardEarnRulesUncached(): Promise<CardEarnRuleInput[]> {
   const rows = await prisma.cardEarnRule.findMany({ orderBy: { id: 'asc' } });
   return rows as CardEarnRuleInput[];
 }
 
-async function fetchFinnairPlusTier(): Promise<FinnairTier> {
+const fetchCardEarnRules = unstable_cache(
+  fetchCardEarnRulesUncached,
+  ['points-goal-card-earn-rules'],
+  { tags: ['config'], revalidate: false },
+);
+
+async function fetchFinnairPlusTierUncached(): Promise<FinnairTier> {
   const row = await prisma.finnairPlusTier.findUnique({ where: { id: 1 } });
   return (row?.tier as FinnairTier | undefined) ?? 'basic';
 }
+
+const fetchFinnairPlusTier = unstable_cache(
+  fetchFinnairPlusTierUncached,
+  ['points-goal-finnair-tier'],
+  { tags: ['config'], revalidate: false },
+);
 
 /** Builds one shared cash plan across every Avios-unit goal's planned flights (merged and sorted
  * by neededBy, so they all compete for the same discretionary pool/buffer instead of each goal

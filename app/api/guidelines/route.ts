@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { updateGuidelinesSchema, parseBody } from '@/lib/validation';
 
@@ -69,6 +70,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
         update: { targetPct: b.targetPct, categories: JSON.stringify(b.categories) },
       })
     ));
+    revalidateTag('config', 'max');
 
     return NextResponse.json({ success: true });
   } catch (error) {

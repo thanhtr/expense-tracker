@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { createPointsBalanceSchema, updatePointsBalanceSchema, parseBody, parseId, parseRouteId } from '@/lib/validation';
 import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
@@ -20,6 +21,7 @@ export async function POST(
     await prisma.pointsBalance.create({
       data: { goalId: idResult.id, balance, amexMr, note, recordedAt: new Date(recordedAt) },
     });
+    revalidateTag('readings', 'max');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
@@ -67,6 +69,7 @@ export async function PATCH(
       data,
     });
     if (count === 0) return NextResponse.json({ error: 'Balance not found' }, { status: 404 });
+    revalidateTag('readings', 'max');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
@@ -101,6 +104,7 @@ export async function DELETE(
       where: { id: balanceIdResult.id, goalId: idResult.id },
     });
     if (count === 0) return NextResponse.json({ error: 'Balance not found' }, { status: 404 });
+    revalidateTag('readings', 'max');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },

@@ -1530,6 +1530,84 @@ since they don't depend on a specific purchase at all.
   candidates) — scoped to `tbody tr` instead. Full suite (99 tests) now passes cleanly with no
   env setup required.
 
+### Nearly-indefinite caching, invalidated by upload/reading/config change (branch `feat/indefinite-cache-with-tags`)
+The app recomputed every expensive aggregation (dashboard stats, FIRE + Monte Carlo, the
+forecast, points-goal cash-plan/earn-reconciliation, recurring/seller detection) on every
+request. User request: since almost none of this actually changes except on three events — a
+CSV upload, a "reading" upsert (asset balance, points-goal balance/flight), or a config change
+(Settings tabs, FIRE config, budgets, guidelines) — cache nearly everything indefinitely and
+invalidate only on those events.
+
+- **Two things found that shaped the design**: `vercel.json` sets `Cache-Control: no-cache,
+  no-store, must-revalidate` on every `/api/*` route, so caching has to live server-side, not in
+  HTTP headers. And the one existing cache (`aggregation-service.ts`'s in-memory `Map`, 5-min TTL)
+  is unsound on this deployment — Vercel Fluid Compute can run multiple concurrent instances, and
+  a per-process `Map` isn't shared across them. Replaced it, and standardized on Next's Data Cache
+  (`unstable_cache` + `revalidateTag`), already proven here via `lib/categories-cache.ts`.
+- **Three tags, matching the user's own framing exactly**: `'data'` (any `Transaction` change:
+  upload, edit/delete, splits, links, bulk ops), `'readings'` (`Asset`/`AssetSnapshot`,
+  `PointsBalance`, `PointsFlight`, `PointsGoal` itself), `'config'` (every Settings-tab-backed
+  table — `HouseholdMember`, `Category` folded in from its old standalone `'categories'` tag,
+  `LearnedRule`, `IncomeRule`, `CardEarnRule`, `FinnairPlusTier`, `Budget`, `GuidelineBucket`,
+  `FireConfig`, `BankProfile`, `RecurringExclusion`). Several cached functions depend on more than
+  one tag (e.g. FIRE reads transactions + assets + config) — a rare config edit occasionally
+  over-invalidates an unrelated cache, an accepted, cheap tradeoff for a simple 3-tag model.
+- **Pattern**: wrap the specific expensive function (not the whole route) with
+  `unstable_cache(fn, keyParts, { tags, revalidate: false })`, mirroring `categories-cache.ts`.
+  Newly cached: `getDashboardStats`/`getEarliestTransactionDate` (replacing the old `Map`),
+  `getTransactions` (list/export), `forecastNextMonth`, recurring-charge detection, seller
+  aggregation, FIRE's `fetchPortfolioData` and `fire-inputs-service.ts`'s new
+  `deriveFireInputsCached`, and `points-goal-enrichment.ts`'s four DB-heavy fetches
+  (`fetchMoneyCapacity`, `fetchCardTransactions`, `fetchCardEarnRules`, `fetchFinnairPlusTier`).
+  `runFireCalculation`/`runMonteCarlo` stay uncached (pure, fast, no DB).
+- **Invalidation**: `invalidateDashboardCache()` call sites became `revalidateTag('data', 'max')`
+  directly, including two routes that should already have called it and didn't —
+  `transactions/[id]/route.ts` (PATCH/DELETE) and `.../splits/route.ts` (PUT) were silently
+  serving stale dashboard data for up to 5 minutes after an edit; fixed regardless of the
+  redesign. New `revalidateTag('readings', 'max')` calls on every asset/points-goal mutation
+  route; new `revalidateTag('config', 'max')` calls across every Settings-tab/FIRE/budgets/
+  guidelines mutation route.
+- **New manual escape hatch** (added mid-implementation, user request, for "a change bypasses the
+  app" — a direct DB edit, migration, or seed script): `POST /api/cache/revalidate` (body
+  `{ tags?: [...] }`, defaults to all three), auth mirrors the upload route's existing pattern
+  exactly (session via `proxy.ts`, or `x-api-token` for a CI/pipeline step). New
+  `components/CacheControls.tsx`, a "Clear cache" button at the bottom of `/settings`.
+- **A functions-with-an-internal-"now()" footgun, fixed in three places**: a function that reads
+  `new Date()` *inside* its own body (rather than taking it as an argument) and gets wrapped in
+  `unstable_cache` freezes its result at whatever moment it was first computed — the args-based
+  cache key never changes, so it's never recomputed except via tag invalidation, even once a new
+  calendar month starts. Fixed by adding a throwaway `monthKey`/`dayKey` string argument (unused
+  inside the body, computed by the exported wrapper, passed through so the args-based key rolls
+  over naturally): `forecastNextMonth`, the recurring-charge detector, and FIRE's
+  `fetchPortfolioData`/`deriveFireInputsCached` (day-truncated, matching the existing precedent
+  `fetchPortfolioData` already had for its own dashboard-stats sub-call).
+- **A real, shipped bug caught only by manual live-server testing, not by the (mocked) unit/e2e
+  suite**: `unstable_cache` always round-trips its return value through serialization, even on a
+  cache miss — a real `Date` field comes back out as a plain ISO string, not a `Date` instance.
+  `getEarliestTransactionDate` used to return `Date | null` directly; every caller
+  (`forecast-service.ts`, `points-goal-enrichment.ts`) called `.getFullYear()`/`.getMonth()` on
+  it directly and crashed (`/api/points-goals` 500ed) the moment it got cached. Fixed by having the
+  cached layer return an ISO string and the exported function convert it back to a real `Date`.
+  Audited every other newly-cached function's return shape for the same risk and found one more
+  live instance: `app/api/export/route.ts`'s CSV formatter called `t.date.toISOString()` directly
+  on `getTransactions()`'s output — fixed with the same instanceof-guard `avios-earn-service.ts`
+  already used defensively for exactly this reason. The vitest `next/cache` mock (a pass-through,
+  needed so tests don't cache stale mocks across cases — see below) can't catch this class of bug
+  at all, since it never serializes anything; only hitting the real dev server end-to-end did.
+- **Vitest needed a new global mock**: `revalidateTag`/`unstable_cache` need Next's request-scoped
+  cache handler, which a plain vitest process calling route handlers directly doesn't have.
+  Verified this was previously entirely untested (no unit test exercised `categories/route.ts` or
+  `getCategoriesCached` at all). New `__tests__/setup/mock-next-cache.ts`, wired into
+  `vitest.config.ts`'s `test.setupFiles`: `unstable_cache` is a pass-through, `revalidateTag`/
+  `revalidatePath` are tracked no-ops a test can assert on.
+- Verified against the real dev server end-to-end (not just mocked tests, precisely because of
+  the bug above): `/api/fire` and `/api/points-goals` return byte-identical cached-field output on
+  a second call, ~4x faster; a `PUT /api/fire` config change is reflected in the very next read; a
+  new `Asset` reading is reflected in FIRE's `bankTotal` on the next read; `/api/export` produces
+  correct CSV dates on both a cache miss and a cache hit; the manual `/api/cache/revalidate`
+  endpoint, its tag validation, and its token auth all behave correctly. All test assets/config
+  changes made during verification were cleaned up afterward.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

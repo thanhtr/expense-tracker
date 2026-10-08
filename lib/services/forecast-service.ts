@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
 import { mulberry32, percentile, monthString, shiftMonth, monthRange } from './stats';
 
@@ -50,10 +51,16 @@ export interface InsufficientForecastData {
 //
 // Window is a rolling 12 months if there's at least that much history, otherwise as far
 // back as the data actually goes.
-export async function forecastNextMonth(
-  trials = TRIALS,
-  seed = SEED,
+// `monthKey` is unused inside the body — it exists purely so unstable_cache's argument-based
+// cache key changes when the calendar month rolls over, since the function otherwise computes
+// `now` internally rather than taking it as an argument (which would freeze the cached result at
+// whatever month it was first computed in, with 'data' invalidation as the only way out).
+async function forecastNextMonthUncached(
+  trials: number,
+  seed: number,
+  monthKey: string,
 ): Promise<ForecastResult | InsufficientForecastData> {
+  void monthKey;
   const now = new Date();
   const historyEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // last day of previous month
   const historyEnd = monthString(historyEndDate);
@@ -129,4 +136,17 @@ export async function forecastNextMonth(
     byCategory,
     minHistoryMonths: MIN_HISTORY_MONTHS,
   };
+}
+
+const forecastNextMonthCached = unstable_cache(
+  forecastNextMonthUncached,
+  ['forecast-next-month'],
+  { tags: ['data'], revalidate: false },
+);
+
+export async function forecastNextMonth(
+  trials = TRIALS,
+  seed = SEED,
+): Promise<ForecastResult | InsufficientForecastData> {
+  return forecastNextMonthCached(trials, seed, monthString(new Date()));
 }

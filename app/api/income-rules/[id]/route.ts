@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { parseId } from '@/lib/validation';
 
@@ -12,6 +13,7 @@ export async function DELETE(
   if ('error' in idResult) return idResult.error;
   try {
     await prisma.incomeRule.delete({ where: { id: idResult.id } });
+    revalidateTag('config', 'max');
     return NextResponse.json({ success: true });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

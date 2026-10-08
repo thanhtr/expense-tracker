@@ -1,31 +1,44 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { unstable_cache, revalidateTag } from 'next/cache';
 import { DashboardAggregation } from '@/lib/types';
-
-const _cache = new Map<string, { data: DashboardAggregation; expiry: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Categories that aren't real income/expense (moving money between own accounts,
 // not consumption) and so are excluded from totals/charts by default. They still
 // show real numbers when the user explicitly filters to one of them.
 const NON_SPENDING_CATEGORIES = ['Investments', 'Internal Transfer'];
 
-function cacheKey(dateFrom?: Date, dateTo?: Date, categories?: string[], paidBy?: string, accounts?: string[]): string {
-  return [dateFrom?.toISOString() ?? '', dateTo?.toISOString() ?? '', (categories ?? []).slice().sort().join(','), paidBy ?? '', (accounts ?? []).slice().sort().join(',')].join('|');
-}
-
-export function invalidateDashboardCache(): void {
-  _cache.clear();
-}
+// unstable_cache round-trips its return value through serialization even on a cache miss, so a
+// real Date comes back out as a plain ISO string on every call, not just cache hits — returning
+// a string here (instead of Date | null) makes that explicit, and the exported wrapper below
+// converts it back to a real Date so every existing caller's contract is unchanged.
+const getEarliestTransactionDateIso = unstable_cache(
+  async (): Promise<string | null> => {
+    const result = await prisma.transaction.aggregate({ _min: { date: true } });
+    return result._min.date?.toISOString() ?? null;
+  },
+  ['earliest-transaction-date'],
+  { tags: ['data'], revalidate: false },
+);
 
 // Cheap standalone query (not part of getDashboardStats' Promise.all) so callers that only
 // need to know how far back reliable data goes — e.g. the forecast's history window — don't
-// have to run the full aggregation first.
+// have to run the full aggregation first. Cached nearly indefinitely (Transaction rows only
+// change on the events the 'data' tag is invalidated for — upload, edit/delete, splits, links,
+// bulk ops).
 export async function getEarliestTransactionDate(): Promise<Date | null> {
-  const result = await prisma.transaction.aggregate({ _min: { date: true } });
-  return result._min.date ?? null;
+  const iso = await getEarliestTransactionDateIso();
+  return iso ? new Date(iso) : null;
 }
 
+const getDashboardStatsCached = unstable_cache(
+  getDashboardStatsUncached,
+  ['dashboard-stats'],
+  { tags: ['data'], revalidate: false },
+);
+
+/** `forceRefresh` busts the whole 'data' cache before reading — a coarser manual escape hatch
+ * than a per-call bypass, but this param is rarely used and 'data' is cheap to recompute. */
 export async function getDashboardStats(
   dateFrom?: Date,
   dateTo?: Date,
@@ -34,10 +47,17 @@ export async function getDashboardStats(
   accounts?: string[],
   forceRefresh = false,
 ): Promise<DashboardAggregation> {
-  const key = cacheKey(dateFrom, dateTo, categories, paidBy, accounts);
-  const cached = _cache.get(key);
-  if (!forceRefresh && cached && Date.now() < cached.expiry) return cached.data;
+  if (forceRefresh) revalidateTag('data', 'max');
+  return getDashboardStatsCached(dateFrom, dateTo, categories, paidBy, accounts);
+}
 
+async function getDashboardStatsUncached(
+  dateFrom?: Date,
+  dateTo?: Date,
+  categories?: string[],
+  paidBy?: string,
+  accounts?: string[],
+): Promise<DashboardAggregation> {
   const baseWhere: Prisma.TransactionWhereInput = {};
 
   if (dateFrom || dateTo) {
@@ -495,6 +515,5 @@ export async function getDashboardStats(
     byIncomeSource,
   };
 
-  _cache.set(key, { data: result, expiry: Date.now() + CACHE_TTL_MS });
   return result;
 }

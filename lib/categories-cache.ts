@@ -19,5 +19,5 @@ async function ensureSeededAndFetch(): Promise<string[]> {
 export const getCategoriesCached = unstable_cache(
   ensureSeededAndFetch,
   ['categories-list'],
-  { tags: ['categories'], revalidate: false },
+  { tags: ['config'], revalidate: false },
 );

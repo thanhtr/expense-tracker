@@ -13,7 +13,7 @@ export async function DELETE(
 
   try {
     await prisma.category.delete({ where: { id: idResult.id } });
-    revalidateTag('categories', 'max');
+    revalidateTag('config', 'max');
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -33,7 +33,7 @@ export async function PATCH(
 
   try {
     const cat = await prisma.category.update({ where: { id: idResult.id }, data: { name: parsed.data.name } });
-    revalidateTag('categories', 'max');
+    revalidateTag('config', 'max');
     return NextResponse.json(cat);
   } catch {
     return NextResponse.json({ error: 'Not found or duplicate name' }, { status: 404 });

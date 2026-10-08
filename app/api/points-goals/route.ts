@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { createPointsGoalSchema, parseBody } from '@/lib/validation';
 import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
       data: { name, unit, note },
       include: POINTS_GOAL_INCLUDE,
     });
+    revalidateTag('readings', 'max');
 
     return NextResponse.json(await enrichPointsGoal(goal), { status: 201 });
   } catch (error) {

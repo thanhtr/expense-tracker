@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const cat = await prisma.category.create({ data: { name, sortOrder } });
-    revalidateTag('categories', 'max');
+    revalidateTag('config', 'max');
     return NextResponse.json(cat, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Category already exists' }, { status: 409 });

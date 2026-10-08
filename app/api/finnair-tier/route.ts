@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { updateFinnairTierSchema, parseBody } from '@/lib/validation';
 
@@ -16,5 +17,6 @@ export async function PATCH(request: NextRequest) {
     create: { id: 1, tier },
     update: { tier },
   });
+  revalidateTag('config', 'max');
   return NextResponse.json({ tier: row.tier });
 }

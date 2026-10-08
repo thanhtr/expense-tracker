@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { FIRE_RENTAL } from '@/lib/constants';
 import { matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
@@ -82,7 +83,10 @@ export function grossFromNet(netAnnual: number): number {
   return netAnnual / (1 - ASSUMED_INCOME_TAX_RATE - FI_EMPLOYEE_PENSION_CONTRIBUTION - FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION);
 }
 
-export async function deriveFireInputs(config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>, today = new Date()): Promise<DerivedInputsResult> {
+export async function deriveFireInputs(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+  today = new Date(),
+): Promise<DerivedInputsResult> {
   const since = new Date(today);
   since.setMonth(since.getMonth() - 12);
 
@@ -153,4 +157,26 @@ export async function deriveFireInputs(config: Pick<StoredFireConfig, 'dateOfBir
       loanInterestMonthly,
     },
   };
+}
+
+const deriveFireInputsCachedImpl = unstable_cache(
+  deriveFireInputs,
+  ['derive-fire-inputs'],
+  // Depends on raw transactions (salary/rent/loan/fee rows: 'data') and income-rule rental
+  // matching + the FireConfig fields passed in as args ('config' — the config *fields* already
+  // naturally bust the cache via the args-based key when they change; the income-rule tag covers
+  // the part that doesn't show up in the args).
+  { tags: ['data', 'config'], revalidate: false },
+);
+
+/** Same as `deriveFireInputs`, cached and truncated to a day boundary so repeated calls within
+ * the same day share a cache key (same idiom as fire/route.ts's fetchPortfolioData) instead of
+ * missing on every single request due to sub-second Date precision. Use this from the route;
+ * use the uncached `deriveFireInputs` directly when an exact `today` matters (e.g. tests). */
+export async function deriveFireInputsCached(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+): Promise<DerivedInputsResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return deriveFireInputsCachedImpl(config, today);
 }

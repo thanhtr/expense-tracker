@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
 import { createBudgetSchema, parseBody } from '@/lib/validation';
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       update: { monthlyLimit, ...(rollover !== undefined ? { rollover } : {}) },
       create: { category, monthlyLimit, rollover: rollover ?? false },
     });
+    revalidateTag('config', 'max');
 
     return NextResponse.json({ ...budget, rolloverAmount: 0, effectiveLimit: budget.monthlyLimit });
   } catch (error) {

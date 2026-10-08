@@ -16,14 +16,14 @@ vi.mock('../../../lib/services/aggregation-service', () => ({
 }));
 
 vi.mock('../../../lib/services/fire-inputs-service', () => ({
-  deriveFireInputs: vi.fn(),
+  deriveFireInputsCached: vi.fn(),
 }));
 
 import { GET, PUT } from '../../../app/api/fire/route';
 import { prisma } from '../../../lib/db';
 import { getDashboardStats } from '../../../lib/services/aggregation-service';
 import { FIRE_DEFAULTS } from '../../../lib/services/fire-service';
-import { deriveFireInputs } from '../../../lib/services/fire-inputs-service';
+import { deriveFireInputsCached } from '../../../lib/services/fire-inputs-service';
 
 const DERIVED = {
   inputs: { annualGrossEarnings: 120_000, rentalNetMonthly: 300, rentalTaxOnlyDeductionsMonthly: 15, rentalLoanPaymentMonthly: 300, rentalLoanRate: 0.033 },
@@ -38,7 +38,7 @@ const DERIVED = {
 };
 
 beforeEach(() => {
-  vi.mocked(deriveFireInputs).mockResolvedValue(DERIVED as never);
+  vi.mocked(deriveFireInputsCached).mockResolvedValue(DERIVED as never);
 });
 
 const makeConfig = (overrides = {}) => ({
