@@ -5,25 +5,37 @@ vi.mock('../../lib/db', () => ({
     asset: { findMany: vi.fn() },
     fireConfig: { findUnique: vi.fn() },
     pointsGoal: { findMany: vi.fn() },
+    transaction: { findMany: vi.fn() },
   },
 }));
 vi.mock('../../lib/services/aggregation-service', () => ({
   getDashboardStats: vi.fn(),
+  getEarliestTransactionDate: vi.fn(),
 }));
 
 import { prisma } from '../../lib/db';
-import { getDashboardStats } from '../../lib/services/aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from '../../lib/services/aggregation-service';
 import { enrichPointsGoal, enrichPointsGoals } from '../../lib/services/points-goal-enrichment';
 import { SUBSCRIPTION_EUR_PER_AVIOS } from '../../lib/avios-facts';
 
-const BASE_STATS = { net: 12_000, totalInvestments: 0, totalIncome: 36_000, byMonthIncome: Array(12).fill({ month: '', amount: 3_000 }) };
+// €2,700/mo net surplus, €8,000/mo income, over a full rolling 12-month window.
+const BASE_STATS = { net: 2_700 * 12, totalIncome: 8_000 * 12 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getDashboardStats).mockResolvedValue(BASE_STATS as never);
-  vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
+  // Far enough in the past that the rolling 12-month window is never clamped by real history.
+  vi.mocked(getEarliestTransactionDate).mockResolvedValue(new Date('2020-01-01'));
+  vi.mocked(prisma.asset.findMany).mockImplementation(async ({ where }: { where: { type: unknown } }) => {
+    // Called twice per capacity fetch: once for 'bank' (the buffer calc), once for the liquid
+    // types set (net-worth context) — tests override per-call amounts via mockResolvedValueOnce
+    // when they care about a specific total; this default keeps both calls at 0.
+    void where;
+    return [];
+  });
   vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.pointsGoal.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.transaction.findMany).mockResolvedValue([]); // no Investments activity by default
 });
 
 function goalWithFlights(
@@ -44,15 +56,18 @@ function goalWithFlights(
 }
 
 describe('enrichPointsGoal cashPlan', () => {
-  it('derives monthlyDiscretionary and liquidBufferAvailable from real data, not SavingsGoal', async () => {
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ ...BASE_STATS, net: 12_000, totalInvestments: 6_000 } as never); // €1,000/mo net, €500/mo invested
+  it('derives monthlySurplus and liquidBufferAvailable from real data, not SavingsGoal', async () => {
     vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([{ balance: 20_000 } as never]); // bank
+    vi.mocked(prisma.asset.findMany).mockResolvedValueOnce([{ balance: 20_000 } as never]); // liquid types
     vi.mocked(prisma.fireConfig.findUnique).mockResolvedValueOnce({ emergencyFundMonths: 6 } as never);
 
     const enriched = await enrichPointsGoal(goalWithFlights(1, []));
-    expect(enriched.cashPlan!.monthlyDiscretionary).toBeCloseTo(500, 2);
-    // Buffer target = 6 * (36,000/12) = 18,000; bank has 20,000 → 2,000 spare.
-    expect(enriched.cashPlan!.liquidBufferAvailable).toBeCloseTo(2_000, 2);
+    expect(enriched.cashPlan!.monthlySurplus).toBeCloseTo(2_700, 2);
+    expect(enriched.cashPlan!.regularInvesting).toBe(0); // no mocked Investments activity
+    expect(enriched.cashPlan!.freeMonthlyFlow).toBeCloseTo(2_700, 2);
+    // Buffer target = 6 * 8,000 = 48,000; bank has 20,000 → fully inside the buffer, 0 spare.
+    expect(enriched.cashPlan!.liquidBufferAvailable).toBe(0);
+    expect(enriched.cashPlan!.liquidNetWorth).toBe(20_000);
   });
 
   it('does not double-count the cumulative Avios shortfall across multiple flights in one goal', async () => {
@@ -80,29 +95,29 @@ describe('enrichPointsGoal cashPlan', () => {
     expect(flightA.cashNeeded).toBeCloseTo(100_000 * SUBSCRIPTION_EUR_PER_AVIOS, 2);
   });
 
-  it('shares one discretionary pool across multiple Avios goals instead of each claiming the full amount (regression)', async () => {
+  it('shares one capacity pool across multiple Avios goals instead of each claiming the full amount (regression)', async () => {
+    // Zero monthly flow and zero buffer, so two €1,000-fare flights on the same date can't both
+    // be 'funded' — if each goal computed its own cash plan independently, each would see
+    // itself as the only claimant on the (nonexistent) capacity and misreport 'funded'.
+    vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalIncome: 0 } as never);
     const goalA = goalWithFlights(1, [{ id: 10, points: 0, economyFareEur: 1_000, neededBy: '2026-08-01' }]);
     const goalB = goalWithFlights(2, [{ id: 20, points: 0, economyFareEur: 1_000, neededBy: '2026-08-01' }]);
 
     const [enrichedA, enrichedB] = await enrichPointsGoals([goalA, goalB]);
 
-    // net income €12,000/yr = €1,000/mo, ~1 month until the date → ~€1,000 available total,
-    // split across BOTH flights (€2,000 combined need) — neither goal should see itself as
-    // independently "on track" using the full €1,000/mo as if the other flight didn't exist.
-    const aOnTrack = enrichedA!.cashPlan!.flights[0]!.onTrack;
-    const bOnTrack = enrichedB!.cashPlan!.flights[0]!.onTrack;
-    expect(aOnTrack && bOnTrack).toBe(false);
+    const aFunded = enrichedA!.cashPlan!.flights[0]!.tier === 'funded';
+    const bFunded = enrichedB!.cashPlan!.flights[0]!.tier === 'funded';
+    expect(aFunded && bFunded).toBe(false);
   });
 
   it('orders same-date flights across goals consistently regardless of which goal is queried (regression)', async () => {
     // Both flights share the exact same neededBy date. enrichPointsGoal always puts "self" first
     // in the merged goals list, so without an id tiebreaker, each goal would see its own flight
-    // sort first and claim the buffer ahead of the other — both could report onTrack even when
-    // their combined need exceeds what's available.
+    // sort first and claim the buffer ahead of the other.
     const goalLowerId = goalWithFlights(1, [{ id: 10, points: 0, economyFareEur: 15_000, neededBy: '2026-11-01' }]);
     const goalHigherId = goalWithFlights(2, [{ id: 20, points: 0, economyFareEur: 15_000, neededBy: '2026-11-01' }]);
-    vi.mocked(getDashboardStats).mockResolvedValue({ ...BASE_STATS, net: 0 } as never); // no monthly flow, buffer-only
-    vi.mocked(prisma.asset.findMany).mockResolvedValue([{ balance: 20_000 } as never]); // buffer ~20,000 (no emergencyFundMonths config -> default *0 income = 0 target)
+    vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalIncome: 0 } as never); // no monthly flow, buffer-only
+    vi.mocked(prisma.asset.findMany).mockResolvedValue([{ balance: 20_000 } as never]); // buffer ~20,000 for both calls
 
     vi.mocked(prisma.pointsGoal.findMany).mockResolvedValueOnce([goalHigherId as never]);
     const enrichedFromLower = await enrichPointsGoal(goalLowerId);
@@ -111,13 +126,14 @@ describe('enrichPointsGoal cashPlan', () => {
 
     // The lower-id flight (10) must win the tie identically whichever goal initiated the query.
     expect(enrichedFromLower.cashPlan!.flights[0]!.cumulativeCashNeeded).toBeCloseTo(15_000, 2);
-    expect(enrichedFromHigher.cashPlan!.onTrack).toBe(false);
+    expect(enrichedFromHigher.cashPlan!.allFundedOrTradeoff).toBe(false);
   });
 
   it('pulls in sibling Avios goals for a single-goal mutation response too, not just the full list (regression)', async () => {
     // Simulates a route like POST .../flights calling enrichPointsGoal(goal) for just the one
     // goal that was mutated — it must still see goalB's competing flight via prisma, or it'll
-    // compute a cashPlan as if it alone owns the full discretionary pool.
+    // compute a cashPlan as if it alone owns the full capacity.
+    vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalIncome: 0 } as never);
     const goalA = goalWithFlights(1, [{ id: 10, points: 0, economyFareEur: 1_000, neededBy: '2026-08-01' }]);
     const goalBRow = goalWithFlights(2, [{ id: 20, points: 0, economyFareEur: 1_000, neededBy: '2026-08-01' }]);
     vi.mocked(prisma.pointsGoal.findMany).mockResolvedValueOnce([goalBRow] as never);
@@ -129,6 +145,6 @@ describe('enrichPointsGoal cashPlan', () => {
     );
     // Same shared-pool assertion as the plural-call regression test above, but through the
     // singular enrichPointsGoal path a mutation route actually uses.
-    expect(enrichedA.cashPlan!.flights[0]!.onTrack).toBe(false);
+    expect(enrichedA.cashPlan!.flights[0]!.tier).not.toBe('funded');
   });
 });

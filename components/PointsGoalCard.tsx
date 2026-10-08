@@ -70,21 +70,29 @@ interface AviosStrategy {
   combined: AviosStrategyConversion | null;
 }
 
+type CashPlanTier = 'funded' | 'tradeoff' | 'wealth';
+
 interface CashPlanFlight {
   id: number;
   label: string;
   neededBy: string;
   cashNeeded: number;
-  onTrack: boolean;
-  shortBy: number;
+  tier: CashPlanTier;
+  setAsidePerMonth: number | null;
+  setAsidePctOfSurplus: number | null;
+  tradeOffReductionPerMonth: number | null;
+  wealthNeeded: number | null;
+  wealthPctOfNetWorth: number | null;
 }
 
 interface CashPlan {
-  monthlyDiscretionary: number;
+  monthlySurplus: number;
+  regularInvesting: number;
+  freeMonthlyFlow: number;
   liquidBufferAvailable: number;
-  overcommitted: boolean;
+  liquidNetWorth: number;
   flights: CashPlanFlight[];
-  onTrack: boolean;
+  allFundedOrTradeoff: boolean;
 }
 
 interface PointsGoal {
@@ -784,23 +792,41 @@ function GoalCard({
         <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
           <div className="font-semibold text-[var(--fg-1)]">Can I afford it?</div>
           <div className="text-[var(--fg-2)]">
-            <span className={`mono font-medium ${goal.cashPlan.overcommitted ? 'text-red-600 dark:text-red-400' : ''}`}>
-              {fmtEUR(goal.cashPlan.monthlyDiscretionary)}
-            </span>/mo discretionary (net income minus observed investing)
+            Surplus <span className="mono">{fmtEUR(goal.cashPlan.monthlySurplus)}</span>/mo · regular investing{' '}
+            <span className="mono">{fmtEUR(goal.cashPlan.regularInvesting)}</span>/mo · free{' '}
+            <span className={`mono ${goal.cashPlan.freeMonthlyFlow < 0 ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+              {fmtEUR(goal.cashPlan.freeMonthlyFlow)}
+            </span>/mo
             {goal.cashPlan.liquidBufferAvailable > 0 && (
-              <> · <span className="mono">{fmtEUR(goal.cashPlan.liquidBufferAvailable)}</span> spare in the bank, above your emergency buffer</>
+              <> · <span className="mono">{fmtEUR(goal.cashPlan.liquidBufferAvailable)}</span> spare cash</>
             )}
-            {goal.cashPlan.overcommitted && ' — investing already exceeds net income'}
+            {' '}· <span className="mono">{fmtEUR(goal.cashPlan.liquidNetWorth)}</span> liquid net worth
           </div>
           {goal.cashPlan.flights.length > 0 && (
-            <ul className="space-y-[2px] pl-4 list-disc text-[var(--fg-2)]">
+            <ul className="space-y-1 pl-4 list-disc text-[var(--fg-2)]">
               {goal.cashPlan.flights.map((f) => (
                 <li key={f.id}>
-                  {f.label}: needs <span className="mono">{fmtEUR(f.cashNeeded)}</span> by {fmtDateLong(f.neededBy)} —{' '}
-                  {f.onTrack ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">on track</span>
-                  ) : (
-                    <span className="text-amber-600 dark:text-amber-400">short by {fmtEUR(f.shortBy)}</span>
+                  {f.label}: needs <span className="mono">{fmtEUR(f.cashNeeded)}</span> by {fmtDateLong(f.neededBy)}
+                  {f.setAsidePerMonth !== null && (
+                    <>
+                      {' '}— <span className="mono">{fmtEUR(f.setAsidePerMonth)}</span>/mo set aside
+                      {f.setAsidePctOfSurplus !== null && <> ({f.setAsidePctOfSurplus.toFixed(0)}% of surplus)</>}
+                    </>
+                  )}
+                  <br />
+                  {f.tier === 'funded' && (
+                    <span className="text-emerald-600 dark:text-emerald-400">Covered by spare cash and free monthly flow</span>
+                  )}
+                  {f.tier === 'tradeoff' && f.tradeOffReductionPerMonth !== null && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Invest <span className="mono">{fmtEUR(f.tradeOffReductionPerMonth)}</span>/mo less to make this date
+                    </span>
+                  )}
+                  {f.tier === 'wealth' && f.wealthNeeded !== null && (
+                    <span className="text-red-600 dark:text-red-400">
+                      Needs <span className="mono">{fmtEUR(f.wealthNeeded)}</span> from investments/savings
+                      {f.wealthPctOfNetWorth !== null && <> ({f.wealthPctOfNetWorth.toFixed(1)}% of liquid net worth)</>}
+                    </span>
                   )}
                 </li>
               ))}

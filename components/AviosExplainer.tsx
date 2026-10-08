@@ -95,15 +95,27 @@ export function AviosExplainer() {
           <section className="space-y-2">
             <h3 className="font-semibold text-[var(--fg-1)]">How the cash plan works</h3>
             <p>
-              Separately from the Avios math above, the cash plan checks whether your real household cash flow can
-              fund it — entirely from transactions and assets, never a manually-set savings goal. Rolling 12-month
-              net income (income − expenses) minus that same window&apos;s actual investing leaves a discretionary
-              monthly amount (this can go negative, if you&apos;re investing more than you&apos;re earning). Bank
-              balance above your FIRE emergency buffer counts as a one-time top-up on top of that monthly flow. Each
-              tracked flight&apos;s real economy fare plus its Avios shortfall (priced at the subscription rate — the
-              conservative baseline, not a hoped-for sale) is checked against that combined capacity, accumulated up
-              to the flight&apos;s date, with every Avios goal competing for the same pool. Buying during a flash
-              sale would only improve on this, never worsen it.
+              Separately from the Avios math above, the cash plan checks whether your real household cash flow and
+              balance sheet can fund it — entirely from transactions and assets, never a manually-set savings goal.
+              Income minus expenses, averaged over completed months (a rolling 12, or fewer if less history exists),
+              gives your monthly <strong>surplus</strong>. The <strong>median</strong> monthly Investments-category
+              spend over that same window gives your <strong>regular investing</strong> — a one-off lump (funded
+              from existing savings, not that month&apos;s income) doesn&apos;t skew this, unlike a plain average
+              would. Surplus minus regular investing leaves your <strong>free monthly flow</strong>, which can be
+              negative.
+            </p>
+            <p>
+              Each tracked flight&apos;s real economy fare plus its Avios shortfall (priced at the subscription
+              rate — the conservative baseline, not a hoped-for sale) is checked cumulatively, by date, against three
+              widening pools, with every Avios goal competing for the same capacity:
+            </p>
+            <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
+              <li><strong>Funded</strong> — spare bank cash (above your FIRE emergency buffer) plus free monthly flow alone covers it.</li>
+              <li><strong>Trade-off</strong> — covered only if you temporarily reduce regular investing; shown as the exact €/mo reduction needed.</li>
+              <li><strong>Draws on wealth</strong> — still short even pausing investing entirely; shown as a € amount and a % of your liquid net worth (bank + investments + crypto).</li>
+            </ul>
+            <p>
+              Buying Avios during a flash sale would only improve on the numbers shown, never worsen them.
             </p>
           </section>
 

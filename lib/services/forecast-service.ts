@@ -1,5 +1,5 @@
 import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
-import { mulberry32, percentile, monthString, shiftMonth } from './stats';
+import { mulberry32, percentile, monthString, shiftMonth, monthRange } from './stats';
 
 const MIN_HISTORY_MONTHS = 3;
 const MAX_HISTORY_MONTHS = 12;
@@ -34,17 +34,6 @@ export interface InsufficientForecastData {
   insufficientData: true;
   monthsAvailable: number;
   minHistoryMonths: number;
-}
-
-// Builds the list of calendar months from `start` to `end` inclusive, as 'YYYY-MM' strings.
-function monthRange(start: string, end: string): string[] {
-  const months: string[] = [];
-  let m = start;
-  while (m <= end) {
-    months.push(m);
-    m = shiftMonth(m, 1);
-  }
-  return months;
 }
 
 // Forecasts next month's spending via a block bootstrap: resamples whole historical

@@ -26,6 +26,9 @@ vi.mock('../../../lib/db', () => {
     fireConfig: {
       findUnique: vi.fn(),
     },
+    transaction: {
+      findMany: vi.fn(),
+    },
     $transaction: vi.fn((fn) => fn(prismaMock)),
   };
   return { prisma: prismaMock };
@@ -33,6 +36,7 @@ vi.mock('../../../lib/db', () => {
 
 vi.mock('../../../lib/services/aggregation-service', () => ({
   getDashboardStats: vi.fn(),
+  getEarliestTransactionDate: vi.fn(),
 }));
 
 import { GET, POST } from '../../../app/api/points-goals/route';
@@ -41,7 +45,7 @@ import { POST as POST_BALANCE, PATCH as PATCH_BALANCE, DELETE as DELETE_BALANCE 
 import { POST as POST_FLIGHT } from '../../../app/api/points-goals/[id]/flights/route';
 import { PATCH as PATCH_FLIGHT, DELETE as DELETE_FLIGHT } from '../../../app/api/points-goals/[id]/flights/[flightId]/route';
 import { prisma } from '../../../lib/db';
-import { getDashboardStats } from '../../../lib/services/aggregation-service';
+import { getDashboardStats, getEarliestTransactionDate } from '../../../lib/services/aggregation-service';
 
 const makeGoal = (overrides: Record<string, unknown> = {}) => ({
   id: 1,
@@ -68,8 +72,10 @@ const flightParams = (id: string, flightId: string) => Promise.resolve({ id, fli
 beforeEach(() => {
   vi.clearAllMocks();
   // Most tests don't care about the household-cash enrichment; give it a harmless default.
-  vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalInvestments: 0, totalIncome: 0, byMonthIncome: [] } as never);
+  vi.mocked(getDashboardStats).mockResolvedValue({ net: 0, totalIncome: 0 } as never);
+  vi.mocked(getEarliestTransactionDate).mockResolvedValue(new Date('2020-01-01'));
   vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.transaction.findMany).mockResolvedValue([]);
   vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
   // enrichPointsGoal (single-goal mutation responses) looks up sibling Avios goals for a shared
   // cash plan; default to none so tests that don't care about this don't need their own mock.
@@ -89,7 +95,7 @@ describe('GET /api/points-goals', () => {
 
   it('attaches strategy and cashPlan for an Avios-unit goal', async () => {
     vi.mocked(prisma.pointsGoal.findMany).mockResolvedValueOnce([makeGoal()]);
-    vi.mocked(getDashboardStats).mockResolvedValueOnce({ net: 12_000, totalInvestments: 0, totalIncome: 0, byMonthIncome: [] } as never);
+    vi.mocked(getDashboardStats).mockResolvedValueOnce({ net: 12_000, totalIncome: 0 } as never);
     const res = await GET();
     const body = await res.json();
     expect(body[0].strategy).toBeDefined();

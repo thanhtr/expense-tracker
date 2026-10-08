@@ -1376,6 +1376,47 @@ aggregation can be derived from transactions instead of manual entry.
   struck out as "stale, superseded by Phase 3" in a later session, when it was in fact the real
   next step the user still wanted done — restored and executed here.
 
+### "Can I afford it?" rebuilt around surplus and the balance sheet, not raw net income (branch: `fix/goal-cash-plan-surplus`)
+`deriveMoneyCapacity` (`lib/services/money-capacity-service.ts`) computed `(net - investments) /
+12`, which read as permanently, deeply negative for this household despite a healthy real
+surplus. Checked against production data (Jan–Oct 2026): real surplus ≈€2.5–2.7k/mo, but
+investments include irregular lumps (e.g. €21.5k in one month) paid out of existing savings (an
+Internal Transfer drew down the "Emergency" asset the same month), not from that month's income —
+treating every investment euro as a recurring monthly cost made the number wrong, not
+conservative. The 12-month divisor also overstated history by ~25% once pre-2026 rows were
+deleted (only ~9 completed months exist).
+- **`money-capacity-service.ts` rewritten**: `monthlySurplus` = income − expenses over completed
+  calendar months only (never a partial current month; a rolling 12, or fewer if less history
+  exists — same windowing `forecast-service.ts` already uses, for the same reason).
+  `regularInvesting` = the **median** monthly Investments-category total over that window, so a
+  one-off lump funded from savings doesn't inflate the "committed" baseline (a plain average
+  would). `freeMonthlyFlow` = surplus − regularInvesting (can be negative). `liquidNetWorth` =
+  bank + investment + crypto assets (`LIQUID_ASSET_TYPES`), shown as context and as the ceiling
+  for a flight that has to draw on existing wealth.
+- **`cash-plan-service.ts` rewritten**: the cumulative, by-date logic is unchanged, but a binary
+  on-track/short-by became a three-tier `CashPlanTier`: **funded** (spare cash + free monthly flow
+  alone covers it), **tradeoff** (covered only if regular investing is temporarily reduced — shown
+  as the exact €/mo reduction needed), **wealth** (short even pausing investing entirely — shown as
+  a € amount and a % of liquid net worth). Each flight also gets `setAsidePerMonth`/
+  `setAsidePctOfSurplus` — its own incremental cost spread over the months until its date,
+  independent of tier.
+- **`points-goal-enrichment.ts`**: `fetchMoneyCapacity` now also calls
+  `getEarliestTransactionDate()` (window clamping) and a new `fetchMonthlyInvestments()` (buckets
+  Investments-category transactions by calendar month, zero-filled, for the median). `monthRange`
+  was extracted from `forecast-service.ts` into the shared `lib/services/stats.ts` (alongside the
+  existing `monthString`/`shiftMonth`) since both modules now need it.
+- Real effect on this household's own data: the cash plan's header went from "−1,955 €/mo
+  discretionary ... investing already exceeds net income" (in red) to "Surplus 2,500 €/mo ·
+  regular investing 2,000 €/mo · free 500 €/mo · 26,976 € spare cash · 132,146 € liquid net worth".
+- Tests: `money-capacity-service.test.ts` and `cash-plan-service.test.ts` rewritten for the new
+  shapes/tiers; `points-goal-enrichment.test.ts`'s five cross-goal-sharing regression tests
+  adapted to the new fields (same assertions, now phrased in terms of `tier` instead of
+  `onTrack`/`shortBy`).
+- Not done here (raised, not built): deriving expected Avios/MR earn from Amex/Finnair-Visa
+  transaction categories to reconcile against the observed pace, and deriving tier points from
+  Visa spend automatically — see the Amex MR reading change (`feat/goal-readings-amex-mr`) for
+  the same investigation.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

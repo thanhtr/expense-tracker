@@ -39,3 +39,14 @@ export function shiftMonth(month: string, delta: number): string {
   const [y, mo] = month.split('-').map(Number);
   return monthString(new Date(y!, mo! - 1 + delta, 1));
 }
+
+// Builds the list of calendar months from `start` to `end` inclusive, as 'YYYY-MM' strings.
+export function monthRange(start: string, end: string): string[] {
+  const months: string[] = [];
+  let m = start;
+  while (m <= end) {
+    months.push(m);
+    m = shiftMonth(m, 1);
+  }
+  return months;
+}

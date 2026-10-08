@@ -58,9 +58,13 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       combined: null,
     },
     cashPlan: {
-      monthlyDiscretionary: 700, liquidBufferAvailable: 500, overcommitted: false,
-      flights: [{ id: 1, label: 'Japan return, 2 pax', neededBy: '2027-10-01', cashNeeded: 2_584.8, onTrack: false, shortBy: 1_784.8 }],
-      onTrack: false,
+      monthlySurplus: 2_700, regularInvesting: 2_000, freeMonthlyFlow: 700, liquidBufferAvailable: 500, liquidNetWorth: 50_000,
+      flights: [{
+        id: 1, label: 'Japan return, 2 pax', neededBy: '2027-10-01', cashNeeded: 2_584.8,
+        tier: 'wealth', setAsidePerMonth: 646.2, setAsidePctOfSurplus: 23.9,
+        tradeOffReductionPerMonth: null, wealthNeeded: 1_784.8, wealthPctOfNetWorth: 3.6,
+      }],
+      allFundedOrTradeoff: false,
     },
     ...overrides,
   };
@@ -93,7 +97,7 @@ test.describe('Goals page', () => {
     await expect(page.getByText('Closing the Avios gap')).toBeVisible();
     await expect(page.getByText(/70,000 Avios short/)).toBeVisible();
     await expect(page.getByText('Can I afford it?')).toBeVisible();
-    await expect(page.getByText(/short by/)).toBeVisible();
+    await expect(page.getByText(/from investments\/savings/)).toBeVisible();
   });
 
   test('creates a goal with a POST body matching the form', async ({ page }) => {
