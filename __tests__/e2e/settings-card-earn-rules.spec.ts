@@ -31,7 +31,8 @@ test.describe('Card Earn Rules', () => {
 
   test('lists existing card earn rules', async ({ page }) => {
     await page.goto('/settings?tab=card-earn-rules');
-    await expect(page.locator('text=BRITISH AIRWAYS')).toBeVisible();
+    const baRow = page.locator('tbody tr', { hasText: 'BRITISH AIRWAYS' });
+    await expect(baRow).toBeVisible();
     const nordeaRow = page.locator('tbody tr', { hasText: 'NORDEA' });
     await expect(nordeaRow).toBeVisible();
     await expect(nordeaRow).toContainText('excluded');
@@ -39,13 +40,13 @@ test.describe('Card Earn Rules', () => {
 
   test('adds a new card earn rule and POSTs to the API', async ({ page }) => {
     await page.goto('/settings?tab=card-earn-rules');
-    await expect(page.locator('text=BRITISH AIRWAYS')).toBeVisible();
+    await expect(page.locator('tbody tr', { hasText: 'BRITISH AIRWAYS' })).toBeVisible();
 
     await page.fill('#rule-merchant', 'HILTON');
     await page.locator('button:has-text("Add rule")').click();
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('text=HILTON')).toBeVisible();
+    await expect(page.locator('tbody tr', { hasText: 'HILTON' })).toBeVisible();
   });
 
   test('deletes a card earn rule and fires a DELETE request', async ({ page }) => {
@@ -59,7 +60,7 @@ test.describe('Card Earn Rules', () => {
     page.on('dialog', dialog => dialog.accept());
 
     await page.goto('/settings?tab=card-earn-rules');
-    await expect(page.locator('text=BRITISH AIRWAYS')).toBeVisible();
+    await expect(page.locator('tbody tr', { hasText: 'BRITISH AIRWAYS' })).toBeVisible();
     await page.locator('button[aria-label="Delete rule BRITISH AIRWAYS"]').click();
     await page.waitForLoadState('networkidle');
 

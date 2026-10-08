@@ -1510,19 +1510,25 @@ since they don't depend on a specific purchase at all.
   Avios-unit goals; a new "expected ~X Avios + Y MR/mo from card spend ... observed Z/mo" line
   with a caption that flight-earned Avios aren't counted, so observed can legitimately run higher;
   a tier-points goal shows "N of M months had €1,500+ qualifying spend → ~P tier points expected."
-- Verified against real production data via the local dev server (Playwright's own e2e auth setup
-  is currently broken in this environment — see below — so verification used direct authenticated
-  API calls instead): toggling the tier from Basic to Silver raised `expectedAviosPerMonth`
-  correctly (1.0 → 1.2 Avios/€); adding a real `CardEarnRule` excluding a recurring Netflix charge
-  on Amex correctly lowered `expectedMrPerMonth`. Both the test rule and the tier toggle were
-  cleaned up afterward (tier reset to basic, rule deleted).
-- **Found, not fixed — pre-existing, unrelated to this change:** `__tests__/e2e/auth.setup.ts`'s
-  login flow fails in this environment (`page.waitForURL('/')` times out even though the page
-  snapshot shows the dashboard already rendered) in both `npm run dev` and a production
-  `npm start` build, and reproduces identically on `main` with none of this PR's changes applied —
-  confirmed via `git stash`. Blocks every Playwright e2e test from running locally right now; not
-  investigated further here since it predates and is unrelated to this feature. Needs a dedicated
-  look in a future session.
+- Verified against real production data via the local dev server (direct authenticated API
+  calls): toggling the tier from Basic to Silver raised `expectedAviosPerMonth` correctly (1.0 →
+  1.2 Avios/€); adding a real `CardEarnRule` excluding a recurring Netflix charge on Amex
+  correctly lowered `expectedMrPerMonth`. Both the test rule and the tier toggle were cleaned up
+  afterward (tier reset to basic, rule deleted).
+- **Playwright e2e was blocked locally, root-caused and fixed, not just worked around.** Every
+  e2e test hung on `auth.setup.ts`'s `page.waitForURL('/')` after login (reproduced identically
+  on `main`, so unrelated to this feature). Root cause: `auth.setup.ts` reads
+  `process.env.AUTH_PASSWORD`, falling back to `'testpassword'` if unset; Next.js loads
+  `.env.local` automatically for the dev/prod *server*, but the Playwright *test runner* process
+  never did, so it logged in with the wrong fallback password, the login silently failed (no
+  redirect), and the page sat on `/login` forever — `waitForURL` then timed out with a message
+  that looked like a navigation/load-event bug, not an auth one. Fixed by loading `.env.local` in
+  `playwright.config.ts` via `dotenv`, so `npx playwright test` works standalone with no manual
+  env export. Also fixed a real strict-mode violation this surfaced in the new
+  `settings-card-earn-rules.spec.ts`: `text=HILTON`/`text=BRITISH AIRWAYS` locators matched both
+  the rules table and the manager's own explanatory copy (which names the same partners as
+  candidates) — scoped to `tbody tr` instead. Full suite (99 tests) now passes cleanly with no
+  env setup required.
 
 ---
 
