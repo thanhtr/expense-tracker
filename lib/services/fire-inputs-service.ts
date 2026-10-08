@@ -159,8 +159,19 @@ export async function deriveFireInputs(
   };
 }
 
+// `dayKey` is unused inside the body — present only so unstable_cache's argument-based cache key
+// is keyed on the exact local calendar day, not on `today`'s serialized (UTC) instant.
+async function deriveFireInputsForCache(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+  today: Date,
+  dayKey: string,
+): Promise<DerivedInputsResult> {
+  void dayKey;
+  return deriveFireInputs(config, today);
+}
+
 const deriveFireInputsCachedImpl = unstable_cache(
-  deriveFireInputs,
+  deriveFireInputsForCache,
   ['derive-fire-inputs'],
   // Depends on raw transactions (salary/rent/loan/fee rows: 'data') and income-rule rental
   // matching + the FireConfig fields passed in as args ('config' — the config *fields* already
@@ -178,5 +189,9 @@ export async function deriveFireInputsCached(
 ): Promise<DerivedInputsResult> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return deriveFireInputsCachedImpl(config, today);
+  return deriveFireInputsCachedImpl(config, today, localDateKey(today));
+}
+
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

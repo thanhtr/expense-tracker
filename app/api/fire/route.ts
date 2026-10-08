@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { unstable_cache, revalidateTag } from 'next/cache';
+import { unstable_cache } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { runFireCalculation, FIRE_DEFAULTS, type StoredFireConfig } from '@/lib/services/fire-service';
 import { runMonteCarlo } from '@/lib/services/fire-monte-carlo';
@@ -146,7 +147,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
       }),
       fetchPortfolioData(),
     ]);
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
 
     return await respond(storedFields(updated), portfolioData);
   } catch (err) {

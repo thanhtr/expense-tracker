@@ -2,7 +2,7 @@ import { parseOPBank, parseAmex, parseFinnair, parseGeneric, detectBank } from '
 import type { ColumnMapping } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { getIncomeRules, matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction } from '@/lib/types';
@@ -102,6 +102,6 @@ export async function processUpload(
   }
 
   const result = await upsertTransactions(rows, accountOwner);
-  revalidateTag('data', { expire: 0 });
+  revalidateTag('data');
   return { ...result, detectedBank: detected };
 }

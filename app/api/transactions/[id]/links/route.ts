@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { createLinkSchema, deleteLinkSchema, parseBody, parseId } from '@/lib/validation';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 
 export async function GET(
   _request: NextRequest,
@@ -97,7 +97,7 @@ export async function POST(
           reimbursementTransactionId,
         },
       });
-      revalidateTag('data', { expire: 0 });
+      revalidateTag('data');
       return NextResponse.json(link, { status: 201 });
     } catch (error) {
       if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
@@ -136,7 +136,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Link not found' }, { status: 404 });
     }
 
-    revalidateTag('data', { expire: 0 });
+    revalidateTag('data');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete link:', error);

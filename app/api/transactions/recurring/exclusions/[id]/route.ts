@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 
 export async function DELETE(
@@ -15,7 +15,7 @@ export async function DELETE(
 
   try {
     await prisma.recurringExclusion.delete({ where: { id: numId } });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Exclusion not found' }, { status: 404 });

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag, CACHE_TAGS, type CacheTag } from '@/lib/cache-tags';
 import { requireTokenOrSession } from '@/lib/api-auth';
-
-const CACHE_TAGS = ['data', 'readings', 'config'] as const;
-type CacheTag = typeof CACHE_TAGS[number];
 
 // Manual escape hatch for the nearly-indefinite cache (data/readings/config tags — see
 // lib/services/aggregation-service.ts and friends): a Settings button for a person, or a
@@ -22,7 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No valid tags in request' }, { status: 400 });
   }
 
-  for (const tag of tags) revalidateTag(tag, { expire: 0 });
+  for (const tag of tags) revalidateTag(tag);
 
   return NextResponse.json({ success: true, invalidated: tags });
 }

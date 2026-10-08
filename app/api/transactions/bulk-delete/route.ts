@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { bulkDeleteSchema, parseBody } from '@/lib/validation';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { ids } = parsed.data;
 
     const result = await prisma.transaction.deleteMany({ where: { id: { in: ids } } });
-    revalidateTag('data', { expire: 0 });
+    revalidateTag('data');
     return NextResponse.json({ deleted: result.count });
   } catch (error) {
     console.error('Bulk delete error:', error);

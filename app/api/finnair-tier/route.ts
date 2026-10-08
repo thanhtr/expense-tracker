@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updateFinnairTierSchema, parseBody } from '@/lib/validation';
 
@@ -17,6 +17,6 @@ export async function PATCH(request: NextRequest) {
     create: { id: 1, tier },
     update: { tier },
   });
-  revalidateTag('config', { expire: 0 });
+  revalidateTag('config');
   return NextResponse.json({ tier: row.tier });
 }

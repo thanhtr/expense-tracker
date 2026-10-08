@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTransactions } from '@/lib/services/transaction-service';
 import { prisma } from '@/lib/db';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { transactionQuerySchema, bulkDeleteQuerySchema, parseQuery, splitCommaParam } from '@/lib/validation';
 
 export async function GET(request: NextRequest) {
@@ -54,7 +54,7 @@ export async function DELETE(request: NextRequest) {
       },
     });
 
-    revalidateTag('data', { expire: 0 });
+    revalidateTag('data');
     return NextResponse.json({ deleted: result.count, total: result.count, failures: [] });
   } catch (error) {
     console.error('Bulk delete error:', error);

@@ -11,7 +11,9 @@ import { NextRequest, NextResponse } from 'next/server';
 export function requireTokenOrSession(request: NextRequest): NextResponse | null {
   if (!request.headers.has('x-api-token')) return null;
   const token = request.headers.get('x-api-token');
-  if (token !== process.env.API_SECRET) {
+  // `!token` first: an empty supplied value must never authenticate, even in the misconfigured
+  // case where API_SECRET itself is also unset/empty (so the two wouldn't otherwise differ).
+  if (!token || !process.env.API_SECRET || token !== process.env.API_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   return null;

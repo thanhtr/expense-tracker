@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
   try {
     const member = await prisma.householdMember.create({ data: { name: name.trim(), slug } });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json(member, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'A member with that name already exists' }, { status: 409 });

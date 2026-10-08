@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updateAssetSchema, parseBody, parseId } from '@/lib/validation';
 
@@ -53,7 +53,7 @@ export async function PATCH(
       // assetSnapshot table may not exist yet — proceed without snapshot
     }
 
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
     return NextResponse.json(asset);
   } catch (error) {
     console.error('Failed to update asset:', error);
@@ -71,7 +71,7 @@ export async function DELETE(
     if ('error' in idResult) return idResult.error;
 
     await prisma.asset.delete({ where: { id: idResult.id } });
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete asset:', error);

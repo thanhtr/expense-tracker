@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { createCardEarnRuleSchema, parseBody } from '@/lib/validation';
 
@@ -13,6 +13,6 @@ export async function POST(request: NextRequest) {
   if ('error' in parsed) return parsed.error;
   const { account, merchantPattern, classification, note } = parsed.data;
   const rule = await prisma.cardEarnRule.create({ data: { account, merchantPattern, classification, note } });
-  revalidateTag('config', { expire: 0 });
+  revalidateTag('config');
   return NextResponse.json(rule, { status: 201 });
 }

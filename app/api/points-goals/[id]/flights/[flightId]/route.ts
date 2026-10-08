@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updatePointsFlightSchema, parseBody, parseId } from '@/lib/validation';
 import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
@@ -36,7 +36,7 @@ export async function PATCH(
       data,
     });
     if (count === 0) return NextResponse.json({ error: 'Flight not found' }, { status: 404 });
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },
@@ -66,7 +66,7 @@ export async function DELETE(
       where: { id: flightIdResult.id, goalId: idResult.id },
     });
     if (count === 0) return NextResponse.json({ error: 'Flight not found' }, { status: 404 });
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },

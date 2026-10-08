@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { createAssetSchema, parseBody } from '@/lib/validation';
 import { LIQUID_ASSET_TYPES } from '@/lib/constants';
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       // assetSnapshot table may not exist yet — proceed without snapshot
     }
 
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
     console.error('Failed to create asset:', error);

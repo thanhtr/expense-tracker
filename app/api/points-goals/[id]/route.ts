@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updatePointsGoalSchema, parseBody, parseRouteId } from '@/lib/validation';
 import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
@@ -22,7 +22,7 @@ export async function PATCH(
       data: parsed.data,
       include: POINTS_GOAL_INCLUDE,
     });
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
 
     return NextResponse.json(await enrichPointsGoal(goal));
   } catch (error) {
@@ -43,7 +43,7 @@ export async function DELETE(
     if ('error' in idResult) return idResult.error;
 
     await prisma.pointsGoal.delete({ where: { id: idResult.id } });
-    revalidateTag('readings', { expire: 0 });
+    revalidateTag('readings');
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {

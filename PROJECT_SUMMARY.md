@@ -1667,6 +1667,48 @@ this PR caches. `unstable_cache` is still shipped and fully functional in this N
 migrating to Cache Components is a real, separate architectural decision this household should
 make deliberately, with its own planning and testing — not a side effect of a caching PR.
 
+**Found in a third code-review pass (four more fixed, two flagged and accepted):**
+- **The exact same UTC-vs-local day-boundary bug, reintroduced in a sibling function** —
+  `fire-inputs-service.ts`'s `deriveFireInputsCached` passed the already-locally-truncated `today`
+  Date object straight through as an `unstable_cache` argument; `unstable_cache` serializes
+  arguments via their `toJSON()`/ISO form, which reports the *UTC* instant, re-creating the exact
+  mismatch already fixed in `fetchPortfolioData` two review passes earlier — in this household's
+  own EEST timezone, a call made in the few hours after local midnight could key on the previous
+  UTC day. Fixed the same way: a new `deriveFireInputsForCache` wrapper takes an explicit, unused
+  `dayKey` string (built from local date components) purely so the cache key rolls over at local
+  midnight, not UTC midnight.
+- **A real auth regression in the just-written `requireTokenOrSession` helper**: the consolidation
+  dropped the original `!token ||` guard, leaving only `token !== process.env.API_SECRET` — safe
+  today, but if `API_SECRET` were ever deployed as a literal empty string (a real misconfiguration,
+  not just unset), an empty supplied token would equal it and authenticate with no real credential.
+  Restored the `!token` check (and added `!process.env.API_SECRET` for the same reason on the other
+  side of the comparison).
+- **`BankProfile` writes never invalidated `'config'`**, despite being listed among the tables that
+  tag covers — inert today (nothing caches a `BankProfile` read yet), but would have been a silent
+  trap for the first future function that does. Added the missing `revalidateTag('config')` call.
+- **No compile-time link between a cached function's `tags` and a mutation route's
+  `revalidateTag` call** — every one of the ~45 call sites passed a bare string literal plus a
+  repeated `{ expire: 0 }`, with nothing to catch a typo'd or renamed tag. New `lib/cache-tags.ts`:
+  a `CacheTag` type restricted to the three real tags, and a typed `revalidateTag(tag)` wrapper
+  that always applies the immediate-invalidation option internally. Every call site across the app
+  now imports from here instead of `next/cache` directly.
+- **Flagged, deliberately not changed**: removing `getDashboardStats`'s `forceRefresh` param (the
+  previous review-pass fix, above) widened a plain dashboard refresh's blast radius from one query
+  to the whole `'data'` tag (forecast, sellers, recurring detection, FIRE, Avios cash plan — every
+  tag the single-`'data'`-tag design groups together). This is the same tradeoff already accepted
+  for every other `'data'`-tagged mutation in this PR (an upload or a single transaction edit
+  already invalidates the same breadth); the manual refresh button isn't a new, worse case, just
+  the same accepted design extended to one more trigger.
+- **Flagged, deliberately not changed**: the new Data Cache has no size cap or TTL (`revalidate:
+  false`, matching the "nearly indefinite" design goal) — a high-cardinality input space (custom
+  date ranges, free-text merchant search, pagination offsets) grows one cache entry per distinct
+  argument tuple, with no eviction until an explicit tag invalidation. The *old* in-memory `Map` had
+  the identical unbounded-growth property (it only ever shrank via its own full-clear
+  `invalidateDashboardCache()`, same as now) with a 5-minute TTL layered on top as the only
+  practical bound — bounding this properly (an LRU cap, or reintroducing a TTL) would cut against
+  the "nearly indefinite" goal this whole PR was built around, so it's flagged as a real
+  consideration for if usage patterns ever make it a problem, not fixed here.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updateCategorySchema, parseBody, parseId } from '@/lib/validation';
 
@@ -13,7 +13,7 @@ export async function DELETE(
 
   try {
     await prisma.category.delete({ where: { id: idResult.id } });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -33,7 +33,7 @@ export async function PATCH(
 
   try {
     const cat = await prisma.category.update({ where: { id: idResult.id }, data: { name: parsed.data.name } });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json(cat);
   } catch {
     return NextResponse.json({ error: 'Not found or duplicate name' }, { status: 404 });

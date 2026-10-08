@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
 import { dashboardQuerySchema, parseQuery, splitCommaParam } from '@/lib/validation';
 
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // call sites now call `getDashboardStats` from within their own `unstable_cache` wrapper
     // (fetchMoneyCapacity, fetchPortfolioData, forecastNextMonth) and would crash if a
     // force-refresh flag were ever threaded through one of those composed paths instead.
-    if (refresh === '1') revalidateTag('data', { expire: 0 });
+    if (refresh === '1') revalidateTag('data');
     const stats = await getDashboardStats(
       date_from ? new Date(date_from) : undefined,
       date_to ? new Date(date_to) : undefined,

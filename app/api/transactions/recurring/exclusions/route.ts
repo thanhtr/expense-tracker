@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       update: {},
       create: { type, value },
     });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
 
     return NextResponse.json(exclusion);
   } catch (error) {

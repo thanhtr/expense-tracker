@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 import { CATEGORIES } from '@/lib/constants';
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
     invalidateRulesCache();
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
 
     return NextResponse.json(
       { id: row.id, keyword: row.normalizedKey, category: row.category, count: row.count },

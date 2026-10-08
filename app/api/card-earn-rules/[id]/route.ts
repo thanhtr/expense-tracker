@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { parseId, updateCardEarnRuleSchema, parseBody } from '@/lib/validation';
 
@@ -15,7 +15,7 @@ export async function PATCH(
   if ('error' in parsed) return parsed.error;
   try {
     const rule = await prisma.cardEarnRule.update({ where: { id: idResult.id }, data: parsed.data });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json(rule);
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
@@ -34,7 +34,7 @@ export async function DELETE(
   if ('error' in idResult) return idResult.error;
   try {
     await prisma.cardEarnRule.delete({ where: { id: idResult.id } });
-    revalidateTag('config', { expire: 0 });
+    revalidateTag('config');
     return NextResponse.json({ success: true });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {

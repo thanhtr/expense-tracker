@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
 import { bulkCategorizeSchema, parseBody } from '@/lib/validation';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await prisma.transaction.updateMany({ where, data: { category } });
-    revalidateTag('data', { expire: 0 });
+    revalidateTag('data');
     return NextResponse.json({ updated: result.count });
   } catch (error) {
     console.error('Bulk categorize error:', error);
