@@ -18,10 +18,18 @@ export async function POST(request: NextRequest) {
   if (body.tags !== undefined && !Array.isArray(body.tags)) {
     return NextResponse.json({ error: '"tags" must be an array of cache tags' }, { status: 400 });
   }
-  const requested = body.tags ?? CACHE_TAGS;
-  const tags = requested.filter((t: unknown): t is CacheTag => (CACHE_TAGS as readonly string[]).includes(t as string));
 
-  if (tags.length === 0) {
+  if (body.tags === undefined) {
+    for (const tag of CACHE_TAGS) revalidateTag(tag);
+    return NextResponse.json({ success: true, invalidated: CACHE_TAGS });
+  }
+
+  // `tags: []` is an explicit, valid no-op request (not malformed). `tags` present and
+  // non-empty but containing no recognized tag (e.g. `["bogus"]`) is rejected rather than
+  // silently invalidating nothing.
+  const requested = body.tags;
+  const tags = requested.filter((t: unknown): t is CacheTag => (CACHE_TAGS as readonly string[]).includes(t as string));
+  if (requested.length > 0 && tags.length === 0) {
     return NextResponse.json({ error: 'No valid tags in request' }, { status: 400 });
   }
 

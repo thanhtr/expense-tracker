@@ -4,10 +4,10 @@
 
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
+import { getDashboardStats } from './aggregation-service';
 import { FIRE_DEFAULTS } from './fire-service';
 import { deriveMoneyCapacity, type MoneyCapacity } from './money-capacity-service';
-import { monthString, monthRange } from './stats';
+import { monthString, resolveCompletedMonthsWindow, type CompletedMonthsWindow } from './stats';
 import { LIQUID_ASSET_TYPES } from '@/lib/constants';
 import { SUBSCRIPTION_EUR_PER_AVIOS, type FinnairTier } from '@/lib/avios-facts';
 import { withProgress, POINTS_GOAL_INCLUDE, type PointsGoalInput, type PointsGoalProgress } from './points-goal-service';
@@ -33,35 +33,6 @@ type EnrichedGoal<T> = GoalWithProgress<T> & {
     'qualifyingTierPointMonths' | 'monthsInWindow' | 'expectedTierPoints'
   >;
 };
-
-interface CompletedMonthsWindow {
-  windowStart: Date;
-  windowEnd: Date;
-  months: string[];
-}
-
-/** Resolves a rolling N-completed-calendar-months window (never a partial current month),
- * clamped to the earliest transaction actually in the DB — same guard fetchMoneyCapacity needs
- * for a fresh/empty database (see the code-review fix in PROJECT_SUMMARY.md, "Can I afford it?
- * rebuilt..."): null's fallback month would otherwise equal windowEndMonth, always later than
- * rollingStart, which would pass a null Date into a Prisma `gte` filter. */
-async function resolveCompletedMonthsWindow(windowMonths: number): Promise<CompletedMonthsWindow> {
-  const now = new Date();
-  const windowEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of previous month
-  const windowEndMonth = monthString(windowEnd);
-
-  const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
-  rollingStart.setMonth(rollingStart.getMonth() - (windowMonths - 1));
-
-  const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
-  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
-  const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
-
-  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
-
-  return { windowStart, windowEnd, months };
-}
 
 // One Investments-category total per month in `months` (zero-filled), used so
 // money-capacity-service.ts can take the *median* rather than the window total — a one-off lump

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { unstable_cache } from 'next/cache';
 import { DashboardAggregation } from '@/lib/types';
+import { sortedOrUndefined } from './stats';
 
 // Categories that aren't real income/expense (moving money between own accounts,
 // not consumption) and so are excluded from totals/charts by default. They still
@@ -44,16 +45,12 @@ export async function getDashboardStats(
   paidBy?: string,
   accounts?: string[],
 ): Promise<DashboardAggregation> {
-  // unstable_cache keys on the literal argument values, order included — sort a copy here so two
-  // selections of the same categories/accounts in a different click order (e.g.
-  // MultiSelectDropdown builds its array in click order, not sorted) share one cache entry
-  // instead of each recomputing the full aggregation separately.
   return getDashboardStatsCached(
     dateFrom,
     dateTo,
-    categories ? [...categories].sort() : categories,
+    sortedOrUndefined(categories),
     paidBy,
-    accounts ? [...accounts].sort() : accounts,
+    sortedOrUndefined(accounts),
   );
 }
 

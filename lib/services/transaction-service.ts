@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction, TransactionWithId } from '@/lib/types';
 import { Prisma } from '@prisma/client';
+import { sortedOrUndefined } from './stats';
 
 export interface TransactionFilters {
   dateFrom?: string;
@@ -182,14 +183,10 @@ const getTransactionsCached = unstable_cache(
   { tags: ['data'], revalidate: false },
 );
 
-/** unstable_cache keys on the literal argument values, order included — sort copies of
- * categories/accounts here so two selections of the same set in a different order (e.g.
- * MultiSelectDropdown builds its array in click order, not sorted) share one cache entry instead
- * of each recomputing the query separately. */
 export async function getTransactions(filters: TransactionFilters): Promise<TransactionsResult> {
   return getTransactionsCached({
     ...filters,
-    categories: filters.categories ? [...filters.categories].sort() : filters.categories,
-    accounts: filters.accounts ? [...filters.accounts].sort() : filters.accounts,
+    categories: sortedOrUndefined(filters.categories),
+    accounts: sortedOrUndefined(filters.accounts),
   });
 }

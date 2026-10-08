@@ -48,6 +48,32 @@ describe('PATCH /api/transactions/[id]', () => {
     expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
+  it('also invalidates the config cache on a category edit, since it writes a LearnedRule row (regression)', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValueOnce({ id: 1, merchant: 'Shop', amount: -10 } as never);
+    vi.mocked(prisma.transaction.update).mockResolvedValueOnce({ category: 'Groceries', tags: [] } as never);
+
+    const res = await PATCH(
+      makeReq('http://localhost/api/transactions/1', 'PATCH', { category: 'Groceries' }),
+      { params: params('1') },
+    );
+
+    expect(res.status).toBe(200);
+    expect(revalidateTag).toHaveBeenCalledWith('config', { expire: 0 });
+  });
+
+  it('does not invalidate the config cache for a non-category edit (no LearnedRule write)', async () => {
+    vi.mocked(prisma.transaction.findUnique).mockResolvedValueOnce({ id: 1, merchant: 'Shop', amount: -10 } as never);
+    vi.mocked(prisma.transaction.update).mockResolvedValueOnce({ category: '', tags: ['foo'] } as never);
+
+    const res = await PATCH(
+      makeReq('http://localhost/api/transactions/1', 'PATCH', { tags: ['foo'] }),
+      { params: params('1') },
+    );
+
+    expect(res.status).toBe(200);
+    expect(revalidateTag).not.toHaveBeenCalledWith('config', { expire: 0 });
+  });
+
   it('does not invalidate the cache when the transaction is not found', async () => {
     vi.mocked(prisma.transaction.findUnique).mockResolvedValueOnce(null);
 

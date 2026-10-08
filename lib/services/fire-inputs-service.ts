@@ -91,6 +91,11 @@ export async function deriveFireInputs(
   const since = new Date(today);
   since.setMonth(since.getMonth() - 12);
 
+  // Started now, awaited only where euribor is used below — it has no dependency on the DB
+  // queries that follow, so there's no reason to pay its latency (up to 3s) sequentially after
+  // them.
+  const euriborPromise = fetchEuribor6m();
+
   const rentalRules = await prisma.incomeRule.findMany({
     where: { label: { startsWith: FIRE_RENTAL.incomeRuleLabelPrefix } },
   });
@@ -127,7 +132,7 @@ export async function deriveFireInputs(
 
   // The rental loan is an annuity ending at mortgageEndAge. Assumes today's Euribor
   // holds for the rest of the term.
-  const euribor = await fetchEuribor6m();
+  const euribor = await euriborPromise;
   const loanRate = euribor.rate + FIRE_RENTAL.loanMargin;
   const loanPaymentMonthly = monthlyAverage(loanTxs).monthly;
   const monthsLeft = Math.max(0, Math.round((config.mortgageEndAge - computeCurrentAge(config.dateOfBirth)) * 12));

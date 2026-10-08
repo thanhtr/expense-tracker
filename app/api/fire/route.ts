@@ -101,8 +101,10 @@ function computeBreakdown(data: PortfolioData, emergencyFundMonths: number): Por
 }
 
 // Combines the saved settings with inputs derived from transaction data and runs the model.
-async function respond(stored: StoredFireConfig, portfolioData: PortfolioData): Promise<NextResponse> {
-  const derived = await deriveFireInputsCached(stored);
+// `portfolioData` is a Promise (not an already-resolved value) so it can run concurrently with
+// deriveFireInputsCached here, rather than the caller forcing the two to resolve sequentially.
+async function respond(stored: StoredFireConfig, portfolioDataPromise: Promise<PortfolioData>): Promise<NextResponse> {
+  const [derived, portfolioData] = await Promise.all([deriveFireInputsCached(stored), portfolioDataPromise]);
   const fireConfig = { ...stored, ...derived.inputs };
   const breakdown = computeBreakdown(portfolioData, fireConfig.emergencyFundMonths);
   const result = runFireCalculation(fireConfig, breakdown.currentPortfolio);
@@ -124,8 +126,9 @@ function storedFields(row: StoredFireConfig & { id: number; updatedAt: Date }): 
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const [config, portfolioData] = await Promise.all([getOrCreateConfig(), fetchPortfolioData()]);
-    return await respond(storedFields(config), portfolioData);
+    const portfolioDataPromise = fetchPortfolioData();
+    const config = await getOrCreateConfig();
+    return await respond(storedFields(config), portfolioDataPromise);
   } catch (err) {
     console.error('[GET /api/fire]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -138,17 +141,15 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     const parsed = parseBody(fireConfigSchema, body);
     if ('error' in parsed) return parsed.error;
 
-    const [updated, portfolioData] = await Promise.all([
-      prisma.fireConfig.upsert({
-        where: { id: 1 },
-        update: parsed.data,
-        create: { id: 1, ...FIRE_DEFAULTS, ...parsed.data },
-      }),
-      fetchPortfolioData(),
-    ]);
+    const portfolioDataPromise = fetchPortfolioData();
+    const updated = await prisma.fireConfig.upsert({
+      where: { id: 1 },
+      update: parsed.data,
+      create: { id: 1, ...FIRE_DEFAULTS, ...parsed.data },
+    });
     revalidateTag('config');
 
-    return await respond(storedFields(updated), portfolioData);
+    return await respond(storedFields(updated), portfolioDataPromise);
   } catch (err) {
     console.error('[PUT /api/fire]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

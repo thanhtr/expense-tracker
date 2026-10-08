@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache';
-import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
-import { mulberry32, percentile, monthString, shiftMonth, monthRange } from './stats';
+import { getDashboardStats } from './aggregation-service';
+import { mulberry32, percentile, monthString, shiftMonth, resolveCompletedMonthsWindow } from './stats';
 
 const MIN_HISTORY_MONTHS = 3;
 const MAX_HISTORY_MONTHS = 12;
@@ -63,25 +63,14 @@ async function forecastNextMonthUncached(
   void monthKey;
   // Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
   // Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
-  // another unstable_cache-wrapped function — so getEarliestTransactionDate/getDashboardStats
+  // another unstable_cache-wrapped function — so resolveCompletedMonthsWindow/getDashboardStats
   // below always recompute fresh rather than potentially reusing a recent identical-args cache
   // hit, every time this function's own cache needs to recompute (a cold cache or after a 'data'
   // invalidation, not on every request).
-  const now = new Date();
-  const historyEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // last day of previous month
+  const { windowStart: historyStartDate, windowEnd: historyEndDate, months } =
+    await resolveCompletedMonthsWindow(MAX_HISTORY_MONTHS, { emptyHistoryFallback: 'single-month' });
   const historyEnd = monthString(historyEndDate);
 
-  const rollingStartDate = new Date(historyEndDate);
-  rollingStartDate.setMonth(rollingStartDate.getMonth() - (MAX_HISTORY_MONTHS - 1));
-  const rollingStart = monthString(rollingStartDate);
-
-  const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : historyEnd;
-  const dataStartsLater = earliestDataMonth > rollingStart;
-  const historyStart = dataStartsLater ? earliestDataMonth : rollingStart;
-  const historyStartDate = dataStartsLater ? earliestDataDate! : rollingStartDate;
-
-  const months = monthRange(historyStart, historyEnd);
   if (months.length < MIN_HISTORY_MONTHS) {
     return { insufficientData: true, monthsAvailable: months.length, minHistoryMonths: MIN_HISTORY_MONTHS };
   }

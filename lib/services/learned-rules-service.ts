@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { normalizeMerchant } from '@/lib/merchant-normalizer';
 
@@ -14,22 +15,13 @@ export interface LearnedRulesStore {
   updatedAt: string;
 }
 
-let _rulesCache: LearnedRulesStore | null = null;
-let _rulesCacheExpiry: number = 0;
-const RULES_CACHE_TTL_SECONDS = 300;
-
 function rollingStartDate(): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - 2);
   return d.toISOString().slice(0, 10);
 }
 
-async function loadLearnedRules(): Promise<LearnedRulesStore> {
-  const now = Date.now();
-  if (_rulesCache && now < _rulesCacheExpiry) {
-    return _rulesCache;
-  }
-
+async function loadLearnedRulesUncached(): Promise<LearnedRulesStore> {
   const rows = await prisma.learnedRule.findMany();
   const rules: Record<string, LearnedRule> = {};
   for (const row of rows) {
@@ -41,15 +33,26 @@ async function loadLearnedRules(): Promise<LearnedRulesStore> {
     };
   }
 
-  const store: LearnedRulesStore = {
+  return {
     rules,
     version: 0,
     updatedAt: new Date().toISOString(),
   };
+}
 
-  _rulesCache = store;
-  _rulesCacheExpiry = now + RULES_CACHE_TTL_SECONDS * 1000;
-  return store;
+// Cached via Next's shared Data Cache, tagged 'config' — not a per-process Map: Vercel Fluid
+// Compute can run multiple concurrent instances, so a per-process cache cleared on a write to
+// instance A would still be served stale on instance B. Every LearnedRule-mutating route already
+// calls revalidateTag('config') (see app/api/keywords/*, app/api/transactions/[id]/route.ts),
+// which invalidates this cache instance-wide.
+const loadLearnedRulesCached = unstable_cache(
+  loadLearnedRulesUncached,
+  ['learned-rules-store'],
+  { tags: ['config'], revalidate: false },
+);
+
+async function loadLearnedRules(): Promise<LearnedRulesStore> {
+  return loadLearnedRulesCached();
 }
 
 export async function saveLearnedRules(store: LearnedRulesStore): Promise<void> {
@@ -72,9 +75,6 @@ export async function saveLearnedRules(store: LearnedRulesStore): Promise<void> 
       },
     });
   }
-
-  _rulesCache = null;
-  _rulesCacheExpiry = 0;
 }
 
 export async function recordCorrection(rawMerchant: string, category: string): Promise<void> {
@@ -100,9 +100,6 @@ export async function recordCorrection(rawMerchant: string, category: string): P
       count: 1,
     },
   });
-
-  _rulesCache = null;
-  _rulesCacheExpiry = 0;
 }
 
 export async function lookupLearnedCategory(rawMerchant: string): Promise<string | null> {
@@ -113,11 +110,6 @@ export async function lookupLearnedCategory(rawMerchant: string): Promise<string
 
   const store = await loadLearnedRules();
   return store.rules[normalized]?.category ?? null;
-}
-
-export function invalidateRulesCache(): void {
-  _rulesCache = null;
-  _rulesCacheExpiry = 0;
 }
 
 export async function getLearnedRulesStore(): Promise<LearnedRulesStore> {
@@ -193,7 +185,4 @@ export async function deleteLearnedRule(normalizedKey: string): Promise<void> {
   if (!normalizedKey) return;
 
   await prisma.learnedRule.deleteMany({ where: { normalizedKey } });
-
-  _rulesCache = null;
-  _rulesCacheExpiry = 0;
 }

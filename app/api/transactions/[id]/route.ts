@@ -58,6 +58,9 @@ export async function PATCH(
 
     if (updateData.category) {
       await recordCorrection(tx.merchant, updateData.category);
+      // recordCorrection writes a LearnedRule row, which this app's cache design tags 'config'
+      // (see every other LearnedRule write path under app/api/keywords/).
+      revalidateTag('config');
     }
     const updated = await prisma.transaction.update({ where: { id: idResult.id }, data: updateData });
     revalidateTag('data');

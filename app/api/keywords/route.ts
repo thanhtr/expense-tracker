@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
-import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 import { CATEGORIES } from '@/lib/constants';
 import { createKeywordSchema, parseBody } from '@/lib/validation';
 
@@ -49,7 +48,6 @@ export async function POST(request: NextRequest) {
       data: { normalizedKey: normalizedKeyword, category, learnedFrom: keyword, count: 1 },
     });
 
-    invalidateRulesCache();
     revalidateTag('config');
 
     return NextResponse.json(

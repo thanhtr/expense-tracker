@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
 import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
-import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
 
 export async function POST() {
   try {
     const result = await prisma.learnedRule.deleteMany({});
-    invalidateRulesCache();
     revalidateTag('config');
 
     return NextResponse.json({
