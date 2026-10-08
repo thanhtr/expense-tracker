@@ -74,6 +74,16 @@ export const AMEX_MR_PER_EUR = 2;
  * bill payments, cash withdrawals or bank transfers. Source: `visa`. */
 export const VISA_AVIOS_PER_EUR = { basic: 1.0, silver: 1.2 } as const;
 
+/** Amex Platinum (Finland) bonus rate: 4 MR per €1 on selected airline/hotel partners (the
+ * official partner list isn't fetchable, so which merchants qualify is left to a user-configured
+ * `CardEarnRule`, not hardcoded here). Source: `amexPlatinum`. */
+export const AMEX_BONUS_MR_PER_EUR = 4;
+
+/** Finnair Visa tier-points requalification: €1,500+ of qualifying card spend in a calendar
+ * month earns 500 tier points toward the 15,000 needed for Silver. Source: `visa`. */
+export const TIER_POINTS_MONTHLY_SPEND_THRESHOLD_EUR = 1_500;
+export const TIER_POINTS_PER_QUALIFYING_MONTH = 500;
+
 /** Avios earned per €1 of Finnair flight spend (base fare + surcharge + extras), by tier.
  * Source: `flightEarn`. */
 export const FLIGHT_AVIOS_PER_EUR = { basic: 6, silver: 7 } as const;

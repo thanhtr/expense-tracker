@@ -52,7 +52,7 @@ function makeGoal(overrides: Partial<Record<string, unknown>> = {}) {
       nextAtRisk: {
         flightId: 1, flightLabel: 'Japan return, 2 pax', neededBy: '2027-10-01',
         shortfallPoints: 70_000, monthsUntil: 4, eurTotal: 916.8, mrPoints: 119_000,
-        visaSpendBasicTotal: 70_000, visaSpendSilverTotal: 58_333, amexSpendTotal: 59_500,
+        visaSpendTotal: 70_000, amexSpendTotal: 59_500,
         overCap: false,
       },
       combined: null,

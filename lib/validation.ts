@@ -218,6 +218,27 @@ export const updateTransactionSchema = z.object({
   type: z.enum(TRANSACTION_TYPES).optional(),
 });
 
+const cardEarnAccount = z.enum(['Amex', 'Finnair Visa']);
+const cardEarnClassification = z.enum(['normal', 'bonus', 'excluded']);
+
+export const createCardEarnRuleSchema = z.object({
+  account: cardEarnAccount,
+  merchantPattern: z.string().min(1).max(200),
+  classification: cardEarnClassification,
+  note: z.string().max(500).optional().default(''),
+});
+
+export const updateCardEarnRuleSchema = z.object({
+  account: cardEarnAccount.optional(),
+  merchantPattern: z.string().min(1).max(200).optional(),
+  classification: cardEarnClassification.optional(),
+  note: z.string().max(500).optional(),
+});
+
+export const updateFinnairTierSchema = z.object({
+  tier: z.enum(['basic', 'silver']),
+});
+
 export const createIncomeRuleSchema = z.object({
   label: z.string().max(200).default(''),
   merchantPattern: z.string().max(200).optional(),

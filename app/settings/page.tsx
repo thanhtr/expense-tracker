@@ -7,6 +7,7 @@ import { HouseholdManager } from '@/components/HouseholdManager';
 import { KeywordManager } from '@/components/KeywordManager';
 import { IncomeRuleManager } from '@/components/IncomeRuleManager';
 import { AssetManager } from '@/components/AssetManager';
+import { CardEarnRuleManager } from '@/components/CardEarnRuleManager';
 
 const TABS = [
   { slug: 'household',     label: 'Household' },
@@ -14,6 +15,7 @@ const TABS = [
   { slug: 'keywords',     label: 'Keywords' },
   { slug: 'income-rules', label: 'Income Rules' },
   { slug: 'assets',       label: 'Assets' },
+  { slug: 'card-earn-rules', label: 'Card Earn Rules' },
 ] as const;
 
 type TabSlug = typeof TABS[number]['slug'];
@@ -24,6 +26,7 @@ const TAB_DESCRIPTIONS: Record<TabSlug, string> = {
   'keywords':    'Keyword-to-category rules for automatic transaction categorization.',
   'income-rules': 'Rules that classify incoming transactions as income or reimbursements.',
   'assets':      'Track bank accounts, investments, property, and liabilities. Each balance update creates a history snapshot.',
+  'card-earn-rules': 'Classifies Amex/Finnair Visa card spend for the Avios/MR earn reconciliation on the Goals page.',
 };
 
 function SettingsTabs() {
@@ -68,6 +71,7 @@ function SettingsTabs() {
       {activeTab === 'keywords'     && <KeywordManager />}
       {activeTab === 'income-rules' && <IncomeRuleManager />}
       {activeTab === 'assets'       && <AssetManager />}
+      {activeTab === 'card-earn-rules' && <CardEarnRuleManager />}
     </>
   );
 }
@@ -77,7 +81,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-[22px] font-semibold tracking-[-0.02em] mb-1">Settings</h1>
-        <p className="text-[13px] text-[var(--fg-3)]">Household, categories, keywords, income rules, and assets</p>
+        <p className="text-[13px] text-[var(--fg-3)]">Household, categories, keywords, income rules, assets, and card earn rules</p>
       </div>
       <Suspense>
         <SettingsTabs />

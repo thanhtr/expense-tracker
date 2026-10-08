@@ -246,6 +246,24 @@ model PointsFlight {
   @@index([goalId, neededBy])
 }
 
+model CardEarnRule {
+  id              Int      @id @default(autoincrement())
+  account         String   // 'Amex' | 'Finnair Visa'
+  merchantPattern String
+  classification  String   // 'normal' | 'bonus' | 'excluded'
+  note            String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([account])
+  @@index([merchantPattern])
+}
+
+model FinnairPlusTier {
+  id   Int    @id @default(1)
+  tier String @default("basic") // 'basic' | 'silver'
+}
+
 model CsvImport {
   id        Int       @id @default(autoincrement())
   createdAt DateTime  @default(now())

@@ -1464,6 +1464,66 @@ pattern (never `migrate dev`/`reset`, per this DB's pre-existing migration drift
 purchased/bonus Avios were already folded into the next balance reading before this table stopped
 being read.
 
+### Avios/MR earn reconciliation: expected vs. observed, tier- and rule-aware (branch `feat/avios-earn-reconciliation`)
+Follow-up from the Amex MR reading PR: show *expected* Avios/MR earn (from real Amex and Finnair
+Visa card spend) next to the *observed* pace, so a reading becomes a reconciliation instead of a
+blind number.
+
+**Research before building, not hardcoded assumptions.** Checked real data and official pages
+first: no bill-payment/cash-withdrawal/bank-transfer rows exist in this dataset today (only actual
+purchase line items get imported from card statement CSVs), and Amex's bonus-partner list (4
+MR/€ on "selected airline and hotel partners") isn't fetchable as a page to scrape. The user's
+explicit call, after rejecting a first hardcoded-exclusions draft: **merchant classification must
+be user-configurable**, the same pattern this app already uses for `IncomeRule` — because what
+counts as a bill payment or cash withdrawal "is not straightforward, from our current data
+perspective as well as even in the source," and the same is true for which Amex merchants earn
+the bonus rate. Flight-earned Avios (6-7/€, tied to a completed flight with a linked Finnair Plus
+number, not to which card paid) are **out of scope** — no merchant rule can capture them either,
+since they don't depend on a specific purchase at all.
+
+- New `CardEarnRule` model (`account`, `merchantPattern`, `classification`: normal/bonus/excluded,
+  `note`) — mirrors `IncomeRule` exactly, same longest-match-wins substring convention
+  (`lib/services/avios-earn-service.ts`'s `classifyTransaction`). No seeded rules; "normal" is the
+  default for anything unclassified. New `FinnairPlusTier` singleton (`basic`/`silver`, mirrors
+  `FireConfig`'s pattern). Migration `20261008020000_card_earn_rule`.
+- New sourced constants in `lib/avios-facts.ts`: `AMEX_BONUS_MR_PER_EUR` (4), and
+  `TIER_POINTS_MONTHLY_SPEND_THRESHOLD_EUR`/`TIER_POINTS_PER_QUALIFYING_MONTH` (€1,500/500 —
+  previously only prose in `AviosExplainer.tsx`, now named constants shared with the new service).
+- New `avios-earn-service.ts` (pure, no DB): `computeAviosEarnReconciliation` classifies every
+  Amex/Finnair Visa outflow in the window, sums 'normal'+'bonus' Visa spend × the tier's Avios/€
+  rate, 'normal'/'bonus' Amex spend at 2/4 MR/€, and counts qualifying tier-points months —
+  `excluded` rows contribute 0 everywhere, including the tier-points threshold check.
+- `avios-strategy.ts`'s `computeAviosStrategy` takes a `tier` param; `visaSpendBasicTotal`/
+  `visaSpendSilverTotal` collapsed into one `visaSpendTotal` at the current tier.
+- `points-goal-enrichment.ts`: extracted the completed-months window-resolution logic (with the
+  null-earliest-date guard from the last PR) into one shared `resolveCompletedMonthsWindow`
+  helper, reused by both the cash-plan capacity fetch and the new card-transaction fetch so the
+  guard can't be missed in one but not the other. The reconciliation is computed **once per
+  request** (not once per goal), attached to every Avios-unit goal (`earnReconciliation`) and
+  every Tier-points-unit goal (`tierPointsReconciliation`).
+- New `/api/finnair-tier` (GET/PATCH) and `/api/card-earn-rules` + `[id]` (GET/POST/PATCH/DELETE,
+  mirroring `/api/income-rules`) routes. New `CardEarnRuleManager.tsx` + a "Card Earn Rules"
+  Settings tab, with explicit guidance text (not hardcoded rules) naming the Amex transfer-partner
+  page's listed partners as *candidates worth checking*, caveated as not confirmed to be the same
+  list as earning partners.
+- `PointsGoalCard.tsx`: a Finnair Plus tier toggle (Basic/Silver, PATCHes the new endpoint) on
+  Avios-unit goals; a new "expected ~X Avios + Y MR/mo from card spend ... observed Z/mo" line
+  with a caption that flight-earned Avios aren't counted, so observed can legitimately run higher;
+  a tier-points goal shows "N of M months had €1,500+ qualifying spend → ~P tier points expected."
+- Verified against real production data via the local dev server (Playwright's own e2e auth setup
+  is currently broken in this environment — see below — so verification used direct authenticated
+  API calls instead): toggling the tier from Basic to Silver raised `expectedAviosPerMonth`
+  correctly (1.0 → 1.2 Avios/€); adding a real `CardEarnRule` excluding a recurring Netflix charge
+  on Amex correctly lowered `expectedMrPerMonth`. Both the test rule and the tier toggle were
+  cleaned up afterward (tier reset to basic, rule deleted).
+- **Found, not fixed — pre-existing, unrelated to this change:** `__tests__/e2e/auth.setup.ts`'s
+  login flow fails in this environment (`page.waitForURL('/')` times out even though the page
+  snapshot shows the dashboard already rendered) in both `npm run dev` and a production
+  `npm start` build, and reproduces identically on `main` with none of this PR's changes applied —
+  confirmed via `git stash`. Blocks every Playwright e2e test from running locally right now; not
+  investigated further here since it predates and is unrelated to this feature. Needs a dedicated
+  look in a future session.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

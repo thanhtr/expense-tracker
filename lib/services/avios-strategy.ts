@@ -8,6 +8,7 @@ import {
   SUBSCRIPTION_EUR_PER_AVIOS,
   VISA_AVIOS_PER_EUR,
   aviosToMrPoints,
+  type FinnairTier,
 } from '@/lib/avios-facts';
 import { monthsBetween, type PointsFlightProgress, type PointsGoalProgress } from './points-goal-service';
 
@@ -20,8 +21,7 @@ export interface AviosStrategyConversion {
   monthsUntil: number;
   eurTotal: number;
   mrPoints: number;
-  visaSpendBasicTotal: number;
-  visaSpendSilverTotal: number;
+  visaSpendTotal: number;
   amexSpendTotal: number;
   overCap: boolean;
 }
@@ -35,7 +35,7 @@ export interface AviosStrategyResult {
   combined: AviosStrategyConversion | null;
 }
 
-function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConversion {
+function convert(flight: PointsFlightProgress, tier: FinnairTier, today: Date): AviosStrategyConversion {
   // The projected shortfall (accounting for observed earn pace) when available; otherwise the
   // cumulative gap as of today — everything due by this date minus what's already accrued — is
   // the conservative, pace-agnostic fallback. This is cumulative, not just this flight's own
@@ -54,8 +54,7 @@ function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConver
     monthsUntil,
     eurTotal: shortfallPoints * SUBSCRIPTION_EUR_PER_AVIOS,
     mrPoints,
-    visaSpendBasicTotal: shortfallPoints / VISA_AVIOS_PER_EUR.basic,
-    visaSpendSilverTotal: shortfallPoints / VISA_AVIOS_PER_EUR.silver,
+    visaSpendTotal: shortfallPoints / VISA_AVIOS_PER_EUR[tier],
     // Amex earns MR, not Avios directly — spend enough to generate the MR needed, then transfer.
     amexSpendTotal: mrPoints / AMEX_MR_PER_EUR,
     overCap,
@@ -64,6 +63,7 @@ function convert(flight: PointsFlightProgress, today: Date): AviosStrategyConver
 
 export function computeAviosStrategy(
   progress: PointsGoalProgress,
+  tier: FinnairTier = 'basic',
   today: Date = new Date(),
 ): AviosStrategyResult {
   // status === 'planned' is implied by remainingNow > 0 (an upcoming-redeemed flight is always
@@ -75,8 +75,8 @@ export function computeAviosStrategy(
 
   const first = uncovered[0]!;
   const last = uncovered[uncovered.length - 1]!;
-  const nextAtRisk = convert(first, today);
-  const combined = last.id !== first.id ? convert(last, today) : null;
+  const nextAtRisk = convert(first, tier, today);
+  const combined = last.id !== first.id ? convert(last, tier, today) : null;
 
   return { allCovered: false, nextAtRisk, combined };
 }
