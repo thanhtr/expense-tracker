@@ -61,6 +61,12 @@ async function forecastNextMonthUncached(
   monthKey: string,
 ): Promise<ForecastResult | InsufficientForecastData> {
   void monthKey;
+  // Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
+  // Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
+  // another unstable_cache-wrapped function — so getEarliestTransactionDate/getDashboardStats
+  // below always recompute fresh rather than potentially reusing a recent identical-args cache
+  // hit, every time this function's own cache needs to recompute (a cold cache or after a 'data'
+  // invalidation, not on every request).
   const now = new Date();
   const historyEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // last day of previous month
   const historyEnd = monthString(historyEndDate);

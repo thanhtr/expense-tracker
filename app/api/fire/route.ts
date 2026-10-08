@@ -39,6 +39,13 @@ async function fetchPortfolioDataUncached(dayKey: string): Promise<PortfolioData
   // Truncate to a day boundary (not the exact request timestamp) so repeated
   // calls within the same day share a cache key in aggregation-service's
   // dashboard cache, instead of missing on every single request.
+  //
+  // Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
+  // Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
+  // another unstable_cache-wrapped function — so the getDashboardStats call a few lines down
+  // always recomputes fresh rather than potentially reusing a recent identical-args cache hit,
+  // every time this function's own cache needs to recompute (a cold cache or after a 'data'/
+  // 'readings' invalidation, not on every request).
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const twelveMonthsAgo = new Date(today);

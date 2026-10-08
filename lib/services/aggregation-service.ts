@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { unstable_cache, revalidateTag } from 'next/cache';
+import { unstable_cache } from 'next/cache';
 import { DashboardAggregation } from '@/lib/types';
 
 // Categories that aren't real income/expense (moving money between own accounts,
@@ -37,17 +37,13 @@ const getDashboardStatsCached = unstable_cache(
   { tags: ['data'], revalidate: false },
 );
 
-/** `forceRefresh` busts the whole 'data' cache before reading — a coarser manual escape hatch
- * than a per-call bypass, but this param is rarely used and 'data' is cheap to recompute. */
 export async function getDashboardStats(
   dateFrom?: Date,
   dateTo?: Date,
   categories?: string[],
   paidBy?: string,
   accounts?: string[],
-  forceRefresh = false,
 ): Promise<DashboardAggregation> {
-  if (forceRefresh) revalidateTag('data', { expire: 0 });
   // unstable_cache keys on the literal argument values, order included — sort a copy here so two
   // selections of the same categories/accounts in a different click order (e.g.
   // MultiSelectDropdown builds its array in click order, not sorted) share one cache entry

@@ -1635,6 +1635,38 @@ invalidate only on those events.
   fixed for elsewhere in this codebase. Fixed by building the day-key from local date components
   directly instead of round-tripping through UTC.
 
+**Found in a second code-review pass (two more, both fixed):**
+- **`getDashboardStats`'s `forceRefresh` param called `revalidateTag` from inside its own body** —
+  harmless as long as `getDashboardStats` is only ever called from a plain route handler, but this
+  PR newly calls it from *inside* three other `unstable_cache`-wrapped functions
+  (`fetchMoneyCapacity`, `fetchPortfolioData`, `forecastNextMonth`) — and Next explicitly throws if
+  `revalidateTag` runs nested inside an `unstable_cache` call. Not reachable today (only the
+  dashboard route's own `?refresh=1` ever set the flag), but a latent crash waiting for the first
+  future caller that threads a refresh flag through one of those composed paths. Removed the
+  `forceRefresh` param from `getDashboardStats` entirely; `app/api/dashboard/route.ts` now calls
+  `revalidateTag('data', { expire: 0 })` itself before reading, since it's always a plain route
+  handler and the call is safe there.
+- **Nested `unstable_cache` calls bypass their own cache layer** — Next's own source
+  (`unstable-cache.js`) deliberately skips the cache lookup for a call made from inside another
+  `unstable_cache`-wrapped function. `fetchMoneyCapacity`/`fetchPortfolioData`/`forecastNextMonth`
+  all call `getDashboardStats`/`getEarliestTransactionDate` from within their own cached bodies, so
+  those inner calls always recompute fresh rather than potentially reusing an identical-args cache
+  hit — but only on the (infrequent) occasions those outer caches themselves need to recompute, not
+  on every request. Documented inline at all three call sites rather than restructured — avoiding
+  it would mean pre-fetching dashboard stats outside each cache boundary and threading the result
+  through as a plain argument, a bigger change than the actual inefficiency (a rare partial
+  recompute) justifies.
+
+**Flagged, deliberately not changed:** `node_modules/next/dist/docs` marks `unstable_cache` as
+replaced by the `use cache` directive + Cache Components in Next 16. This PR extends
+`unstable_cache` rather than migrating to it, because `use cache` requires opting the *entire app*
+into `cacheComponents: true` in `next.config.ts` — a major, app-wide rendering-model change (Next's
+own docs flag new restrictions: no raw `cookies`/`headers` access inside cached scopes, class
+instances unsupported as arguments/returns, etc.), not a drop-in swap for the handful of functions
+this PR caches. `unstable_cache` is still shipped and fully functional in this Next version;
+migrating to Cache Components is a real, separate architectural decision this household should
+make deliberately, with its own planning and testing — not a side effect of a caching PR.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

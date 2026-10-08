@@ -86,6 +86,14 @@ async function fetchMonthlyInvestments(start: Date, end: Date, months: string[])
 // much history exists, otherwise as far back as the data actually goes — same pattern
 // forecast-service.ts uses, for the same reason (pre-2026 data was deleted; dividing by a fixed
 // 12 would understate the real monthly average).
+// Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
+// Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
+// another unstable_cache-wrapped function — so this getDashboardStats call always recomputes
+// fresh rather than potentially reusing a recent identical-args cache hit, every time this
+// function's own cache needs to recompute (i.e. only on a cold cache or after a 'data'/
+// 'readings'/'config' invalidation, not on every request). Not worth restructuring to avoid
+// (would mean pre-fetching dashboard stats outside this cache boundary and threading the result
+// through as a plain argument) given how infrequently this path actually recomputes.
 async function fetchMoneyCapacityUncached(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
   const { windowStart, windowEnd, months } = window;
 
