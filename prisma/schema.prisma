@@ -220,6 +220,9 @@ model PointsBalance {
   id         Int        @id @default(autoincrement())
   goalId     Int
   balance    Int
+  // Untransferred Amex Membership Rewards balance at the time of this reading (Avios-unit goals
+  // only); converted to its Avios equivalent at 17:10 in points-goal-service.ts.
+  amexMr     Int        @default(0)
   recordedAt DateTime   @db.Date
   note       String     @default("")
   createdAt  DateTime   @default(now())

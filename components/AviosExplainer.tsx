@@ -76,6 +76,11 @@ export function AviosExplainer() {
               converted, close to the Finnair Visa at Silver. The card costs €65/mo today, rising to €75/mo from 1
               Nov 2026.
             </p>
+            <p className="text-[var(--fg-3)]">
+              A reading can optionally record your untransferred Amex MR balance alongside your Avios balance — it
+              counts toward available Avios at the same {MR_PER_TRANSFER_UNIT}:{AVIOS_PER_TRANSFER_UNIT} rate,
+              rounded down to whole transfer units, since a partial unit isn&apos;t spendable yet.
+            </p>
             <SourceLinks sources={S('amexTransfer', 'amexPlatinum')} />
           </section>
 

@@ -4,12 +4,18 @@
 // tracking"). A goal is "done" when every tracked flight is covered or redeemed; there's no
 // separate period or level target.
 
+import { mrToAvios } from '@/lib/avios-facts';
+
 export const AVG_DAYS_PER_MONTH = 30.4375; // 365.25 / 12 — used only for day->month duration conversion
 const PACE_WINDOW_DAYS = 365; // observed pace/projection use only the trailing 12 months
 
 export interface PointsBalanceInput {
   id: number;
   balance: number;
+  /** Untransferred Amex MR balance at the time of this reading (Avios-unit goals only; always 0
+   * for other units). Folded into accruedPoints/availableBalance at the 17:10 transfer rate.
+   * Optional so existing callers/tests that predate this field don't need updating. */
+  amexMr?: number;
   recordedAt: Date | string;
 }
 
@@ -64,9 +70,15 @@ export interface PointsFlightProgress {
 export interface PointsGoalProgress {
   latestBalance: number;
   latestRecordedAt: string | null;
-  /** latestBalance + flights redeemed on or before latestRecordedAt (already reflected in it). */
+  /** Untransferred Amex MR balance as of the latest reading (0 if none ever recorded). */
+  latestAmexMr: number;
+  /** latestAmexMr converted to its Avios equivalent at 17:10, rounded down to whole units. */
+  amexMrAviosEquivalent: number;
+  /** latestBalance + amexMrAviosEquivalent + flights redeemed on or before latestRecordedAt
+   * (already reflected in it). */
   accruedPoints: number;
-  /** latestBalance minus flights redeemed after latestRecordedAt (real-world spend not yet re-read). */
+  /** latestBalance + amexMrAviosEquivalent, minus flights redeemed after latestRecordedAt
+   * (real-world spend not yet re-read). */
   availableBalance: number;
   totalRedeemedPoints: number;
   totalPlannedPoints: number;
@@ -126,6 +138,8 @@ export function computePointsGoalProgress(
   );
   const latest = allBalances.length > 0 ? allBalances[allBalances.length - 1] : undefined;
   const latestBalance = latest?.balance ?? 0;
+  const latestAmexMr = latest?.amexMr ?? 0;
+  const amexMrAviosEquivalent = mrToAvios(latestAmexMr);
   const latestDate = latest ? toDate(latest.recordedAt) : null;
   const latestRecordedAt = latestDate ? toDateStr(latestDate) : null;
 
@@ -143,13 +157,15 @@ export function computePointsGoalProgress(
   );
   const totalRedeemedPoints = redeemedFlightsAll.reduce((sum, f) => sum + f.points, 0);
   const accruedPoints =
-    latestBalance + redeemedBeforeOrOnLatest.reduce((sum, f) => sum + f.points, 0);
+    latestBalance + amexMrAviosEquivalent + redeemedBeforeOrOnLatest.reduce((sum, f) => sum + f.points, 0);
   const availableBalance =
-    latestBalance - redeemedAfterLatest.reduce((sum, f) => sum + f.points, 0);
+    latestBalance + amexMrAviosEquivalent - redeemedAfterLatest.reduce((sum, f) => sum + f.points, 0);
 
-  // Pace: the accrued-equivalent balance at each reading (balance + redemptions already baked
-  // into it), restricted to the trailing 12 months, so a redemption never reads as negative
-  // earning and a stale reading from last year doesn't skew this year's pace.
+  // Pace: the accrued-equivalent balance at each reading (balance + its own MR-at-the-time
+  // Avios equivalent + redemptions already baked in), restricted to the trailing 12 months, so a
+  // redemption never reads as negative earning, transferring MR into Avios between two readings
+  // doesn't read as a jump in earning, and a stale reading from last year doesn't skew this
+  // year's pace.
   const paceWindowStart = new Date(today.getTime() - PACE_WINDOW_DAYS * 86_400_000);
   const accruedSeries = allBalances
     .map((b) => {
@@ -157,7 +173,7 @@ export function computePointsGoalProgress(
       const redeemedByThen = redeemedFlightsAll
         .filter((f) => toDate(f.redeemedAt).getTime() <= d.getTime())
         .reduce((sum, f) => sum + f.points, 0);
-      return { date: d, accrued: b.balance + redeemedByThen };
+      return { date: d, accrued: b.balance + mrToAvios(b.amexMr ?? 0) + redeemedByThen };
     })
     .filter((p) => p.date >= paceWindowStart && p.date <= today);
 
@@ -276,6 +292,8 @@ export function computePointsGoalProgress(
   return {
     latestBalance,
     latestRecordedAt,
+    latestAmexMr,
+    amexMrAviosEquivalent,
     accruedPoints,
     availableBalance,
     totalRedeemedPoints,
