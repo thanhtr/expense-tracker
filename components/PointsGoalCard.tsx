@@ -679,7 +679,7 @@ function GoalCard({
         )}
         {goal.unit === 'Avios' && (
           <div className="flex items-center gap-2 text-[11px] text-[var(--fg-3)] pt-1">
-            <span>Finnair Plus tier:</span>
+            <span>Finnair Plus tier (shared across all Avios goals):</span>
             <label className="flex items-center gap-1 cursor-pointer">
               <input type="radio" name={`tier-${goal.id}`} checked={tier === 'basic'} onChange={() => onTierChange('basic')} />
               Basic
@@ -1110,6 +1110,7 @@ export function PointsGoalCard() {
   }, []);
 
   async function handleTierChange(newTier: 'basic' | 'silver') {
+    const previousTier = tier;
     setTier(newTier);
     const res = await fetch('/api/finnair-tier', {
       method: 'PATCH',
@@ -1119,6 +1120,7 @@ export function PointsGoalCard() {
     if (res.ok) {
       load();
     } else {
+      setTier(previousTier);
       toast.error('Failed to update tier');
     }
   }

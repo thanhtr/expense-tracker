@@ -18,7 +18,13 @@ interface CardEarnRule {
 }
 
 const ACCOUNTS: Account[] = ['Amex', 'Finnair Visa'];
-const CLASSIFICATIONS: Classification[] = ['normal', 'bonus', 'excluded'];
+
+// 'bonus' (4 MR/€) is an Amex-only rate — the reconciliation math treats it as a no-op for
+// Finnair Visa (see avios-earn-service.ts), so it isn't offered as a choice for that account to
+// avoid a rule that silently does nothing.
+function classificationsFor(account: Account): Classification[] {
+  return account === 'Amex' ? ['normal', 'bonus', 'excluded'] : ['normal', 'excluded'];
+}
 
 export function CardEarnRuleManager() {
   const [rules, setRules] = useState<CardEarnRule[]>([]);
@@ -138,7 +144,13 @@ export function CardEarnRuleManager() {
             <select
               id="rule-account"
               value={account}
-              onChange={e => setAccount(e.target.value as Account)}
+              onChange={e => {
+                const nextAccount = e.target.value as Account;
+                setAccount(nextAccount);
+                // Reset off 'bonus' when switching to an account it doesn't apply to, so the form
+                // never silently submits a no-op rule.
+                if (!classificationsFor(nextAccount).includes(classification)) setClassification('normal');
+              }}
               className="w-full px-3 py-2 text-sm border border-border-soft rounded bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
               {ACCOUNTS.map(a => <option key={a} value={a}>{a}</option>)}
@@ -164,7 +176,7 @@ export function CardEarnRuleManager() {
               onChange={e => setClassification(e.target.value as Classification)}
               className="w-full px-3 py-2 text-sm border border-border-soft rounded bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              {classificationsFor(account).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
           <div>
@@ -227,7 +239,7 @@ export function CardEarnRuleManager() {
                         onChange={e => setEditClassification(e.target.value as Classification)}
                         className="px-2 py-1 text-sm border border-border-soft rounded bg-surface focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                       >
-                        {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                        {classificationsFor(rule.account as Account).map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     ) : (
                       <span className="text-foreground">{rule.classification}</span>
