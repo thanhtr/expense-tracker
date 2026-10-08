@@ -6,6 +6,8 @@ vi.mock('../../lib/db', () => ({
     fireConfig: { findUnique: vi.fn() },
     pointsGoal: { findMany: vi.fn() },
     transaction: { findMany: vi.fn() },
+    cardEarnRule: { findMany: vi.fn() },
+    finnairPlusTier: { findUnique: vi.fn() },
   },
 }));
 vi.mock('../../lib/services/aggregation-service', () => ({
@@ -35,7 +37,9 @@ beforeEach(() => {
   });
   vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
   vi.mocked(prisma.pointsGoal.findMany).mockResolvedValue([]);
-  vi.mocked(prisma.transaction.findMany).mockResolvedValue([]); // no Investments activity by default
+  vi.mocked(prisma.transaction.findMany).mockResolvedValue([]); // no Investments/card activity by default
+  vi.mocked(prisma.cardEarnRule.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.finnairPlusTier.findUnique).mockResolvedValue(null); // defaults to 'basic'
 });
 
 function goalWithFlights(
@@ -156,5 +160,50 @@ describe('enrichPointsGoal cashPlan', () => {
     // Same shared-pool assertion as the plural-call regression test above, but through the
     // singular enrichPointsGoal path a mutation route actually uses.
     expect(enrichedA.cashPlan!.flights[0]!.tier).not.toBe('funded');
+  });
+});
+
+describe('earn reconciliation', () => {
+  it('defaults to the basic tier and attaches earnReconciliation to an Avios goal', async () => {
+    vi.mocked(prisma.finnairPlusTier.findUnique).mockResolvedValueOnce(null);
+    const enriched = await enrichPointsGoal(goalWithFlights(1, []));
+    expect(enriched.earnReconciliation).toBeDefined();
+    expect(enriched.earnReconciliation!.expectedAviosPerMonth).toBe(0);
+  });
+
+  it('classifies Finnair Visa spend at the Silver rate when the tier is set to silver', async () => {
+    vi.mocked(prisma.finnairPlusTier.findUnique).mockResolvedValue({ id: 1, tier: 'silver' } as never);
+    vi.mocked(prisma.transaction.findMany).mockResolvedValue([
+      { account: 'Finnair Visa', merchant: 'SHOP', amount: -1_000, date: new Date('2026-05-15') },
+    ] as never);
+
+    const enriched = await enrichPointsGoal(goalWithFlights(1, []));
+    // 1.2 Avios/€ at Silver vs 1.0 at Basic — over however many completed months are in the window.
+    expect(enriched.earnReconciliation!.expectedAviosPerMonth).toBeGreaterThan(0);
+  });
+
+  it('excludes a classified merchant from both Avios and tier-point qualifying spend', async () => {
+    vi.mocked(prisma.transaction.findMany).mockImplementation(async ({ where }: { where: { category?: string } }) => {
+      // First call is fetchMonthlyInvestments (category: 'Investments'); second is the card fetch.
+      if (where.category === 'Investments') return [];
+      return [
+        { account: 'Finnair Visa', merchant: 'NORDEA TRANSFER', amount: -2_000, date: new Date('2026-05-15') },
+      ];
+    });
+    vi.mocked(prisma.cardEarnRule.findMany).mockResolvedValueOnce([
+      { account: 'Finnair Visa', merchantPattern: 'NORDEA', classification: 'excluded' },
+    ] as never);
+
+    const enriched = await enrichPointsGoal(goalWithFlights(1, []));
+    expect(enriched.earnReconciliation!.expectedAviosPerMonth).toBe(0);
+    expect(enriched.earnReconciliation!.qualifyingTierPointMonths).toBe(0);
+  });
+
+  it('attaches tierPointsReconciliation to a Tier points goal, not strategy/cashPlan', async () => {
+    const goal = { ...goalWithFlights(1, []), unit: 'Tier points' };
+    const enriched = await enrichPointsGoal(goal);
+    expect(enriched.tierPointsReconciliation).toBeDefined();
+    expect(enriched.strategy).toBeUndefined();
+    expect(enriched.cashPlan).toBeUndefined();
   });
 });

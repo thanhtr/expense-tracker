@@ -8,18 +8,59 @@ import { FIRE_DEFAULTS } from './fire-service';
 import { deriveMoneyCapacity, type MoneyCapacity } from './money-capacity-service';
 import { monthString, monthRange } from './stats';
 import { LIQUID_ASSET_TYPES } from '@/lib/constants';
-import { SUBSCRIPTION_EUR_PER_AVIOS } from '@/lib/avios-facts';
+import { SUBSCRIPTION_EUR_PER_AVIOS, type FinnairTier } from '@/lib/avios-facts';
 import { withProgress, POINTS_GOAL_INCLUDE, type PointsGoalInput, type PointsGoalProgress } from './points-goal-service';
 import { computeAviosStrategy, type AviosStrategyResult } from './avios-strategy';
 import { computeCashPlan, type CashPlanFlightInput, type CashPlanResult } from './cash-plan-service';
+import {
+  computeAviosEarnReconciliation,
+  type AviosEarnReconciliation,
+  type CardEarnRuleInput,
+  type CardTransactionInput,
+} from './avios-earn-service';
 
 const CAPACITY_WINDOW_MONTHS = 12;
+const CARD_ACCOUNTS = ['Amex', 'Finnair Visa'] as const;
 
 type GoalWithProgress<T> = T & { progress: PointsGoalProgress };
 type EnrichedGoal<T> = GoalWithProgress<T> & {
   strategy?: AviosStrategyResult;
   cashPlan?: CashPlanResult;
+  earnReconciliation?: AviosEarnReconciliation;
+  tierPointsReconciliation?: Pick<
+    AviosEarnReconciliation,
+    'qualifyingTierPointMonths' | 'monthsInWindow' | 'expectedTierPoints'
+  >;
 };
+
+interface CompletedMonthsWindow {
+  windowStart: Date;
+  windowEnd: Date;
+  months: string[];
+}
+
+/** Resolves a rolling N-completed-calendar-months window (never a partial current month),
+ * clamped to the earliest transaction actually in the DB — same guard fetchMoneyCapacity needs
+ * for a fresh/empty database (see the code-review fix in PROJECT_SUMMARY.md, "Can I afford it?
+ * rebuilt..."): null's fallback month would otherwise equal windowEndMonth, always later than
+ * rollingStart, which would pass a null Date into a Prisma `gte` filter. */
+async function resolveCompletedMonthsWindow(windowMonths: number): Promise<CompletedMonthsWindow> {
+  const now = new Date();
+  const windowEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of previous month
+  const windowEndMonth = monthString(windowEnd);
+
+  const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
+  rollingStart.setMonth(rollingStart.getMonth() - (windowMonths - 1));
+
+  const earliestDataDate = await getEarliestTransactionDate();
+  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
+  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
+  const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
+
+  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
+
+  return { windowStart, windowEnd, months };
+}
 
 // One Investments-category total per month in `months` (zero-filled), used so
 // money-capacity-service.ts can take the *median* rather than the window total — a one-off lump
@@ -44,25 +85,8 @@ async function fetchMonthlyInvestments(start: Date, end: Date, months: string[])
 // much history exists, otherwise as far back as the data actually goes — same pattern
 // forecast-service.ts uses, for the same reason (pre-2026 data was deleted; dividing by a fixed
 // 12 would understate the real monthly average).
-async function fetchMoneyCapacity(): Promise<MoneyCapacity> {
-  const now = new Date();
-  const windowEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of previous month
-  const windowEndMonth = monthString(windowEnd);
-
-  const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
-  rollingStart.setMonth(rollingStart.getMonth() - (CAPACITY_WINDOW_MONTHS - 1));
-
-  // No transactions at all (fresh install, wiped DB) falls back to the full rolling window —
-  // getDashboardStats/fetchMonthlyInvestments just return zeros in that case. Guards against
-  // earliestDataDate being null while still "later than rollingStart" by month-string comparison
-  // (null's fallback month would otherwise equal windowEndMonth, always later), which would pass
-  // a null Date as the Prisma query's `gte` filter below.
-  const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
-  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
-  const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
-
-  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
+async function fetchMoneyCapacity(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
+  const { windowStart, windowEnd, months } = window;
 
   const [stats, monthlyInvestments, bankAssets, liquidAssets, fireConfig] = await Promise.all([
     getDashboardStats(windowStart, windowEnd),
@@ -86,6 +110,33 @@ async function fetchMoneyCapacity(): Promise<MoneyCapacity> {
     avgMonthlyIncome,
     emergencyFundMonths,
   });
+}
+
+// Raw Amex + Finnair Visa outflow rows in the window, classified by avios-earn-service.ts's pure
+// classifyTransaction against the user-maintained CardEarnRule rows. `take` capped the same way
+// as the structurally identical incomeRows/reimbRows queries in aggregation-service.ts.
+async function fetchCardTransactions(start: Date, end: Date): Promise<CardTransactionInput[]> {
+  const rows = await prisma.transaction.findMany({
+    where: {
+      account: { in: Array.from(CARD_ACCOUNTS) },
+      type: 'Expense',
+      amount: { lt: 0 },
+      date: { gte: start, lte: end },
+    },
+    select: { account: true, merchant: true, amount: true, date: true },
+    take: 10_000,
+  });
+  return rows;
+}
+
+async function fetchCardEarnRules(): Promise<CardEarnRuleInput[]> {
+  const rows = await prisma.cardEarnRule.findMany({ orderBy: { id: 'asc' } });
+  return rows as CardEarnRuleInput[];
+}
+
+async function fetchFinnairPlusTier(): Promise<FinnairTier> {
+  const row = await prisma.finnairPlusTier.findUnique({ where: { id: 1 } });
+  return (row?.tier as FinnairTier | undefined) ?? 'basic';
 }
 
 /** Builds one shared cash plan across every Avios-unit goal's planned flights (merged and sorted
@@ -155,15 +206,39 @@ export async function enrichPointsGoals<T extends PointsGoalInput & { unit: stri
 ): Promise<EnrichedGoal<T>[]> {
   const withBaseProgress = goals.map(withProgress);
   const aviosGoals = withBaseProgress.filter((g) => g.unit === 'Avios');
-  if (aviosGoals.length === 0) return withBaseProgress;
+  const tierPointsGoals = withBaseProgress.filter((g) => g.unit === 'Tier points');
+  if (aviosGoals.length === 0 && tierPointsGoals.length === 0) return withBaseProgress;
 
-  const capacity = await fetchMoneyCapacity();
-  const sharedFlightResults = buildSharedCashPlan(aviosGoals, capacity);
+  const window = await resolveCompletedMonthsWindow(CAPACITY_WINDOW_MONTHS);
+  const [capacity, cardTransactions, cardEarnRules, tier] = await Promise.all([
+    aviosGoals.length > 0 ? fetchMoneyCapacity(window) : Promise.resolve(null),
+    fetchCardTransactions(window.windowStart, window.windowEnd),
+    fetchCardEarnRules(),
+    fetchFinnairPlusTier(),
+  ]);
+
+  const earnReconciliation = computeAviosEarnReconciliation({
+    transactions: cardTransactions,
+    rules: cardEarnRules,
+    tier,
+    months: window.months,
+  });
+  const tierPointsReconciliation = {
+    qualifyingTierPointMonths: earnReconciliation.qualifyingTierPointMonths,
+    monthsInWindow: earnReconciliation.monthsInWindow,
+    expectedTierPoints: earnReconciliation.expectedTierPoints,
+  };
+
+  const sharedFlightResults =
+    capacity !== null ? buildSharedCashPlan(aviosGoals, capacity) : new Map<number, CashPlanResult['flights'][number]>();
 
   return withBaseProgress.map((goal) => {
-    if (goal.unit !== 'Avios') return goal;
+    if (goal.unit === 'Tier points') {
+      return { ...goal, tierPointsReconciliation };
+    }
+    if (goal.unit !== 'Avios' || capacity === null) return goal;
 
-    const strategy = computeAviosStrategy(goal.progress);
+    const strategy = computeAviosStrategy(goal.progress, tier);
     const ownPlannedIds = new Set(goal.progress.flights.filter((f) => f.status === 'planned').map((f) => f.id));
     const cashPlanFlights = Array.from(sharedFlightResults.values()).filter((f) => ownPlannedIds.has(f.id));
     const firstWealthTier = cashPlanFlights.find((f) => f.tier === 'wealth') ?? null;
@@ -179,7 +254,7 @@ export async function enrichPointsGoals<T extends PointsGoalInput & { unit: stri
       firstWealthTierFlightId: firstWealthTier?.id ?? null,
     };
 
-    return { ...goal, strategy, cashPlan };
+    return { ...goal, strategy, cashPlan, earnReconciliation };
   });
 }
 

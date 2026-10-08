@@ -125,6 +125,25 @@ export function AviosExplainer() {
           </section>
 
           <section className="space-y-2">
+            <h3 className="font-semibold text-[var(--fg-1)]">Expected vs. observed earn</h3>
+            <p>
+              Each Avios goal shows an expected Avios/MR-per-month figure next to the observed pace, computed from
+              real Amex and Finnair Visa card transactions over the trailing window, classified against your own
+              merchant rules in Settings → Card earn rules — not hardcoded, since what counts as a bill payment,
+              cash withdrawal, or Amex bonus-partner merchant isn&apos;t reliably identifiable from a category or
+              always from the source&apos;s own wording. Unclassified merchants default to the normal rate. A
+              Finnair Plus tier toggle (Basic/Silver) feeds the correct Avios/€ rate into both this estimate and the
+              Avios-gap strategy above.
+            </p>
+            <p className="text-[var(--fg-3)]">
+              One real limitation this configurability doesn&apos;t remove: Avios earned by actually flying (6-7/€
+              of fare, a separate mechanic tied to a completed flight with a linked Finnair Plus number, not to
+              which card paid) are never modelled here — observed pace can run higher than expected for this
+              reason alone, not necessarily because a rule is missing.
+            </p>
+          </section>
+
+          <section className="space-y-2">
             <h3 className="font-semibold text-[var(--fg-1)]">Tier points</h3>
             <p>
               Tracking tier points toward Silver requalification uses the exact same goal mechanism as Avios — just

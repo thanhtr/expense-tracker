@@ -61,10 +61,23 @@ interface AviosStrategyConversion {
   monthsUntil: number;
   eurTotal: number;
   mrPoints: number;
-  visaSpendBasicTotal: number;
-  visaSpendSilverTotal: number;
+  visaSpendTotal: number;
   amexSpendTotal: number;
   overCap: boolean;
+}
+
+interface AviosEarnReconciliation {
+  expectedAviosPerMonth: number;
+  expectedMrPerMonth: number;
+  qualifyingTierPointMonths: number;
+  monthsInWindow: number;
+  expectedTierPoints: number;
+}
+
+interface TierPointsReconciliation {
+  qualifyingTierPointMonths: number;
+  monthsInWindow: number;
+  expectedTierPoints: number;
 }
 
 interface AviosStrategy {
@@ -107,6 +120,8 @@ interface PointsGoal {
   progress: Progress;
   strategy?: AviosStrategy;
   cashPlan?: CashPlan;
+  earnReconciliation?: AviosEarnReconciliation;
+  tierPointsReconciliation?: TierPointsReconciliation;
 }
 
 function defaultForm() {
@@ -280,7 +295,7 @@ function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: str
       <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
         <li>Subscription price: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span></li>
         <li>Amex MR needed: <span className="mono">{fmtNumber(c.mrPoints)}</span> (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
-        <li>Finnair Visa spend: <span className="mono">{fmtEUR(c.visaSpendSilverTotal)}</span> at Silver, <span className="mono">{fmtEUR(c.visaSpendBasicTotal)}</span> at Basic</li>
+        <li>Finnair Visa spend: <span className="mono">{fmtEUR(c.visaSpendTotal)}</span> at your current tier</li>
       </ul>
     </div>
   );
@@ -288,10 +303,14 @@ function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: str
 
 function GoalCard({
   goal,
+  tier,
+  onTierChange,
   onUpdate,
   onRemove,
 }: {
   goal: PointsGoal;
+  tier: 'basic' | 'silver';
+  onTierChange: (tier: 'basic' | 'silver') => void;
   onUpdate: (goal: PointsGoal) => void;
   onRemove: (id: number) => void;
 }) {
@@ -643,6 +662,40 @@ function GoalCard({
         </div>
         {progress.observedPointsPerMonth !== null && (
           <div className="text-[11px] text-[var(--fg-3)]">observed pace {fmtNumber(progress.observedPointsPerMonth)}/mo (trailing 12mo)</div>
+        )}
+        {goal.unit === 'Avios' && goal.earnReconciliation && goal.earnReconciliation.monthsInWindow > 0 && (
+          <div className="text-[11px] text-[var(--fg-3)]">
+            expected ~<span className="mono">{fmtNumber(goal.earnReconciliation.expectedAviosPerMonth)}</span> Avios +{' '}
+            <span className="mono">{fmtNumber(goal.earnReconciliation.expectedMrPerMonth)}</span> MR/mo from card spend
+            (trailing {goal.earnReconciliation.monthsInWindow}mo, by your card earn rules)
+            {progress.observedPointsPerMonth !== null && (
+              <> — observed <span className="mono">{fmtNumber(progress.observedPointsPerMonth)}</span>/mo</>
+            )}
+            <div className="mt-[2px]">
+              Flight-earned Avios aren&apos;t counted here, so observed can run higher — see Settings → Card earn
+              rules to fine-tune the estimate.
+            </div>
+          </div>
+        )}
+        {goal.unit === 'Avios' && (
+          <div className="flex items-center gap-2 text-[11px] text-[var(--fg-3)] pt-1">
+            <span>Finnair Plus tier:</span>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name={`tier-${goal.id}`} checked={tier === 'basic'} onChange={() => onTierChange('basic')} />
+              Basic
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input type="radio" name={`tier-${goal.id}`} checked={tier === 'silver'} onChange={() => onTierChange('silver')} />
+              Silver
+            </label>
+          </div>
+        )}
+        {goal.unit === 'Tier points' && goal.tierPointsReconciliation && goal.tierPointsReconciliation.monthsInWindow > 0 && (
+          <div className="text-[11px] text-[var(--fg-3)]">
+            {goal.tierPointsReconciliation.qualifyingTierPointMonths} of {goal.tierPointsReconciliation.monthsInWindow}{' '}
+            months this window had €1,500+ qualifying Visa spend → ~
+            <span className="mono">{fmtNumber(goal.tierPointsReconciliation.expectedTierPoints)}</span> tier points expected.
+          </div>
         )}
       </div>
 
@@ -1040,6 +1093,7 @@ export function PointsGoalCard() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
+  const [tier, setTier] = useState<'basic' | 'silver'>('basic');
 
   function load() {
     fetch('/api/points-goals')
@@ -1049,6 +1103,25 @@ export function PointsGoalCard() {
   }
 
   useEffect(load, []);
+  useEffect(() => {
+    fetch('/api/finnair-tier')
+      .then((r) => (r.ok ? r.json() : { tier: 'basic' }))
+      .then((d: { tier: 'basic' | 'silver' }) => setTier(d.tier));
+  }, []);
+
+  async function handleTierChange(newTier: 'basic' | 'silver') {
+    setTier(newTier);
+    const res = await fetch('/api/finnair-tier', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: newTier }),
+    });
+    if (res.ok) {
+      load();
+    } else {
+      toast.error('Failed to update tier');
+    }
+  }
 
   function updateGoal(goal: PointsGoal) {
     setGoals((gs) => gs.map((g) => (g.id === goal.id ? goal : g)));
@@ -1099,7 +1172,14 @@ export function PointsGoalCard() {
       )}
 
       {goals.map((goal) => (
-        <GoalCard key={goal.id} goal={goal} onUpdate={updateGoal} onRemove={removeGoal} />
+        <GoalCard
+          key={goal.id}
+          goal={goal}
+          tier={tier}
+          onTierChange={(t) => void handleTierChange(t)}
+          onUpdate={updateGoal}
+          onRemove={removeGoal}
+        />
       ))}
 
       {creating ? (

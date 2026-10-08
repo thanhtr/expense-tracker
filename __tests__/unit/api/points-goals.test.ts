@@ -29,6 +29,12 @@ vi.mock('../../../lib/db', () => {
     transaction: {
       findMany: vi.fn(),
     },
+    cardEarnRule: {
+      findMany: vi.fn(),
+    },
+    finnairPlusTier: {
+      findUnique: vi.fn(),
+    },
     $transaction: vi.fn((fn) => fn(prismaMock)),
   };
   return { prisma: prismaMock };
@@ -77,6 +83,8 @@ beforeEach(() => {
   vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
   vi.mocked(prisma.transaction.findMany).mockResolvedValue([]);
   vi.mocked(prisma.fireConfig.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.cardEarnRule.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.finnairPlusTier.findUnique).mockResolvedValue(null);
   // enrichPointsGoal (single-goal mutation responses) looks up sibling Avios goals for a shared
   // cash plan; default to none so tests that don't care about this don't need their own mock.
   vi.mocked(prisma.pointsGoal.findMany).mockResolvedValue([]);

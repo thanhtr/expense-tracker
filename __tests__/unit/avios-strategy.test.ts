@@ -54,8 +54,27 @@ describe('computeAviosStrategy', () => {
     expect(s.nextAtRisk!.eurTotal).toBeCloseTo(80_000 * (628.8 / 48_000), 2);
     // 80,000 / 10 * 17 = 136,000 MR exactly divides; still must be a multiple of 17.
     expect(s.nextAtRisk!.mrPoints % 17).toBe(0);
-    expect(s.nextAtRisk!.visaSpendSilverTotal).toBeLessThan(s.nextAtRisk!.visaSpendBasicTotal);
     expect(s.nextAtRisk!.overCap).toBe(false);
+  });
+
+  it('uses the Silver rate (fewer € needed) when given tier silver', () => {
+    const p = progressFor(
+      [
+        {
+          id: 1,
+          label: 'Upgrade',
+          points: 80_000,
+          economyFareEur: null,
+          neededBy: '2026-07-01',
+          status: 'planned',
+          redeemedAt: null,
+        },
+      ],
+      0,
+    );
+    const basic = computeAviosStrategy(p, 'basic');
+    const silver = computeAviosStrategy(p, 'silver');
+    expect(silver.nextAtRisk!.visaSpendTotal).toBeLessThan(basic.nextAtRisk!.visaSpendTotal);
   });
 
   it('flags a shortfall above the yearly purchase cap', () => {
