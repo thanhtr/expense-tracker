@@ -3,18 +3,12 @@ import { z } from 'zod';
 import { processUpload } from '@/lib/services/upload-service';
 import { columnMappingSchema } from '@/lib/validation';
 import { prisma } from '@/lib/db';
+import { requireTokenOrSession } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
   // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests.
-  // Checked by presence (`.has`), not truthiness of the value (`.get` alone) — proxy.ts's own
-  // gate skips the session check whenever the header is merely *present*, so an empty-but-present
-  // `x-api-token:` header must still be rejected here rather than treated as "no token supplied".
-  if (request.headers.has('x-api-token')) {
-    const token = request.headers.get('x-api-token');
-    if (token !== process.env.API_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  const authError = requireTokenOrSession(request);
+  if (authError) return authError;
 
   try {
     const url = new URL(request.url);

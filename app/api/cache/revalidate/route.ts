@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
+import { requireTokenOrSession } from '@/lib/api-auth';
 
 const CACHE_TAGS = ['data', 'readings', 'config'] as const;
 type CacheTag = typeof CACHE_TAGS[number];
@@ -10,15 +11,8 @@ type CacheTag = typeof CACHE_TAGS[number];
 // routes (and therefore never fires the routes' own revalidateTag calls).
 export async function POST(request: NextRequest) {
   // Token auth for a pipeline step; session auth (via proxy.ts) for the Settings button.
-  // Checked by presence (`.has`), not truthiness of the value (`.get` alone) — proxy.ts's own
-  // gate skips the session check whenever the header is merely *present*, so an empty-but-present
-  // `x-api-token:` header must still be rejected here rather than treated as "no token supplied".
-  if (request.headers.has('x-api-token')) {
-    const token = request.headers.get('x-api-token');
-    if (token !== process.env.API_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  const authError = requireTokenOrSession(request);
+  if (authError) return authError;
 
   const body = await request.json().catch(() => ({})) as { tags?: unknown };
   const requested = Array.isArray(body.tags) ? body.tags : CACHE_TAGS;

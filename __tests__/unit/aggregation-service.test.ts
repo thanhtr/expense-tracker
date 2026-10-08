@@ -220,9 +220,11 @@ describe('getDashboardStats', () => {
     const stats = await getDashboardStats(undefined, undefined, ['Shopping', 'Dining Out']);
 
     expect(stats.totalExpenses).toBeCloseTo(45.67 + 5.50);
-    expect(vi.mocked(prisma.transaction.groupBy).mock.calls[0][0]).toMatchObject({
-      where: { category: { in: ['Shopping', 'Dining Out'] } },
-    });
+    // Order-independent: getDashboardStats sorts its categories/accounts args before querying,
+    // so two equivalent selections made in a different order share one cache entry.
+    const where = vi.mocked(prisma.transaction.groupBy).mock.calls[0][0]?.where as { category: { in: string[] } };
+    expect(where.category.in).toEqual(expect.arrayContaining(['Shopping', 'Dining Out']));
+    expect(where.category.in).toHaveLength(2);
   });
 
   it('should handle empty result', async () => {

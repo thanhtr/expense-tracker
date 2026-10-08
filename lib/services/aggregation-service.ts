@@ -48,7 +48,17 @@ export async function getDashboardStats(
   forceRefresh = false,
 ): Promise<DashboardAggregation> {
   if (forceRefresh) revalidateTag('data', { expire: 0 });
-  return getDashboardStatsCached(dateFrom, dateTo, categories, paidBy, accounts);
+  // unstable_cache keys on the literal argument values, order included — sort a copy here so two
+  // selections of the same categories/accounts in a different click order (e.g.
+  // MultiSelectDropdown builds its array in click order, not sorted) share one cache entry
+  // instead of each recomputing the full aggregation separately.
+  return getDashboardStatsCached(
+    dateFrom,
+    dateTo,
+    categories ? [...categories].sort() : categories,
+    paidBy,
+    accounts ? [...accounts].sort() : accounts,
+  );
 }
 
 async function getDashboardStatsUncached(

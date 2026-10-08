@@ -176,8 +176,20 @@ async function getTransactionsUncached(filters: TransactionFilters): Promise<Tra
   return { transactions, total, limit, offset, sum };
 }
 
-export const getTransactions = unstable_cache(
+const getTransactionsCached = unstable_cache(
   getTransactionsUncached,
   ['transactions-list'],
   { tags: ['data'], revalidate: false },
 );
+
+/** unstable_cache keys on the literal argument values, order included — sort copies of
+ * categories/accounts here so two selections of the same set in a different order (e.g.
+ * MultiSelectDropdown builds its array in click order, not sorted) share one cache entry instead
+ * of each recomputing the query separately. */
+export async function getTransactions(filters: TransactionFilters): Promise<TransactionsResult> {
+  return getTransactionsCached({
+    ...filters,
+    categories: filters.categories ? [...filters.categories].sort() : filters.categories,
+    accounts: filters.accounts ? [...filters.accounts].sort() : filters.accounts,
+  });
+}
