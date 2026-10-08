@@ -1,4 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
+import { config } from 'dotenv';
+
+// auth.setup.ts reads process.env.AUTH_PASSWORD directly to log in — Next.js loads .env.local
+// for the dev/prod server automatically, but the Playwright test runner process doesn't, so
+// without this the login silently uses the wrong fallback password, the login page never
+// redirects, and every test hangs on a waitForURL timeout with no indication why.
+config({ path: '.env.local' });
 
 export default defineConfig({
   testDir: './__tests__/e2e',
