@@ -1709,6 +1709,49 @@ make deliberately, with its own planning and testing — not a side effect of a 
   the "nearly indefinite" goal this whole PR was built around, so it's flagged as a real
   consideration for if usage patterns ever make it a problem, not fixed here.
 
+**Found in a fourth code-review pass (four more fixed, one serious pre-existing issue flagged):**
+- **A real, worse window-drift bug in recurring-charge detection** (not just an edge-of-day
+  mismatch like the FIRE instances above): the cached function recomputed `since` (a rolling
+  1-year window) from `new Date()` internally and only took a throwaway *monthly* key, so the
+  window froze at whatever moment the cache first populated that month — by the end of the month,
+  it had silently drifted up to ~30 days wider than the documented 1 year, making an old merchant's
+  charges linger as "recurring" a month longer than they should. Fixed properly this time: `since`
+  is now computed once by the route (truncated to local midnight) and passed to the cached function
+  as the actual, real argument it uses in the query — not a separate throwaway key alongside an
+  internally-recomputed value — so the cache key and the real query window can never disagree, and
+  the cache now correctly rolls over daily instead of monthly.
+- **The local-day-key formatter, independently reimplemented a second time**: the exact bug this
+  fixed in `fetchPortfolioData`, then separately in `deriveFireInputsCached` two passes later, was
+  about to be written a third time for the recurring-charges fix above. Centralized as
+  `localDateKey()` in `lib/services/stats.ts` (alongside the existing `monthString`/`shiftMonth`
+  helpers this file already centralizes for the same class of problem); both FIRE call sites now
+  import it instead of each carrying their own copy.
+- **`/api/cache/revalidate` silently invalidated everything on a malformed request**: a non-array
+  `tags` value (e.g. `{"tags": "data"}`, a plausible typo for `{"tags": ["data"]}`) fell through to
+  the "omitted" default and flushed all three tags instead of being rejected — the equivalent
+  invalid-array form (`{"tags": ["bogus"]}`) correctly 400'd, but the non-array form didn't. Fixed
+  to 400 on anything present-but-not-an-array.
+- **Direct-DB maintenance scripts never invalidate the cache they just made stale**:
+  `scripts/recategorize-db.ts`, `migrate-categories.ts`, and `migrate-reimbursements.ts` write to
+  Postgres outside the Next.js app entirely, so they can't call `revalidateTag` themselves (it only
+  works inside a request/action context) — unlike before this PR, where the dashboard's old 5-minute
+  TTL self-healed within minutes regardless, the new near-indefinite cache would otherwise serve the
+  pre-migration data indefinitely. Added a one-line reminder docstring to each script to hit
+  "Clear cache" (or `POST /api/cache/revalidate`) afterward.
+- **A serious, pre-existing, NOT fixed here — needs your call**: `proxy.ts`'s token bypass
+  (`req.headers.has('x-api-token')`) only checks header *presence*, for literally every `/api/*`
+  route, not just the two this PR added token support to. A request to **any** mutation route —
+  `bulk-delete`, `keywords/clear`, the FIRE config `PUT`, etc. — carrying an `x-api-token` header
+  with *any* value, correct or not, currently skips the login-session check entirely; most of those
+  routes never validate the token's value themselves, so the request then executes completely
+  unauthenticated. This predates this PR (the presence-only check in `proxy.ts` is untouched by
+  it), surfaced only because this PR's own new `requireTokenOrSession` doc comment initially (and
+  wrongly) asserted `proxy.ts` already made this safe everywhere — that comment has been corrected,
+  but the underlying `proxy.ts` gap itself is still live and was deliberately left alone pending an
+  explicit decision, since fixing global auth middleware is a separate, high-blast-radius change
+  outside this PR's scope and warrants its own dedicated look, not a drive-by fix bundled into a
+  caching PR.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

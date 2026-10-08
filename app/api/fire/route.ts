@@ -7,6 +7,7 @@ import { runMonteCarlo } from '@/lib/services/fire-monte-carlo';
 import { deriveFireInputsCached } from '@/lib/services/fire-inputs-service';
 import { getDashboardStats } from '@/lib/services/aggregation-service';
 import { computeInvestableCash } from '@/lib/services/buffer-service';
+import { localDateKey } from '@/lib/services/stats';
 import { fireConfigSchema, parseBody } from '@/lib/validation';
 
 async function getOrCreateConfig(): Promise<StoredFireConfig & { id: number; updatedAt: Date }> {
@@ -78,14 +79,12 @@ const fetchPortfolioDataCached = unstable_cache(
 // Independent of FireConfig, so this can run concurrently with the config
 // upsert/fetch instead of serializing after it.
 async function fetchPortfolioData(): Promise<PortfolioData> {
-  // Local date components, not toISOString() — the function's own day-boundary truncation
+  // localDateKey, not toISOString() — the function's own day-boundary truncation
   // (`today.setHours(0, 0, 0, 0)`) is local-midnight, and toISOString() reports the UTC
   // calendar day, which disagrees with it for several hours a day in any positive-UTC-offset
   // timezone (this deploys to iad1/UTC, but the household is in EET/EEST, UTC+2/+3) — the cache
   // key would roll over a few hours early/late relative to the boundary it's meant to key.
-  const now = new Date();
-  const dayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return fetchPortfolioDataCached(dayKey);
+  return fetchPortfolioDataCached(localDateKey(new Date()));
 }
 
 // Bank cash counts toward the FIRE portfolio only above an emergency-fund buffer, so a

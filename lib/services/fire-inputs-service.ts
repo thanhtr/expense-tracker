@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { FIRE_RENTAL } from '@/lib/constants';
+import { localDateKey } from '@/lib/services/stats';
 import { matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
 import {
   ASSUMED_INCOME_TAX_RATE,
@@ -190,8 +191,4 @@ export async function deriveFireInputsCached(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return deriveFireInputsCachedImpl(config, today, localDateKey(today));
-}
-
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

@@ -12,8 +12,14 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   const body = await request.json().catch(() => ({})) as { tags?: unknown };
-  const requested = Array.isArray(body.tags) ? body.tags : CACHE_TAGS;
-  const tags = requested.filter((t): t is CacheTag => (CACHE_TAGS as readonly string[]).includes(t as string));
+  // `tags` omitted entirely -> default to all three. `tags` present but not an array (e.g. a
+  // typo'd `"data"` instead of `["data"]`) is a malformed request, not "no preference" -> reject
+  // rather than silently falling back to invalidating everything.
+  if (body.tags !== undefined && !Array.isArray(body.tags)) {
+    return NextResponse.json({ error: '"tags" must be an array of cache tags' }, { status: 400 });
+  }
+  const requested = body.tags ?? CACHE_TAGS;
+  const tags = requested.filter((t: unknown): t is CacheTag => (CACHE_TAGS as readonly string[]).includes(t as string));
 
   if (tags.length === 0) {
     return NextResponse.json({ error: 'No valid tags in request' }, { status: 400 });

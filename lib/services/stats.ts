@@ -50,3 +50,12 @@ export function monthRange(start: string, end: string): string[] {
   }
   return months;
 }
+
+// Formats a Date as a 'YYYY-MM-DD' string using local date components, not toISOString() — same
+// reasoning as monthString above, one level finer-grained. Used as an unstable_cache argument by
+// anything that needs its cache key to roll over at local midnight, not UTC midnight (a real bug,
+// independently reintroduced twice in this codebase before this helper was centralized — see
+// PROJECT_SUMMARY.md's caching section).
+export function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

@@ -5,6 +5,11 @@
  * Usage:
  *   npx tsx scripts/migrate-reimbursements.ts          # dry run
  *   npx tsx scripts/migrate-reimbursements.ts --apply  # apply changes
+ *
+ * This writes directly to Postgres, outside the Next.js app, so it never fires any route's
+ * revalidateTag call — the dashboard/FIRE/forecast caches won't see this change until something
+ * else invalidates the 'data' tag. After running with --apply, hit "Clear cache" in Settings
+ * (or POST /api/cache/revalidate) to pick up the reclassified transactions immediately.
  */
 
 import { PrismaClient } from '@prisma/client';
