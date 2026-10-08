@@ -152,12 +152,14 @@ export const updatePointsGoalSchema = z.object({
 
 export const createPointsBalanceSchema = z.object({
   balance: z.number().int().min(0),
+  amexMr: z.number().int().min(0).optional().default(0),
   recordedAt: dateField,
   note: z.string().max(500).optional().default(''),
 });
 
 export const updatePointsBalanceSchema = z.object({
   balance: z.number().int().min(0).optional(),
+  amexMr: z.number().int().min(0).optional(),
   recordedAt: dateField.optional(),
   note: z.string().max(500).optional(),
 });

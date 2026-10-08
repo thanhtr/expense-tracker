@@ -1376,6 +1376,41 @@ aggregation can be derived from transactions instead of manual entry.
   struck out as "stale, superseded by Phase 3" in a later session, when it was in fact the real
   next step the user still wanted done — restored and executed here.
 
+### Goal readings visible by default, Amex MR tracked per reading (branch: `feat/goal-readings-amex-mr`)
+Two small `/goals` UX gaps, raised alongside a broader ask to improve how the Goal feature is used
+(see "Investigation" note below — a second PR, `fix/goal-cash-plan-surplus`, addresses the "can I
+afford it?" half separately):
+- **Readings were hidden by default.** `historyOpen` now starts `true`; the "Show/Hide readings"
+  toggle became a `Readings (N)` heading with "+ Add reading" next to it, rows moved from the
+  faint `--fg-3`/11px to `--fg-2`/12px, and the list caps at the latest 5 with a "Show all (N)"
+  link beyond that.
+- **No way to record Amex MR.** Untransferred Membership Rewards points are effectively Avios you
+  already hold (17 MR → 10 Avios, official rate, `lib/avios-facts.ts`). Per user decision
+  (2026-10-08), an optional "Amex MR" field on each reading now **counts toward available Avios**,
+  not just display:
+  - `PointsBalance.amexMr Int @default(0)`, migration `20261008000000_points_balance_amex_mr`
+    (`prisma db execute` + `migrate resolve --applied`, per this DB's established drift
+    workaround).
+  - New `mrToAvios(mr)` in `lib/avios-facts.ts` — inverse of the existing `aviosToMrPoints`,
+    rounding **down** to whole 17-MR transfer units (a partial unit isn't spendable yet).
+  - `points-goal-service.ts`'s `computePointsGoalProgress` folds the latest reading's MR-as-Avios
+    into both `accruedPoints` and `availableBalance`, and into the trailing-12-month pace series
+    per-reading — so transferring MR into Avios between two readings doesn't read as a pace spike.
+    New `latestAmexMr`/`amexMrAviosEquivalent` on `PointsGoalProgress`. Strategy and cash plan
+    inherit this for free since both read `progress`.
+  - UI (Avios-unit goals only): an "Amex MR" input in the add/edit reading forms; the balance
+    summary reads `6,000 Avios + 20,000 MR (≈ 11,760 Avios) = 17,760 available`; reading rows show
+    `· 20,000 MR` when non-zero. `AviosExplainer.tsx` gets one line on the 17:10 rate.
+- **Investigation (not built in this PR):** checked production data for higher-value next steps —
+  deriving expected MR/Avios earn from existing Amex/Finnair-Visa transaction categories (to
+  reconcile against the observed pace), deriving tier points from Visa spend automatically (no
+  manual reading needed), and a "last reading N days ago" nudge. Also surfaced, while checking the
+  cash-plan math for the Amex MR change, that `deriveMoneyCapacity`'s "can I afford it?" always
+  reads deeply negative for this household (treats every investment — including one-off lumps
+  funded from existing savings — as a recurring monthly cost, and divides by 12 even with under 10
+  months of post-cleanup history) — tracked as a follow-up fix (branch
+  `fix/goal-cash-plan-surplus`, not yet done).
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

@@ -195,6 +195,25 @@ describe('POST /api/points-goals/[id]/balances', () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it('persists amexMr, defaulting to 0 when omitted', async () => {
+    vi.mocked(prisma.pointsBalance.create).mockResolvedValueOnce({
+      id: 1, goalId: 1, balance: 50_000, amexMr: 20_000, recordedAt: new Date('2026-06-01'), note: '', createdAt: new Date(),
+    });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal({
+      balances: [{ id: 1, balance: 50_000, amexMr: 20_000, recordedAt: new Date('2026-06-01'), note: '' }],
+    }));
+    const res = await POST_BALANCE(
+      makeReq('http://localhost/api/points-goals/1/balances', 'POST', { balance: 50_000, amexMr: 20_000, recordedAt: '2026-06-01' }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(201);
+    expect(prisma.pointsBalance.create).toHaveBeenCalledWith({
+      data: { goalId: 1, balance: 50_000, amexMr: 20_000, note: '', recordedAt: new Date('2026-06-01') },
+    });
+    const body = await res.json();
+    expect(body.progress.amexMrAviosEquivalent).toBe(11_760);
+  });
 });
 
 describe('PATCH /api/points-goals/[id]/balances', () => {
@@ -231,6 +250,22 @@ describe('PATCH /api/points-goals/[id]/balances', () => {
       { params: params('1') },
     );
     expect(res.status).toBe(400);
+  });
+
+  it('updates amexMr when provided', async () => {
+    vi.mocked(prisma.pointsBalance.updateMany).mockResolvedValueOnce({ count: 1 });
+    vi.mocked(prisma.pointsGoal.findUnique).mockResolvedValueOnce(makeGoal({
+      balances: [{ id: 2, balance: 60_000, amexMr: 0, recordedAt: new Date('2026-07-01'), note: '' }],
+    }));
+    const res = await PATCH_BALANCE(
+      makeReq('http://localhost/api/points-goals/1/balances?balanceId=2', 'PATCH', { amexMr: 0 }),
+      { params: params('1') },
+    );
+    expect(res.status).toBe(200);
+    expect(prisma.pointsBalance.updateMany).toHaveBeenCalledWith({
+      where: { id: 2, goalId: 1 },
+      data: { amexMr: 0 },
+    });
   });
 });
 

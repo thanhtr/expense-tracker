@@ -91,3 +91,11 @@ export function aviosToMrPoints(avios: number): number {
   const units = Math.ceil(avios / AVIOS_PER_TRANSFER_UNIT);
   return units * MR_PER_TRANSFER_UNIT;
 }
+
+/** Converts a held (untransferred) Amex MR balance into its Avios equivalent, rounding down to
+ * the nearest whole transfer unit — only whole 17-MR units are actually transferable, so a
+ * partial unit isn't real spendable Avios yet. Inverse of `aviosToMrPoints`. */
+export function mrToAvios(mr: number): number {
+  const units = Math.floor(mr / MR_PER_TRANSFER_UNIT);
+  return units * AVIOS_PER_TRANSFER_UNIT;
+}
