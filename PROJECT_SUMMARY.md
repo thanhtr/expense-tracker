@@ -932,21 +932,15 @@ behavior exactly. `computeEarliestFire` picks this up automatically since it cal
 `computeFireTarget` internally. UI: new "End-of-plan buffer" field in the Cash buffer config group,
 and the model explainer's "Known limitation" section and binary-search pseudocode were reworded.
 
-**Found and worked around, not fixed:** the production Neon database has 5 tables
-(`BankConnection`, `CsvImport`, `HouseholdMember`, `IncomeRule`, `RecurringExclusion`) with no
-corresponding migration file anywhere in git history — they were applied directly (likely via
-`prisma db push`) at some point without a migration ever being committed. This makes
-`prisma migrate dev` report schema drift and offer to **reset the database** (`migrate reset`,
-which would drop everything) as its fix — never do this against this database. `prisma migrate
-status` and `prisma migrate deploy` are unaffected and work fine; only `migrate dev`'s drift
-detection trips on it. Worked around for this change by applying the new `endBufferYears` column
-directly with `prisma db execute` and recording it with `prisma migrate resolve --applied`, bypassing
-`migrate dev` entirely. The underlying gap (no migration file for those 5 tables) is still
-unresolved — attempting to reconstruct and backfill a baseline migration for them failed because
-Prisma checksums the original migration file content, and a reconstructed file (even with identical
-SQL) doesn't match the already-recorded checksum, triggering the same reset prompt. Needs a
-dedicated session with lower time pressure, ideally with access to whatever checksum or original
-migration file might still exist, or a deliberate decision to force-overwrite the checksum record.
+**Found and worked around at the time, fixed in "Migration drift resolved" below (2026-10-09):**
+the production Neon database had 5 tables (`BankConnection`, `CsvImport`, `HouseholdMember`,
+`IncomeRule`, `RecurringExclusion`) with no corresponding migration file anywhere in git history.
+This made `prisma migrate dev` report schema drift and offer to **reset the database**
+(`migrate reset`, which would drop everything) as its fix — never do this against this database.
+`prisma migrate status` and `prisma migrate deploy` were unaffected and worked fine; only
+`migrate dev`'s drift detection tripped on it. Worked around for this change by applying the new
+`endBufferYears` column directly with `prisma db execute` and recording it with
+`prisma migrate resolve --applied`, bypassing `migrate dev` entirely.
 
 **Also found:** `simulateProjection`'s drawdown loop and `computeFireTarget`'s internal
 `simulateDrawdown` compute each month's age slightly differently (end-of-month vs start-of-month),
@@ -1738,19 +1732,59 @@ make deliberately, with its own planning and testing — not a side effect of a 
   TTL self-healed within minutes regardless, the new near-indefinite cache would otherwise serve the
   pre-migration data indefinitely. Added a one-line reminder docstring to each script to hit
   "Clear cache" (or `POST /api/cache/revalidate`) afterward.
-- **A serious, pre-existing, NOT fixed here — needs your call**: `proxy.ts`'s token bypass
-  (`req.headers.has('x-api-token')`) only checks header *presence*, for literally every `/api/*`
-  route, not just the two this PR added token support to. A request to **any** mutation route —
-  `bulk-delete`, `keywords/clear`, the FIRE config `PUT`, etc. — carrying an `x-api-token` header
-  with *any* value, correct or not, currently skips the login-session check entirely; most of those
-  routes never validate the token's value themselves, so the request then executes completely
-  unauthenticated. This predates this PR (the presence-only check in `proxy.ts` is untouched by
-  it), surfaced only because this PR's own new `requireTokenOrSession` doc comment initially (and
-  wrongly) asserted `proxy.ts` already made this safe everywhere — that comment has been corrected,
-  but the underlying `proxy.ts` gap itself is still live and was deliberately left alone pending an
-  explicit decision, since fixing global auth middleware is a separate, high-blast-radius change
-  outside this PR's scope and warrants its own dedicated look, not a drive-by fix bundled into a
-  caching PR.
+- **A serious, pre-existing issue, flagged here, fixed in "proxy.ts token bypass closed" below**:
+  `proxy.ts`'s token bypass (`req.headers.has('x-api-token')`) only checked header *presence*, for
+  literally every `/api/*` route, not just the two this PR added token support to. A request to
+  **any** mutation route — `bulk-delete`, `keywords/clear`, the FIRE config `PUT`, etc. — carrying
+  an `x-api-token` header with *any* value, correct or not, skipped the login-session check
+  entirely; most of those routes never validated the token's value themselves, so the request then
+  executed completely unauthenticated. This predated this PR (the presence-only check in
+  `proxy.ts` was untouched by it), surfaced only because this PR's own new `requireTokenOrSession`
+  doc comment initially (and wrongly) asserted `proxy.ts` already made this safe everywhere — that
+  comment was corrected here, and the underlying `proxy.ts` gap itself was deliberately left alone
+  pending an explicit decision, since fixing global auth middleware was judged a separate,
+  high-blast-radius change outside this PR's scope.
+
+### Two long-flagged follow-ups closed: proxy.ts token bypass, migration drift (branch: `fix/proxy-token-auth`)
+Both open items from the "Found in a fourth code-review pass" note above (the caching PR) are
+now resolved.
+
+**proxy.ts token bypass closed.** `proxy.ts` validated only that the `x-api-token` header was
+*present*, not its value — a request to any `/api/*` route with that header set to anything,
+correct or not, skipped the session-login check entirely. New `isValidApiToken(token)` in
+`lib/api-auth.ts` (checks the value against `process.env.API_SECRET`, same logic
+`requireTokenOrSession` already used) is now called from `proxy.ts` itself: a present-but-wrong
+token gets a 401 JSON response instead of silently bypassing auth, and `requireTokenOrSession`
+(still used by `upload` and `cache/revalidate` as defense in depth) now delegates to the same
+function instead of duplicating the check. New `__tests__/unit/proxy.test.ts` covers the bypass
+regression, an empty token, a valid token, the normal session-redirect path, and an unset
+`API_SECRET`.
+
+**Migration drift resolved.** The investigation (prompted by re-examining this exact flagged note)
+found the original framing was slightly off: of the 5 untracked tables, only
+`BankConnection` actually had a recorded, applied row in `_prisma_migrations`
+(`20260815123416_add_bank_connection`, checksum `499aaf9b5...`) — its migration file was run
+directly against prod on 2026-08-15 but never committed to git. `CsvImport`, `HouseholdMember`,
+`IncomeRule`, and `RecurringExclusion` had **no row at all** (added via a direct schema push,
+never through migrate). Confirmed via `git log --all`/`git fsck --unreachable` that the original
+`add_bank_connection` file is unrecoverable from history — it never existed in any branch, stash,
+or dangling commit.
+- Recreated `prisma/migrations/20260815123416_add_bank_connection/migration.sql` from a live,
+  read-only introspection (`prisma migrate diff --from-empty --to-config-datasource --script`),
+  reformatted to match this project's existing migration style (no `"public".` schema prefix, no
+  explicit `ASC`). Its SHA-256 **matched the already-recorded production checksum exactly, byte
+  for byte** — Prisma's migration SQL generation is deterministic for an unchanged model, so no
+  risky production metadata edit (overwriting the recorded checksum) was needed after all, despite
+  that being the only option the original note anticipated.
+- Added a new `prisma/migrations/20261009000000_baseline_untracked_tables/migration.sql` with the
+  live-introspected `CREATE TABLE`/index statements for the other 4 tables, and ran
+  `prisma migrate resolve --applied` on it — the same safe, established pattern (adds one row to
+  `_prisma_migrations`, executes no SQL, since the tables already exist) used throughout this
+  project's history for every hand-applied schema change.
+- `prisma migrate status` now reports all 36 migrations applied, schema up to date, with no
+  remaining gap. `prisma migrate dev` should now work normally for future schema changes in this
+  area — not independently verified in this session (it's a mutating, interactive command this
+  session's tooling was not permitted to run), so confirm once before relying on it.
 
 ---
 
