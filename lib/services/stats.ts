@@ -1,5 +1,7 @@
-// Small statistical helpers shared by anything doing Monte Carlo / bootstrap simulation
-// (fire-monte-carlo.ts, forecast-service.ts).
+// Small, pure, server-free statistical/date helpers shared across the app — notably by
+// app/trends/page.tsx, a client component, so this file must never import anything that pulls in
+// Prisma/pg (that previously broke the client bundle; see completed-months-window.ts for the
+// server-only sibling that needed a DB import).
 
 // Deterministic PRNG (mulberry32), so results are stable across reloads/tests for a
 // given seed, with no external dependency.
@@ -49,4 +51,22 @@ export function monthRange(start: string, end: string): string[] {
     m = shiftMonth(m, 1);
   }
   return months;
+}
+
+// Formats a Date as a 'YYYY-MM-DD' string using local date components, not toISOString() — same
+// reasoning as monthString above, one level finer-grained. Used as an unstable_cache argument by
+// anything that needs its cache key to roll over at local midnight, not UTC midnight (a real bug,
+// independently reintroduced twice in this codebase before this helper was centralized — see
+// PROJECT_SUMMARY.md's caching section).
+export function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// unstable_cache keys on the literal argument values, order included — sorting a copy here lets
+// two selections of the same set in a different order (e.g. MultiSelectDropdown builds its array
+// in click order, not sorted) share one cache entry instead of each recomputing separately.
+// Shared by aggregation-service.ts and transaction-service.ts, which both multi-select-filter by
+// category/account.
+export function sortedOrUndefined(arr?: string[]): string[] | undefined {
+  return arr ? [...arr].sort() : arr;
 }

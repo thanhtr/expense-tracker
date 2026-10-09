@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,6 +15,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     where: { id: numId },
     data: { name: name.trim() },
   });
+  revalidateTag('config');
   return NextResponse.json(member);
 }
 
@@ -23,5 +25,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (isNaN(numId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   await prisma.householdMember.delete({ where: { id: numId } });
+  revalidateTag('config');
   return NextResponse.json({ success: true });
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 
@@ -22,8 +23,8 @@ export interface SellersResponse {
   totalMerchants: number;
 }
 
-export async function GET(): Promise<NextResponse> {
-  try {
+const getSellersData = unstable_cache(
+  async (): Promise<SellersResponse> => {
     // Exclude explicitly-linked reimbursements from both merchant queries — they're
     // netted precisely against the merchant of the expense they repay below instead, so
     // a linked reimbursement can't be counted twice (e.g. when it happens to share its
@@ -90,7 +91,15 @@ export async function GET(): Promise<NextResponse> {
       };
     });
 
-    return NextResponse.json({ sellers, totalMerchants: sellers.length } satisfies SellersResponse);
+    return { sellers, totalMerchants: sellers.length };
+  },
+  ['sellers-data'],
+  { tags: ['data'], revalidate: false },
+);
+
+export async function GET(): Promise<NextResponse> {
+  try {
+    return NextResponse.json(await getSellersData());
   } catch (error) {
     console.error('Sellers fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch sellers' }, { status: 500 });

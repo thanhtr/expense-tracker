@@ -3,13 +3,12 @@ import { z } from 'zod';
 import { processUpload } from '@/lib/services/upload-service';
 import { columnMappingSchema } from '@/lib/validation';
 import { prisma } from '@/lib/db';
+import { requireTokenOrSession } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
-  // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests
-  const token = request.headers.get('x-api-token');
-  if (token && token !== process.env.API_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Token auth for iOS Shortcut; session auth (via proxy.ts) for browser requests.
+  const authError = requireTokenOrSession(request);
+  if (authError) return authError;
 
   try {
     const url = new URL(request.url);

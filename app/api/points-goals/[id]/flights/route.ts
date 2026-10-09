@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { createPointsFlightSchema, parseBody, parseRouteId } from '@/lib/validation';
 import { POINTS_GOAL_INCLUDE } from '@/lib/services/points-goal-service';
@@ -27,6 +28,7 @@ export async function POST(
         note,
       },
     });
+    revalidateTag('readings');
 
     const goal = await prisma.pointsGoal.findUnique({
       where: { id: idResult.id },

@@ -3,7 +3,6 @@ import {
   recordCorrection,
   lookupLearnedCategory,
   deleteLearnedRule,
-  invalidateRulesCache,
   getLearnedRulesStore,
 } from '@/lib/services/learned-rules-service';
 
@@ -39,7 +38,6 @@ function makeRule(overrides: Partial<{
 describe('learned-rules-service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    invalidateRulesCache();
   });
 
   describe('getLearnedRulesStore', () => {
@@ -63,14 +61,6 @@ describe('learned-rules-service', () => {
       expect(store.rules).toEqual({});
     });
 
-    it('should use cache on second call within TTL', async () => {
-      vi.mocked(prisma.learnedRule.findMany).mockResolvedValue([makeRule()]);
-
-      await getLearnedRulesStore();
-      await getLearnedRulesStore();
-
-      expect(prisma.learnedRule.findMany).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe('recordCorrection', () => {
@@ -109,17 +99,6 @@ describe('learned-rules-service', () => {
       expect(prisma.learnedRule.upsert).not.toHaveBeenCalled();
     });
 
-    it('should invalidate cache after saving', async () => {
-      vi.mocked(prisma.learnedRule.findMany).mockResolvedValue([makeRule()]);
-      vi.mocked(prisma.learnedRule.findUnique).mockResolvedValue(null);
-      vi.mocked(prisma.learnedRule.upsert).mockResolvedValue(makeRule());
-
-      await getLearnedRulesStore(); // populate cache
-      await recordCorrection('AMAZON', 'Shopping'); // invalidates cache
-      await getLearnedRulesStore(); // re-fetches from DB
-
-      expect(prisma.learnedRule.findMany).toHaveBeenCalledTimes(2);
-    });
   });
 
   describe('lookupLearnedCategory', () => {

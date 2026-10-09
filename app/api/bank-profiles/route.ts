@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from '@/lib/cache-tags';
 import { getAllBankProfiles, upsertBankProfile } from '@/lib/services/bank-profile-service';
 import { parseBody, columnMappingSchema } from '@/lib/validation';
 import { z } from 'zod';
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await upsertBankProfile(fingerprint, mapping);
+    revalidateTag('config');
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Failed to save bank profile' }, { status: 500 });

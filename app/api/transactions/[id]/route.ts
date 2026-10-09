@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { recordCorrection } from '@/lib/services/learned-rules-service';
 import { getCategoriesCached } from '@/lib/categories-cache';
@@ -57,8 +58,12 @@ export async function PATCH(
 
     if (updateData.category) {
       await recordCorrection(tx.merchant, updateData.category);
+      // recordCorrection writes a LearnedRule row, which this app's cache design tags 'config'
+      // (see every other LearnedRule write path under app/api/keywords/).
+      revalidateTag('config');
     }
     const updated = await prisma.transaction.update({ where: { id: idResult.id }, data: updateData });
+    revalidateTag('data');
 
     return NextResponse.json({ id: idResult.id, category: updated.category, tags: updated.tags, success: true });
   } catch (error) {
@@ -80,6 +85,7 @@ export async function DELETE(
     if ('error' in idResult) return idResult.error;
 
     await prisma.transaction.delete({ where: { id: idResult.id } });
+    revalidateTag('data');
 
     return NextResponse.json({ success: true });
   } catch (error) {

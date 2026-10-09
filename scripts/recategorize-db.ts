@@ -4,6 +4,11 @@
  *
  * Run locally:  DATABASE_URL=... npx tsx scripts/recategorize-db.ts [--dry-run]
  * In CI:        npx tsx scripts/recategorize-db.ts  (DATABASE_URL from environment)
+ *
+ * This writes directly to Postgres, outside the Next.js app, so it never fires any route's
+ * revalidateTag call — the dashboard/FIRE/forecast caches won't see this change until something
+ * else invalidates the 'data' tag. After running this for real (not --dry-run), hit "Clear cache"
+ * in Settings (or POST /api/cache/revalidate) to pick up the new categorization immediately.
  */
 
 import { loadEnvConfig } from '@next/env';

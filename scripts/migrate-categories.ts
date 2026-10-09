@@ -3,6 +3,11 @@
  *
  * Run: npx tsx scripts/migrate-categories.ts [--dry-run]
  * Prerequisites: DATABASE_URL must be set in .env.local
+ *
+ * This writes directly to Postgres, outside the Next.js app, so it never fires any route's
+ * revalidateTag call — the dashboard/FIRE/forecast caches won't see this change until something
+ * else invalidates the 'data' tag. After running this for real (not --dry-run), hit "Clear cache"
+ * in Settings (or POST /api/cache/revalidate) to pick up the remapped categories immediately.
  */
 
 import { loadEnvConfig } from '@next/env';

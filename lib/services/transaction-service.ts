@@ -1,6 +1,35 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { ParsedTransaction, TransactionWithId } from '@/lib/types';
 import { Prisma } from '@prisma/client';
+import { sortedOrUndefined } from './stats';
+
+export interface TransactionFilters {
+  dateFrom?: string;
+  dateTo?: string;
+  accounts?: string[];
+  categories?: string[];
+  uncategorizedOnly?: boolean;
+  merchant?: string;
+  type?: string;
+  paidBy?: string;
+  amountMin?: number;
+  amountMax?: number;
+  positiveOnly?: boolean;
+  tag?: string;
+  sortBy?: string;
+  order?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface TransactionsResult {
+  transactions: TransactionWithId[];
+  total: number;
+  limit: number;
+  offset: number;
+  sum: number;
+}
 
 function makeDedupKey(date: string, account: string, merchant: string, cost: string): string {
   return `${date}|${account}|${merchant}|${cost}`;
@@ -49,30 +78,7 @@ export async function upsertTransactions(rows: ParsedTransaction[], accountOwner
   return { imported: created, duplicates: skipped, errors: 0, total: rows.length, created, skipped, dateFrom, dateTo };
 }
 
-export async function getTransactions(filters: {
-  dateFrom?: string;
-  dateTo?: string;
-  accounts?: string[];
-  categories?: string[];
-  uncategorizedOnly?: boolean;
-  merchant?: string;
-  type?: string;
-  paidBy?: string;
-  amountMin?: number;
-  amountMax?: number;
-  positiveOnly?: boolean;
-  tag?: string;
-  sortBy?: string;
-  order?: string;
-  limit?: number;
-  offset?: number;
-}): Promise<{
-  transactions: TransactionWithId[];
-  total: number;
-  limit: number;
-  offset: number;
-  sum: number;
-}> {
+async function getTransactionsUncached(filters: TransactionFilters): Promise<TransactionsResult> {
   const where: Prisma.TransactionWhereInput = {};
 
   if (filters.dateFrom || filters.dateTo) {
@@ -169,4 +175,18 @@ export async function getTransactions(filters: {
   });
 
   return { transactions, total, limit, offset, sum };
+}
+
+const getTransactionsCached = unstable_cache(
+  getTransactionsUncached,
+  ['transactions-list'],
+  { tags: ['data'], revalidate: false },
+);
+
+export async function getTransactions(filters: TransactionFilters): Promise<TransactionsResult> {
+  return getTransactionsCached({
+    ...filters,
+    categories: sortedOrUndefined(filters.categories),
+    accounts: sortedOrUndefined(filters.accounts),
+  });
 }

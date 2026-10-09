@@ -15,13 +15,9 @@ vi.mock('../../../lib/db', () => ({
   },
 }));
 
-vi.mock('../../../lib/services/aggregation-service', () => ({
-  invalidateDashboardCache: vi.fn(),
-}));
-
 import { GET, POST, DELETE } from '../../../app/api/transactions/[id]/links/route';
 import { prisma } from '../../../lib/db';
-import { invalidateDashboardCache } from '../../../lib/services/aggregation-service';
+import { revalidateTag } from 'next/cache';
 
 const makeTx = (overrides = {}) => ({
   id: 1,
@@ -92,7 +88,7 @@ describe('POST /api/transactions/[id]/links', () => {
     const body = await res.json();
     expect(body.expenseTransactionId).toBe(1);
     expect(body.reimbursementTransactionId).toBe(2);
-    expect(invalidateDashboardCache).toHaveBeenCalled();
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('rejects a reimbursement that would exceed the expense amount', async () => {
@@ -200,7 +196,7 @@ describe('DELETE /api/transactions/[id]/links', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(invalidateDashboardCache).toHaveBeenCalled();
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
   });
 
   it('returns 404 when no matching link exists', async () => {

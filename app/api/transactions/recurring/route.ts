@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import type { RecurringCharge, RecurringExclusion } from '@/lib/types';
 
@@ -12,11 +13,16 @@ function median(values: number[]): number {
     : (sorted[mid] ?? 0);
 }
 
-export async function GET(): Promise<NextResponse> {
-  const since = new Date();
-  since.setFullYear(since.getFullYear() - 1);
-
-  const [rows, exclusions] = await Promise.all([
+// `since` is the real rolling-1-year boundary, truncated to a local day by the exported wrapper
+// below and passed in as a genuine argument (not recomputed from `new Date()` inside this body) —
+// so the cache key and the actual query window always agree. An earlier version recomputed
+// `since` internally and only passed a throwaway month-granularity key, which froze the window at
+// whatever moment the cache was first populated that month: by the end of the month, the window
+// had silently drifted up to ~30 days wider than the documented 1 year. Tagged with both 'data'
+// (the transactions themselves) and 'config' (RecurringExclusion rows).
+const detectRecurringCharges = unstable_cache(
+  async (since: Date) => {
+    const [rows, exclusions] = await Promise.all([
     prisma.transaction.findMany({
       where: { type: 'Expense', date: { gte: since } },
       select: { merchant: true, amount: true, date: true, category: true, account: true },
@@ -76,9 +82,19 @@ export async function GET(): Promise<NextResponse> {
     });
   }
 
-  recurring.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
+    recurring.sort((a, b) => b.monthlyEstimate - a.monthlyEstimate);
 
-  const totalMonthly = recurring.reduce((s, r) => s + r.monthlyEstimate, 0);
+    const totalMonthly = recurring.reduce((s, r) => s + r.monthlyEstimate, 0);
 
-  return NextResponse.json({ recurring, totalMonthly, count: recurring.length, exclusions });
+    return { recurring, totalMonthly, count: recurring.length, exclusions };
+  },
+  ['recurring-charges'],
+  { tags: ['data', 'config'], revalidate: false },
+);
+
+export async function GET(): Promise<NextResponse> {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setFullYear(since.getFullYear() - 1);
+  return NextResponse.json(await detectRecurringCharges(since));
 }

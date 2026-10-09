@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
     });
 
     const csv = convertToCSV(result.transactions.map(t => ({
-      date: t.date.toISOString().slice(0, 10),
+      // getTransactions is cached (unstable_cache): a cache hit returns Date fields that already
+      // round-tripped through serialization as plain ISO strings, not Date instances — only a
+      // genuine Date exposes .toISOString(), so normalize first rather than assume either shape.
+      date: (t.date instanceof Date ? t.date : new Date(t.date)).toISOString().slice(0, 10),
       account: t.account,
       merchant: t.merchant,
       amount: t.amount.toString(),

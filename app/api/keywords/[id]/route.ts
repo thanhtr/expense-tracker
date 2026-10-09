@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { invalidateRulesCache } from '@/lib/services/learned-rules-service';
+import { revalidateTag } from '@/lib/cache-tags';
 import { CATEGORIES } from '@/lib/constants';
 import { updateKeywordSchema, parseBody, parseId } from '@/lib/validation';
 
@@ -40,7 +40,7 @@ export async function PUT(
       data: { normalizedKey: normalizedKeyword, category, learnedFrom: keyword },
     });
 
-    invalidateRulesCache();
+    revalidateTag('config');
 
     return NextResponse.json({
       id: updated.id,
@@ -69,7 +69,7 @@ export async function DELETE(
     }
 
     await prisma.learnedRule.delete({ where: { id: idResult.id } });
-    invalidateRulesCache();
+    revalidateTag('config');
 
     return NextResponse.json({ success: true });
   } catch (error) {

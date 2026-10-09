@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { CATEGORIES } from '@/lib/constants';
 import { updateSplitsSchema, parseBody, parseId } from '@/lib/validation';
@@ -53,6 +54,7 @@ export async function PUT(
     ]);
 
     void ops;
+    revalidateTag('data');
 
     const result = await prisma.transactionSplit.findMany({
       where: { transactionId: idResult.id },

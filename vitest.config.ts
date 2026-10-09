@@ -12,6 +12,7 @@ export default defineConfig({
     environment: 'node',
     include: ['__tests__/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist', '.next'],
+    setupFiles: ['./__tests__/setup/mock-next-cache.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

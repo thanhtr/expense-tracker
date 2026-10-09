@@ -1,5 +1,7 @@
-import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
-import { mulberry32, percentile, monthString, shiftMonth, monthRange } from './stats';
+import { unstable_cache } from 'next/cache';
+import { getDashboardStats } from './aggregation-service';
+import { mulberry32, percentile, monthString, shiftMonth } from './stats';
+import { resolveCompletedMonthsWindow } from './completed-months-window';
 
 const MIN_HISTORY_MONTHS = 3;
 const MAX_HISTORY_MONTHS = 12;
@@ -50,25 +52,26 @@ export interface InsufficientForecastData {
 //
 // Window is a rolling 12 months if there's at least that much history, otherwise as far
 // back as the data actually goes.
-export async function forecastNextMonth(
-  trials = TRIALS,
-  seed = SEED,
+// `monthKey` is unused inside the body — it exists purely so unstable_cache's argument-based
+// cache key changes when the calendar month rolls over, since the function otherwise computes
+// `now` internally rather than taking it as an argument (which would freeze the cached result at
+// whatever month it was first computed in, with 'data' invalidation as the only way out).
+async function forecastNextMonthUncached(
+  trials: number,
+  seed: number,
+  monthKey: string,
 ): Promise<ForecastResult | InsufficientForecastData> {
-  const now = new Date();
-  const historyEndDate = new Date(now.getFullYear(), now.getMonth(), 0); // last day of previous month
+  void monthKey;
+  // Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
+  // Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
+  // another unstable_cache-wrapped function — so resolveCompletedMonthsWindow/getDashboardStats
+  // below always recompute fresh rather than potentially reusing a recent identical-args cache
+  // hit, every time this function's own cache needs to recompute (a cold cache or after a 'data'
+  // invalidation, not on every request).
+  const { windowStart: historyStartDate, windowEnd: historyEndDate, months } =
+    await resolveCompletedMonthsWindow(MAX_HISTORY_MONTHS, { emptyHistoryFallback: 'single-month' });
   const historyEnd = monthString(historyEndDate);
 
-  const rollingStartDate = new Date(historyEndDate);
-  rollingStartDate.setMonth(rollingStartDate.getMonth() - (MAX_HISTORY_MONTHS - 1));
-  const rollingStart = monthString(rollingStartDate);
-
-  const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : historyEnd;
-  const dataStartsLater = earliestDataMonth > rollingStart;
-  const historyStart = dataStartsLater ? earliestDataMonth : rollingStart;
-  const historyStartDate = dataStartsLater ? earliestDataDate! : rollingStartDate;
-
-  const months = monthRange(historyStart, historyEnd);
   if (months.length < MIN_HISTORY_MONTHS) {
     return { insufficientData: true, monthsAvailable: months.length, minHistoryMonths: MIN_HISTORY_MONTHS };
   }
@@ -129,4 +132,17 @@ export async function forecastNextMonth(
     byCategory,
     minHistoryMonths: MIN_HISTORY_MONTHS,
   };
+}
+
+const forecastNextMonthCached = unstable_cache(
+  forecastNextMonthUncached,
+  ['forecast-next-month'],
+  { tags: ['data'], revalidate: false },
+);
+
+export async function forecastNextMonth(
+  trials = TRIALS,
+  seed = SEED,
+): Promise<ForecastResult | InsufficientForecastData> {
+  return forecastNextMonthCached(trials, seed, monthString(new Date()));
 }

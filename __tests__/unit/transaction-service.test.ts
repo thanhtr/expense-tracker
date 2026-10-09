@@ -100,8 +100,11 @@ describe('getTransactions', () => {
 
     await getTransactions({ categories: ['Shopping', 'Dining Out'] });
 
+    // Order-independent: getTransactions sorts its categories/accounts args before querying, so
+    // two equivalent selections made in a different order share one cache entry.
     const whereArg = vi.mocked(prisma.transaction.findMany).mock.calls[0][0]?.where;
-    expect(whereArg?.category).toEqual({ in: ['Shopping', 'Dining Out'] });
+    expect((whereArg?.category as { in: string[] }).in).toEqual(expect.arrayContaining(['Shopping', 'Dining Out']));
+    expect((whereArg?.category as { in: string[] }).in).toHaveLength(2);
   });
 
   it('should filter to only uncategorized rows when uncategorizedOnly is set, ignoring categories', async () => {

@@ -13,9 +13,6 @@ vi.mock('@/lib/categorizer', () => ({
 vi.mock('@/lib/services/transaction-service', () => ({
   upsertTransactions: vi.fn(),
 }));
-vi.mock('@/lib/services/aggregation-service', () => ({
-  invalidateDashboardCache: vi.fn(),
-}));
 vi.mock('@/lib/services/income-rules-service', () => ({
   getIncomeRules: vi.fn(async () => []),
   matchesAnyIncomeRule: vi.fn(),
@@ -32,7 +29,7 @@ import { processUpload } from '@/lib/services/upload-service';
 import { parseOPBank, detectBank } from '@/lib/parsers';
 import { categorizeWithLearning } from '@/lib/categorizer';
 import { upsertTransactions } from '@/lib/services/transaction-service';
-import { invalidateDashboardCache } from '@/lib/services/aggregation-service';
+import { revalidateTag } from 'next/cache';
 import { getIncomeRules, matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
 import { prisma } from '@/lib/db';
 import type { ParsedTransaction } from '@/lib/types';
@@ -100,7 +97,7 @@ describe('processUpload', () => {
     expect(result.dry_run).toBe(true);
     expect(result.would_create).toBe(1);
     expect(upsertTransactions).not.toHaveBeenCalled();
-    expect(invalidateDashboardCache).not.toHaveBeenCalled();
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 
   it('a dry run marks a row as skip when its dedup key already exists', async () => {
@@ -120,7 +117,7 @@ describe('processUpload', () => {
     const result = await processUpload('csv', 'op', 'tung', false) as { detectedBank: string; created: number };
 
     expect(upsertTransactions).toHaveBeenCalledTimes(1);
-    expect(invalidateDashboardCache).toHaveBeenCalledTimes(1);
+    expect(revalidateTag).toHaveBeenCalledWith('data', { expire: 0 });
     expect(result.detectedBank).toBe('op');
     expect(result.created).toBe(1);
   });

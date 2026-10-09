@@ -1530,6 +1530,228 @@ since they don't depend on a specific purchase at all.
   candidates) — scoped to `tbody tr` instead. Full suite (99 tests) now passes cleanly with no
   env setup required.
 
+### Nearly-indefinite caching, invalidated by upload/reading/config change (branch `feat/indefinite-cache-with-tags`)
+The app recomputed every expensive aggregation (dashboard stats, FIRE + Monte Carlo, the
+forecast, points-goal cash-plan/earn-reconciliation, recurring/seller detection) on every
+request. User request: since almost none of this actually changes except on three events — a
+CSV upload, a "reading" upsert (asset balance, points-goal balance/flight), or a config change
+(Settings tabs, FIRE config, budgets, guidelines) — cache nearly everything indefinitely and
+invalidate only on those events.
+
+- **Two things found that shaped the design**: `vercel.json` sets `Cache-Control: no-cache,
+  no-store, must-revalidate` on every `/api/*` route, so caching has to live server-side, not in
+  HTTP headers. And the one existing cache (`aggregation-service.ts`'s in-memory `Map`, 5-min TTL)
+  is unsound on this deployment — Vercel Fluid Compute can run multiple concurrent instances, and
+  a per-process `Map` isn't shared across them. Replaced it, and standardized on Next's Data Cache
+  (`unstable_cache` + `revalidateTag`), already proven here via `lib/categories-cache.ts`.
+- **Three tags, matching the user's own framing exactly**: `'data'` (any `Transaction` change:
+  upload, edit/delete, splits, links, bulk ops), `'readings'` (`Asset`/`AssetSnapshot`,
+  `PointsBalance`, `PointsFlight`, `PointsGoal` itself), `'config'` (every Settings-tab-backed
+  table — `HouseholdMember`, `Category` folded in from its old standalone `'categories'` tag,
+  `LearnedRule`, `IncomeRule`, `CardEarnRule`, `FinnairPlusTier`, `Budget`, `GuidelineBucket`,
+  `FireConfig`, `BankProfile`, `RecurringExclusion`). Several cached functions depend on more than
+  one tag (e.g. FIRE reads transactions + assets + config) — a rare config edit occasionally
+  over-invalidates an unrelated cache, an accepted, cheap tradeoff for a simple 3-tag model.
+- **Pattern**: wrap the specific expensive function (not the whole route) with
+  `unstable_cache(fn, keyParts, { tags, revalidate: false })`, mirroring `categories-cache.ts`.
+  Newly cached: `getDashboardStats`/`getEarliestTransactionDate` (replacing the old `Map`),
+  `getTransactions` (list/export), `forecastNextMonth`, recurring-charge detection, seller
+  aggregation, FIRE's `fetchPortfolioData` and `fire-inputs-service.ts`'s new
+  `deriveFireInputsCached`, and `points-goal-enrichment.ts`'s four DB-heavy fetches
+  (`fetchMoneyCapacity`, `fetchCardTransactions`, `fetchCardEarnRules`, `fetchFinnairPlusTier`).
+  `runFireCalculation`/`runMonteCarlo` stay uncached (pure, fast, no DB).
+- **Invalidation**: `invalidateDashboardCache()` call sites became `revalidateTag('data', 'max')`
+  directly, including two routes that should already have called it and didn't —
+  `transactions/[id]/route.ts` (PATCH/DELETE) and `.../splits/route.ts` (PUT) were silently
+  serving stale dashboard data for up to 5 minutes after an edit; fixed regardless of the
+  redesign. New `revalidateTag('readings', 'max')` calls on every asset/points-goal mutation
+  route; new `revalidateTag('config', 'max')` calls across every Settings-tab/FIRE/budgets/
+  guidelines mutation route.
+- **New manual escape hatch** (added mid-implementation, user request, for "a change bypasses the
+  app" — a direct DB edit, migration, or seed script): `POST /api/cache/revalidate` (body
+  `{ tags?: [...] }`, defaults to all three), auth mirrors the upload route's existing pattern
+  exactly (session via `proxy.ts`, or `x-api-token` for a CI/pipeline step). New
+  `components/CacheControls.tsx`, a "Clear cache" button at the bottom of `/settings`.
+- **A functions-with-an-internal-"now()" footgun, fixed in three places**: a function that reads
+  `new Date()` *inside* its own body (rather than taking it as an argument) and gets wrapped in
+  `unstable_cache` freezes its result at whatever moment it was first computed — the args-based
+  cache key never changes, so it's never recomputed except via tag invalidation, even once a new
+  calendar month starts. Fixed by adding a throwaway `monthKey`/`dayKey` string argument (unused
+  inside the body, computed by the exported wrapper, passed through so the args-based key rolls
+  over naturally): `forecastNextMonth`, the recurring-charge detector, and FIRE's
+  `fetchPortfolioData`/`deriveFireInputsCached` (day-truncated, matching the existing precedent
+  `fetchPortfolioData` already had for its own dashboard-stats sub-call).
+- **A real, shipped bug caught only by manual live-server testing, not by the (mocked) unit/e2e
+  suite**: `unstable_cache` always round-trips its return value through serialization, even on a
+  cache miss — a real `Date` field comes back out as a plain ISO string, not a `Date` instance.
+  `getEarliestTransactionDate` used to return `Date | null` directly; every caller
+  (`forecast-service.ts`, `points-goal-enrichment.ts`) called `.getFullYear()`/`.getMonth()` on
+  it directly and crashed (`/api/points-goals` 500ed) the moment it got cached. Fixed by having the
+  cached layer return an ISO string and the exported function convert it back to a real `Date`.
+  Audited every other newly-cached function's return shape for the same risk and found one more
+  live instance: `app/api/export/route.ts`'s CSV formatter called `t.date.toISOString()` directly
+  on `getTransactions()`'s output — fixed with the same instanceof-guard `avios-earn-service.ts`
+  already used defensively for exactly this reason. The vitest `next/cache` mock (a pass-through,
+  needed so tests don't cache stale mocks across cases — see below) can't catch this class of bug
+  at all, since it never serializes anything; only hitting the real dev server end-to-end did.
+- **Vitest needed a new global mock**: `revalidateTag`/`unstable_cache` need Next's request-scoped
+  cache handler, which a plain vitest process calling route handlers directly doesn't have.
+  Verified this was previously entirely untested (no unit test exercised `categories/route.ts` or
+  `getCategoriesCached` at all). New `__tests__/setup/mock-next-cache.ts`, wired into
+  `vitest.config.ts`'s `test.setupFiles`: `unstable_cache` is a pass-through, `revalidateTag`/
+  `revalidatePath` are tracked no-ops a test can assert on.
+- Verified against the real dev server end-to-end (not just mocked tests, precisely because of
+  the bug above): `/api/fire` and `/api/points-goals` return byte-identical cached-field output on
+  a second call, ~4x faster; a `PUT /api/fire` config change is reflected in the very next read; a
+  new `Asset` reading is reflected in FIRE's `bankTotal` on the next read; `/api/export` produces
+  correct CSV dates on both a cache miss and a cache hit; the manual `/api/cache/revalidate`
+  endpoint, its tag validation, and its token auth all behave correctly. All test assets/config
+  changes made during verification were cleaned up afterward.
+
+**Found in code review before merge (three more real bugs, all fixed):**
+- **`revalidateTag(tag, 'max')` is not an immediate invalidation** — confirmed by reading Next's
+  own source (`revalidate.js`): passing a named profile like `'max'` takes the stale-while-
+  revalidate path (`pathWasRevalidated` is deliberately *not* set), unlike passing no profile or
+  `{ expire: 0 }`. Every one of the ~45 call sites this PR added (plus two pre-existing ones in
+  the categories routes) used `'max'`, undermining the whole point of this change — a request
+  right after a mutation could still see stale data. Changed every call site to
+  `revalidateTag(tag, { expire: 0 })`, the documented way to force an immediate, blocking
+  invalidation from a Route Handler. Re-verified live: a `PUT /api/fire` config change is now
+  reflected in that same response and the very next `GET`, confirmed by rereading the actual
+  values (not just checking the HTTP status).
+- **Auth bypass in the new `/api/cache/revalidate` endpoint** (and, found while fixing it, the
+  same pre-existing bug in `/api/upload`): `proxy.ts` only requires a session when the
+  `x-api-token` header is entirely *absent* (`req.headers.has(...)`), but both routes checked the
+  header's *truthiness* (`const token = request.headers.get(...); if (token && token !== ...)`) —
+  a request with the header present but empty slips past both the proxy's session gate and the
+  route's own check, invalidating the cache (or uploading data) with no credentials at all. Fixed
+  both routes to check presence (`.has`) before comparing the value, verified live: an empty-but-
+  present header now correctly 401s, a valid session still succeeds.
+- **UTC-vs-local day-boundary mismatch** in FIRE's `fetchPortfolioData` cache key — it truncated
+  its own window to *local* midnight (`today.setHours(0,0,0,0)`) but derived the day-string cache
+  key via `toISOString().slice(0,10)`, which reports the *UTC* calendar day; in Helsinki's
+  positive UTC offset, the cache would roll over a few hours early relative to the boundary it
+  was meant to key — the same class of bug `forecast-service.ts`'s `monthString` was already
+  fixed for elsewhere in this codebase. Fixed by building the day-key from local date components
+  directly instead of round-tripping through UTC.
+
+**Found in a second code-review pass (two more, both fixed):**
+- **`getDashboardStats`'s `forceRefresh` param called `revalidateTag` from inside its own body** —
+  harmless as long as `getDashboardStats` is only ever called from a plain route handler, but this
+  PR newly calls it from *inside* three other `unstable_cache`-wrapped functions
+  (`fetchMoneyCapacity`, `fetchPortfolioData`, `forecastNextMonth`) — and Next explicitly throws if
+  `revalidateTag` runs nested inside an `unstable_cache` call. Not reachable today (only the
+  dashboard route's own `?refresh=1` ever set the flag), but a latent crash waiting for the first
+  future caller that threads a refresh flag through one of those composed paths. Removed the
+  `forceRefresh` param from `getDashboardStats` entirely; `app/api/dashboard/route.ts` now calls
+  `revalidateTag('data', { expire: 0 })` itself before reading, since it's always a plain route
+  handler and the call is safe there.
+- **Nested `unstable_cache` calls bypass their own cache layer** — Next's own source
+  (`unstable-cache.js`) deliberately skips the cache lookup for a call made from inside another
+  `unstable_cache`-wrapped function. `fetchMoneyCapacity`/`fetchPortfolioData`/`forecastNextMonth`
+  all call `getDashboardStats`/`getEarliestTransactionDate` from within their own cached bodies, so
+  those inner calls always recompute fresh rather than potentially reusing an identical-args cache
+  hit — but only on the (infrequent) occasions those outer caches themselves need to recompute, not
+  on every request. Documented inline at all three call sites rather than restructured — avoiding
+  it would mean pre-fetching dashboard stats outside each cache boundary and threading the result
+  through as a plain argument, a bigger change than the actual inefficiency (a rare partial
+  recompute) justifies.
+
+**Flagged, deliberately not changed:** `node_modules/next/dist/docs` marks `unstable_cache` as
+replaced by the `use cache` directive + Cache Components in Next 16. This PR extends
+`unstable_cache` rather than migrating to it, because `use cache` requires opting the *entire app*
+into `cacheComponents: true` in `next.config.ts` — a major, app-wide rendering-model change (Next's
+own docs flag new restrictions: no raw `cookies`/`headers` access inside cached scopes, class
+instances unsupported as arguments/returns, etc.), not a drop-in swap for the handful of functions
+this PR caches. `unstable_cache` is still shipped and fully functional in this Next version;
+migrating to Cache Components is a real, separate architectural decision this household should
+make deliberately, with its own planning and testing — not a side effect of a caching PR.
+
+**Found in a third code-review pass (four more fixed, two flagged and accepted):**
+- **The exact same UTC-vs-local day-boundary bug, reintroduced in a sibling function** —
+  `fire-inputs-service.ts`'s `deriveFireInputsCached` passed the already-locally-truncated `today`
+  Date object straight through as an `unstable_cache` argument; `unstable_cache` serializes
+  arguments via their `toJSON()`/ISO form, which reports the *UTC* instant, re-creating the exact
+  mismatch already fixed in `fetchPortfolioData` two review passes earlier — in this household's
+  own EEST timezone, a call made in the few hours after local midnight could key on the previous
+  UTC day. Fixed the same way: a new `deriveFireInputsForCache` wrapper takes an explicit, unused
+  `dayKey` string (built from local date components) purely so the cache key rolls over at local
+  midnight, not UTC midnight.
+- **A real auth regression in the just-written `requireTokenOrSession` helper**: the consolidation
+  dropped the original `!token ||` guard, leaving only `token !== process.env.API_SECRET` — safe
+  today, but if `API_SECRET` were ever deployed as a literal empty string (a real misconfiguration,
+  not just unset), an empty supplied token would equal it and authenticate with no real credential.
+  Restored the `!token` check (and added `!process.env.API_SECRET` for the same reason on the other
+  side of the comparison).
+- **`BankProfile` writes never invalidated `'config'`**, despite being listed among the tables that
+  tag covers — inert today (nothing caches a `BankProfile` read yet), but would have been a silent
+  trap for the first future function that does. Added the missing `revalidateTag('config')` call.
+- **No compile-time link between a cached function's `tags` and a mutation route's
+  `revalidateTag` call** — every one of the ~45 call sites passed a bare string literal plus a
+  repeated `{ expire: 0 }`, with nothing to catch a typo'd or renamed tag. New `lib/cache-tags.ts`:
+  a `CacheTag` type restricted to the three real tags, and a typed `revalidateTag(tag)` wrapper
+  that always applies the immediate-invalidation option internally. Every call site across the app
+  now imports from here instead of `next/cache` directly.
+- **Flagged, deliberately not changed**: removing `getDashboardStats`'s `forceRefresh` param (the
+  previous review-pass fix, above) widened a plain dashboard refresh's blast radius from one query
+  to the whole `'data'` tag (forecast, sellers, recurring detection, FIRE, Avios cash plan — every
+  tag the single-`'data'`-tag design groups together). This is the same tradeoff already accepted
+  for every other `'data'`-tagged mutation in this PR (an upload or a single transaction edit
+  already invalidates the same breadth); the manual refresh button isn't a new, worse case, just
+  the same accepted design extended to one more trigger.
+- **Flagged, deliberately not changed**: the new Data Cache has no size cap or TTL (`revalidate:
+  false`, matching the "nearly indefinite" design goal) — a high-cardinality input space (custom
+  date ranges, free-text merchant search, pagination offsets) grows one cache entry per distinct
+  argument tuple, with no eviction until an explicit tag invalidation. The *old* in-memory `Map` had
+  the identical unbounded-growth property (it only ever shrank via its own full-clear
+  `invalidateDashboardCache()`, same as now) with a 5-minute TTL layered on top as the only
+  practical bound — bounding this properly (an LRU cap, or reintroducing a TTL) would cut against
+  the "nearly indefinite" goal this whole PR was built around, so it's flagged as a real
+  consideration for if usage patterns ever make it a problem, not fixed here.
+
+**Found in a fourth code-review pass (four more fixed, one serious pre-existing issue flagged):**
+- **A real, worse window-drift bug in recurring-charge detection** (not just an edge-of-day
+  mismatch like the FIRE instances above): the cached function recomputed `since` (a rolling
+  1-year window) from `new Date()` internally and only took a throwaway *monthly* key, so the
+  window froze at whatever moment the cache first populated that month — by the end of the month,
+  it had silently drifted up to ~30 days wider than the documented 1 year, making an old merchant's
+  charges linger as "recurring" a month longer than they should. Fixed properly this time: `since`
+  is now computed once by the route (truncated to local midnight) and passed to the cached function
+  as the actual, real argument it uses in the query — not a separate throwaway key alongside an
+  internally-recomputed value — so the cache key and the real query window can never disagree, and
+  the cache now correctly rolls over daily instead of monthly.
+- **The local-day-key formatter, independently reimplemented a second time**: the exact bug this
+  fixed in `fetchPortfolioData`, then separately in `deriveFireInputsCached` two passes later, was
+  about to be written a third time for the recurring-charges fix above. Centralized as
+  `localDateKey()` in `lib/services/stats.ts` (alongside the existing `monthString`/`shiftMonth`
+  helpers this file already centralizes for the same class of problem); both FIRE call sites now
+  import it instead of each carrying their own copy.
+- **`/api/cache/revalidate` silently invalidated everything on a malformed request**: a non-array
+  `tags` value (e.g. `{"tags": "data"}`, a plausible typo for `{"tags": ["data"]}`) fell through to
+  the "omitted" default and flushed all three tags instead of being rejected — the equivalent
+  invalid-array form (`{"tags": ["bogus"]}`) correctly 400'd, but the non-array form didn't. Fixed
+  to 400 on anything present-but-not-an-array.
+- **Direct-DB maintenance scripts never invalidate the cache they just made stale**:
+  `scripts/recategorize-db.ts`, `migrate-categories.ts`, and `migrate-reimbursements.ts` write to
+  Postgres outside the Next.js app entirely, so they can't call `revalidateTag` themselves (it only
+  works inside a request/action context) — unlike before this PR, where the dashboard's old 5-minute
+  TTL self-healed within minutes regardless, the new near-indefinite cache would otherwise serve the
+  pre-migration data indefinitely. Added a one-line reminder docstring to each script to hit
+  "Clear cache" (or `POST /api/cache/revalidate`) afterward.
+- **A serious, pre-existing, NOT fixed here — needs your call**: `proxy.ts`'s token bypass
+  (`req.headers.has('x-api-token')`) only checks header *presence*, for literally every `/api/*`
+  route, not just the two this PR added token support to. A request to **any** mutation route —
+  `bulk-delete`, `keywords/clear`, the FIRE config `PUT`, etc. — carrying an `x-api-token` header
+  with *any* value, correct or not, currently skips the login-session check entirely; most of those
+  routes never validate the token's value themselves, so the request then executes completely
+  unauthenticated. This predates this PR (the presence-only check in `proxy.ts` is untouched by
+  it), surfaced only because this PR's own new `requireTokenOrSession` doc comment initially (and
+  wrongly) asserted `proxy.ts` already made this safe everywhere — that comment has been corrected,
+  but the underlying `proxy.ts` gap itself is still live and was deliberately left alone pending an
+  explicit decision, since fixing global auth middleware is a separate, high-blast-radius change
+  outside this PR's scope and warrants its own dedicated look, not a drive-by fix bundled into a
+  caching PR.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.

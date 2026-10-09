@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { getCategoriesCached } from '@/lib/categories-cache';
 import { createCategorySchema, parseBody } from '@/lib/validation';
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const cat = await prisma.category.create({ data: { name, sortOrder } });
-    revalidateTag('categories', 'max');
+    revalidateTag('config');
     return NextResponse.json(cat, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Category already exists' }, { status: 409 });

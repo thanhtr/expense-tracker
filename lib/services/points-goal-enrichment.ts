@@ -2,11 +2,13 @@
 // affordability plan) to goals already enriched with `progress`. Kept separate from
 // points-goal-service.ts so that file can stay a pure function with no DB dependency.
 
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { getDashboardStats, getEarliestTransactionDate } from './aggregation-service';
+import { getDashboardStats } from './aggregation-service';
 import { FIRE_DEFAULTS } from './fire-service';
 import { deriveMoneyCapacity, type MoneyCapacity } from './money-capacity-service';
-import { monthString, monthRange } from './stats';
+import { monthString } from './stats';
+import { resolveCompletedMonthsWindow, type CompletedMonthsWindow } from './completed-months-window';
 import { LIQUID_ASSET_TYPES } from '@/lib/constants';
 import { SUBSCRIPTION_EUR_PER_AVIOS, type FinnairTier } from '@/lib/avios-facts';
 import { withProgress, POINTS_GOAL_INCLUDE, type PointsGoalInput, type PointsGoalProgress } from './points-goal-service';
@@ -33,35 +35,6 @@ type EnrichedGoal<T> = GoalWithProgress<T> & {
   >;
 };
 
-interface CompletedMonthsWindow {
-  windowStart: Date;
-  windowEnd: Date;
-  months: string[];
-}
-
-/** Resolves a rolling N-completed-calendar-months window (never a partial current month),
- * clamped to the earliest transaction actually in the DB — same guard fetchMoneyCapacity needs
- * for a fresh/empty database (see the code-review fix in PROJECT_SUMMARY.md, "Can I afford it?
- * rebuilt..."): null's fallback month would otherwise equal windowEndMonth, always later than
- * rollingStart, which would pass a null Date into a Prisma `gte` filter. */
-async function resolveCompletedMonthsWindow(windowMonths: number): Promise<CompletedMonthsWindow> {
-  const now = new Date();
-  const windowEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of previous month
-  const windowEndMonth = monthString(windowEnd);
-
-  const rollingStart = new Date(windowEnd.getFullYear(), windowEnd.getMonth(), 1);
-  rollingStart.setMonth(rollingStart.getMonth() - (windowMonths - 1));
-
-  const earliestDataDate = await getEarliestTransactionDate();
-  const earliestDataMonth = earliestDataDate ? monthString(earliestDataDate) : null;
-  const dataStartsLater = earliestDataMonth !== null && earliestDataMonth > monthString(rollingStart);
-  const windowStart = dataStartsLater ? earliestDataDate! : rollingStart;
-
-  const months = monthRange(dataStartsLater ? earliestDataMonth! : monthString(rollingStart), windowEndMonth);
-
-  return { windowStart, windowEnd, months };
-}
-
 // One Investments-category total per month in `months` (zero-filled), used so
 // money-capacity-service.ts can take the *median* rather than the window total — a one-off lump
 // funded from existing savings shouldn't skew the "regular investing" baseline.
@@ -85,7 +58,15 @@ async function fetchMonthlyInvestments(start: Date, end: Date, months: string[])
 // much history exists, otherwise as far back as the data actually goes — same pattern
 // forecast-service.ts uses, for the same reason (pre-2026 data was deleted; dividing by a fixed
 // 12 would understate the real monthly average).
-async function fetchMoneyCapacity(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
+// Known, accepted limitation: this function is itself wrapped in unstable_cache below, and
+// Next's unstable_cache deliberately bypasses its *own* cache layer for calls made from inside
+// another unstable_cache-wrapped function — so this getDashboardStats call always recomputes
+// fresh rather than potentially reusing a recent identical-args cache hit, every time this
+// function's own cache needs to recompute (i.e. only on a cold cache or after a 'data'/
+// 'readings'/'config' invalidation, not on every request). Not worth restructuring to avoid
+// (would mean pre-fetching dashboard stats outside this cache boundary and threading the result
+// through as a plain argument) given how infrequently this path actually recomputes.
+async function fetchMoneyCapacityUncached(window: CompletedMonthsWindow): Promise<MoneyCapacity> {
   const { windowStart, windowEnd, months } = window;
 
   const [stats, monthlyInvestments, bankAssets, liquidAssets, fireConfig] = await Promise.all([
@@ -112,10 +93,18 @@ async function fetchMoneyCapacity(window: CompletedMonthsWindow): Promise<MoneyC
   });
 }
 
+// 'data' (transactions, via getDashboardStats/fetchMonthlyInvestments), 'readings' (Asset rows),
+// 'config' (FireConfig.emergencyFundMonths).
+const fetchMoneyCapacity = unstable_cache(
+  fetchMoneyCapacityUncached,
+  ['points-goal-money-capacity'],
+  { tags: ['data', 'readings', 'config'], revalidate: false },
+);
+
 // Raw Amex + Finnair Visa outflow rows in the window, classified by avios-earn-service.ts's pure
-// classifyTransaction against the user-maintained CardEarnRule rows. `take` capped the same way
+// classifyTransaction against the user-maintained CardEarnRule rules. `take` capped the same way
 // as the structurally identical incomeRows/reimbRows queries in aggregation-service.ts.
-async function fetchCardTransactions(start: Date, end: Date): Promise<CardTransactionInput[]> {
+async function fetchCardTransactionsUncached(start: Date, end: Date): Promise<CardTransactionInput[]> {
   const rows = await prisma.transaction.findMany({
     where: {
       account: { in: Array.from(CARD_ACCOUNTS) },
@@ -129,15 +118,33 @@ async function fetchCardTransactions(start: Date, end: Date): Promise<CardTransa
   return rows;
 }
 
-async function fetchCardEarnRules(): Promise<CardEarnRuleInput[]> {
+const fetchCardTransactions = unstable_cache(
+  fetchCardTransactionsUncached,
+  ['points-goal-card-transactions'],
+  { tags: ['data'], revalidate: false },
+);
+
+async function fetchCardEarnRulesUncached(): Promise<CardEarnRuleInput[]> {
   const rows = await prisma.cardEarnRule.findMany({ orderBy: { id: 'asc' } });
   return rows as CardEarnRuleInput[];
 }
 
-async function fetchFinnairPlusTier(): Promise<FinnairTier> {
+const fetchCardEarnRules = unstable_cache(
+  fetchCardEarnRulesUncached,
+  ['points-goal-card-earn-rules'],
+  { tags: ['config'], revalidate: false },
+);
+
+async function fetchFinnairPlusTierUncached(): Promise<FinnairTier> {
   const row = await prisma.finnairPlusTier.findUnique({ where: { id: 1 } });
   return (row?.tier as FinnairTier | undefined) ?? 'basic';
 }
+
+const fetchFinnairPlusTier = unstable_cache(
+  fetchFinnairPlusTierUncached,
+  ['points-goal-finnair-tier'],
+  { tags: ['config'], revalidate: false },
+);
 
 /** Builds one shared cash plan across every Avios-unit goal's planned flights (merged and sorted
  * by neededBy, so they all compete for the same discretionary pool/buffer instead of each goal

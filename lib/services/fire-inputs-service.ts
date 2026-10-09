@@ -1,5 +1,7 @@
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { FIRE_RENTAL } from '@/lib/constants';
+import { localDateKey } from '@/lib/services/stats';
 import { matchesAnyIncomeRule } from '@/lib/services/income-rules-service';
 import {
   ASSUMED_INCOME_TAX_RATE,
@@ -82,9 +84,17 @@ export function grossFromNet(netAnnual: number): number {
   return netAnnual / (1 - ASSUMED_INCOME_TAX_RATE - FI_EMPLOYEE_PENSION_CONTRIBUTION - FI_EMPLOYEE_UNEMPLOYMENT_CONTRIBUTION);
 }
 
-export async function deriveFireInputs(config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>, today = new Date()): Promise<DerivedInputsResult> {
+export async function deriveFireInputs(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+  today = new Date(),
+): Promise<DerivedInputsResult> {
   const since = new Date(today);
   since.setMonth(since.getMonth() - 12);
+
+  // Started now, awaited only where euribor is used below — it has no dependency on the DB
+  // queries that follow, so there's no reason to pay its latency (up to 3s) sequentially after
+  // them.
+  const euriborPromise = fetchEuribor6m();
 
   const rentalRules = await prisma.incomeRule.findMany({
     where: { label: { startsWith: FIRE_RENTAL.incomeRuleLabelPrefix } },
@@ -122,7 +132,7 @@ export async function deriveFireInputs(config: Pick<StoredFireConfig, 'dateOfBir
 
   // The rental loan is an annuity ending at mortgageEndAge. Assumes today's Euribor
   // holds for the rest of the term.
-  const euribor = await fetchEuribor6m();
+  const euribor = await euriborPromise;
   const loanRate = euribor.rate + FIRE_RENTAL.loanMargin;
   const loanPaymentMonthly = monthlyAverage(loanTxs).monthly;
   const monthsLeft = Math.max(0, Math.round((config.mortgageEndAge - computeCurrentAge(config.dateOfBirth)) * 12));
@@ -153,4 +163,37 @@ export async function deriveFireInputs(config: Pick<StoredFireConfig, 'dateOfBir
       loanInterestMonthly,
     },
   };
+}
+
+// `dayKey` is unused inside the body — present only so unstable_cache's argument-based cache key
+// is keyed on the exact local calendar day, not on `today`'s serialized (UTC) instant.
+async function deriveFireInputsForCache(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+  today: Date,
+  dayKey: string,
+): Promise<DerivedInputsResult> {
+  void dayKey;
+  return deriveFireInputs(config, today);
+}
+
+const deriveFireInputsCachedImpl = unstable_cache(
+  deriveFireInputsForCache,
+  ['derive-fire-inputs'],
+  // Depends on raw transactions (salary/rent/loan/fee rows: 'data') and income-rule rental
+  // matching + the FireConfig fields passed in as args ('config' — the config *fields* already
+  // naturally bust the cache via the args-based key when they change; the income-rule tag covers
+  // the part that doesn't show up in the args).
+  { tags: ['data', 'config'], revalidate: false },
+);
+
+/** Same as `deriveFireInputs`, cached and truncated to a day boundary so repeated calls within
+ * the same day share a cache key (same idiom as fire/route.ts's fetchPortfolioData) instead of
+ * missing on every single request due to sub-second Date precision. Use this from the route;
+ * use the uncached `deriveFireInputs` directly when an exact `today` matters (e.g. tests). */
+export async function deriveFireInputsCached(
+  config: Pick<StoredFireConfig, 'dateOfBirth' | 'retirementAge' | 'mortgageEndAge'>,
+): Promise<DerivedInputsResult> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return deriveFireInputsCachedImpl(config, today, localDateKey(today));
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { parseId } from '@/lib/validation';
 
@@ -17,6 +18,7 @@ export async function DELETE(
     }
 
     await prisma.budget.delete({ where: { id: idResult.id } });
+    revalidateTag('config');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete budget:', error);
