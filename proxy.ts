@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIronSession } from 'iron-session';
 import type { SessionData } from '@/lib/session';
 import { sessionOptions } from '@/lib/session';
+import { isValidApiToken } from '@/lib/api-auth';
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -11,9 +12,14 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow API routes that carry their own token auth (e.g. iOS Shortcut)
+  // API routes that carry their own token auth (e.g. iOS Shortcut, CI upload) — the value is
+  // checked here, not just the header's presence, so a wrong/garbage token can't bypass the
+  // session check below.
   if (pathname.startsWith('/api/') && req.headers.has('x-api-token')) {
-    return NextResponse.next();
+    if (isValidApiToken(req.headers.get('x-api-token'))) {
+      return NextResponse.next();
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const res = NextResponse.next();
