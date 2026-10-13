@@ -281,6 +281,7 @@ async function getDashboardStatsUncached(
             amount: true,
             transaction: { select: { date: true, amount: true, category: true } },
           },
+          take: 10000,
         });
         return raw.filter(s => s.transaction !== null) as SplitRecord[];
       } catch {
@@ -298,6 +299,7 @@ async function getDashboardStatsUncached(
               select: { type: true, amount: true, category: true, date: true, account: true, paidBy: true },
             },
           },
+          take: 10000,
         });
         return raw.filter(r => r.expenseTransaction !== null) as LinkRecord[];
       } catch {
