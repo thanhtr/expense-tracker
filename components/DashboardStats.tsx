@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import useSWR, { useSWRConfig } from 'swr';
+import { fetcher } from '@/lib/fetcher';
 import { DashboardAggregation } from '@/lib/types';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -647,23 +649,11 @@ type RecentTx = {
 };
 
 function RecentActivity() {
-  const [rows, setRows] = useState<RecentTx[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/transactions?limit=8');
-        if (!res.ok) return;
-        const json = await res.json();
-        const items: RecentTx[] = Array.isArray(json) ? json : (json.transactions || json.items || []);
-        if (!cancelled) setRows(items.slice(0, 8));
-      } catch {
-        if (!cancelled) setRows([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const { data: json, error } = useSWR<RecentTx[] | { transactions?: RecentTx[]; items?: RecentTx[] }>(
+    '/api/transactions?limit=8', fetcher,
+  );
+  const rows = error ? [] : json === undefined ? null
+    : (Array.isArray(json) ? json : (json.transactions || json.items || [])).slice(0, 8);
 
   if (rows === null) return (
     <div className="animate-pulse space-y-3 py-2">
@@ -917,16 +907,8 @@ export function DashboardStats() {
 
   const { categories: allCategories } = useCategories();
   const { members, nameForSlug } = useHouseholdMembers();
-  const [data, setData] = useState<DashboardAggregation | null>(null);
-  const [prevData, setPrevData] = useState<DashboardAggregation | null>(null);
-  // Fetched without a category filter; account/owner still applied so the uncategorized count is scoped correctly.
-  const [unfilteredByCategory, setUnfilteredByCategory] = useState<DashboardAggregation | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshNonce, setRefreshNonce] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const shouldRefresh = useRef(false);
-  const [recurringMonthly, setRecurringMonthly] = useState<number | null>(null);
-  const [forecast, setForecast] = useState<ForecastResult | InsufficientForecastData | null>(null);
+  const { mutate } = useSWRConfig();
 
   const compareRange = useMemo(
     () => compareMode === 'yoy' ? yoyRange(dateFrom, dateTo) : previousRange(dateFrom, dateTo),
@@ -941,65 +923,47 @@ export function DashboardStats() {
     setDateTo(r.to);
   }, [preset]);
 
-  // Fetch recurring total + forecast once on mount
-  useEffect(() => {
-    fetch('/api/transactions/recurring')
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { totalMonthly: number } | null) => { if (d) setRecurringMonthly(d.totalMonthly); })
-      .catch(() => {});
-    fetch('/api/forecast')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setForecast(d); })
-      .catch(() => {});
-  }, []);
+  // Fetched without a category filter; account/owner still applied so the uncategorized count is scoped correctly.
+  const unfilteredUrl = useMemo(() => {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
+    if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
+    return `/api/dashboard?${params}`;
+  }, [dateFrom, dateTo, selectedAccounts, selectedPaidBy]);
 
-  // Fetch without category filter (for uncategorized count warning), but scoped to account/owner.
-  useEffect(() => {
-    (async () => {
-      try {
-        const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-        if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
-        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
-        if (shouldRefresh.current) params.set('refresh', '1');
-        const res = await fetch(`/api/dashboard?${params}`);
-        if (res.ok) setUnfilteredByCategory(await res.json());
-      } catch (e) { console.error(e); }
-    })();
-  }, [dateFrom, dateTo, selectedAccounts, selectedPaidBy, refreshNonce]);
+  const currentUrl = useMemo(() => {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+    if (selectedCategories.length) params.set('category', selectedCategories.join(','));
+    if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
+    if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
+    return `/api/dashboard?${params}`;
+  }, [dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy]);
 
-  // Fetch filtered + comparison-period for deltas
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const isRefresh = shouldRefresh.current;
-      if (isRefresh) shouldRefresh.current = false;
-      try {
-        const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
-        if (selectedCategories.length) params.set('category', selectedCategories.join(','));
-        if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
-        if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
-        if (isRefresh) params.set('refresh', '1');
+  const prevUrl = useMemo(() => {
+    const params = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
+    if (selectedCategories.length) params.set('category', selectedCategories.join(','));
+    if (selectedAccounts.length) params.set('account', selectedAccounts.join(','));
+    if (selectedPaidBy) params.set('paid_by', selectedPaidBy);
+    return `/api/dashboard?${params}`;
+  }, [compareRange, selectedCategories, selectedAccounts, selectedPaidBy]);
 
-        const prevParams = new URLSearchParams({ date_from: compareRange.from, date_to: compareRange.to });
-        if (selectedCategories.length) prevParams.set('category', selectedCategories.join(','));
-        if (selectedAccounts.length) prevParams.set('account', selectedAccounts.join(','));
-        if (selectedPaidBy) prevParams.set('paid_by', selectedPaidBy);
-        if (isRefresh) prevParams.set('refresh', '1');
+  const { data: unfilteredByCategory } = useSWR<DashboardAggregation>(unfilteredUrl, fetcher, { keepPreviousData: true });
+  const { data, isLoading } = useSWR<DashboardAggregation>(currentUrl, fetcher, { keepPreviousData: true });
+  const { data: prevData } = useSWR<DashboardAggregation>(prevUrl, fetcher, { keepPreviousData: true });
+  const { data: recurringData } = useSWR<{ totalMonthly: number }>('/api/transactions/recurring', fetcher);
+  const recurringMonthly = recurringData?.totalMonthly ?? null;
+  const { data: forecast } = useSWR<ForecastResult | InsufficientForecastData>('/api/forecast', fetcher);
 
-        const [resCur, resPrev] = await Promise.all([
-          fetch(`/api/dashboard?${params}`),
-          fetch(`/api/dashboard?${prevParams}`),
-        ]);
-        if (resCur.ok) setData(await resCur.json());
-        if (resPrev.ok) setPrevData(await resPrev.json());
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    })();
-  }, [dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy, compareRange, refreshNonce]);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Force the server cache (tag 'data') to invalidate, then revalidate every SWR key so the UI picks up fresh data.
+      await fetch('/api/dashboard?refresh=1');
+      await mutate(() => true);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [mutate]);
 
   const byCategoryPrevMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -1102,7 +1066,7 @@ export function DashboardStats() {
     return `/api/export?${p}`;
   }, [dateFrom, dateTo, selectedCategories, selectedAccounts, selectedPaidBy]);
 
-  if (loading && !data) return <DashboardSkeleton />;
+  if (isLoading) return <DashboardSkeleton />;
   if (!data) return <div className="text-center py-8 text-[var(--fg-3)]">No data available</div>;
 
   // Build donut chart data (top 5 + Other)
@@ -1241,13 +1205,9 @@ export function DashboardStats() {
           <button
             type="button"
             disabled={refreshing}
-            onClick={() => {
-              shouldRefresh.current = true;
-              setRefreshing(true);
-              setRefreshNonce(n => n + 1);
-            }}
+            onClick={handleRefresh}
             className="btn-ghost print:hidden"
-            title="Force-refresh from database, bypassing the 5-min cache"
+            title="Force-refresh from the database, bypassing the server cache"
           >
             {refreshing ? '↻ Refreshing…' : '↻ Refresh'}
           </button>
