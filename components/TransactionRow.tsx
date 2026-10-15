@@ -316,7 +316,7 @@ export const TransactionRow = memo(function TransactionRow({
   const amountPrefix = (txType === 'Expense' && transaction.amount < 0) ? '−' : '+';
 
   const selectCls = [
-    'cursor-pointer rounded text-sm border border-transparent px-2 py-1',
+    'w-full cursor-pointer rounded text-sm border border-transparent px-2 py-1 truncate',
     'bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-2 focus:ring-blue-500',
     saving ? 'opacity-50' : '',
     !category ? 'text-amber-600 dark:text-amber-400' : '',
@@ -365,18 +365,34 @@ export const TransactionRow = memo(function TransactionRow({
         )}
       </td>
       <td className="hidden sm:table-cell px-4 py-3 text-sm">
-        <select
-          aria-label="Category"
-          value={category}
-          onChange={(e) => handleCategoryChange(e.target.value)}
-          disabled={saving}
-          className={selectCls}
-        >
-          {!category && <option value="">⚠ Uncategorized</option>}
-          {categories.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div className="space-y-1">
+          <select
+            aria-label="Category"
+            value={category}
+            onChange={(e) => handleCategoryChange(e.target.value)}
+            disabled={saving}
+            className={selectCls}
+          >
+            {!category && <option value="">⚠ Uncategorized</option>}
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {/* Type toggle — visible for Income rows and positive-amount Expense (reimbursement) rows */}
+          {(txType === 'Income' || isReimb) && (
+            <select
+              value={txType}
+              onChange={e => handleTypeChange(e.target.value)}
+              disabled={saving}
+              aria-label="Transaction type"
+              title="Change transaction type"
+              className="w-full cursor-pointer rounded text-[11px] border border-border-soft px-1.5 py-1 bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            >
+              <option value="Income">Income</option>
+              <option value="Expense">Expense (reimb.)</option>
+            </select>
+          )}
+        </div>
       </td>
       <td className="hidden md:table-cell px-4 py-3 text-sm">
         {transaction.paidBy ? nameForSlug(transaction.paidBy) : '—'}
@@ -442,20 +458,6 @@ export const TransactionRow = memo(function TransactionRow({
       </td>
       <td className="px-2 py-3 text-sm">
         <div className="flex items-center gap-1">
-          {/* Type selector — visible for Income rows and positive-amount Expense (reimbursement) rows */}
-          {(txType === 'Income' || isReimb) && (
-            <select
-              value={txType}
-              onChange={e => handleTypeChange(e.target.value)}
-              disabled={saving}
-              aria-label="Transaction type"
-              title="Change transaction type"
-              className="cursor-pointer rounded text-[11px] border border-border-soft px-1.5 py-1 bg-surface-2 hover:bg-[var(--border)] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="Income">Income</option>
-              <option value="Expense">Expense (reimb.)</option>
-            </select>
-          )}
           {/* Split button */}
           {transaction.type === 'Expense' && transaction.amount < 0 && (
             <button

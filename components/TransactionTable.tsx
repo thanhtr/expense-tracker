@@ -21,13 +21,13 @@ function TransactionTableSkeleton() {
             <tr>
               <th className="w-9 px-3 py-3"><div className="h-4 w-4 bg-[var(--border)] rounded" /></th>
               <th className="w-28 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
-              <th className="hidden md:table-cell w-28 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded" /></th>
+              <th className="hidden md:table-cell w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded" /></th>
               <th className="px-4 py-3"><div className="h-4 w-20 bg-[var(--border)] rounded" /></th>
               <th className="w-24 px-4 py-3"><div className="h-4 w-14 bg-[var(--border)] rounded ml-auto" /></th>
               <th className="hidden sm:table-cell w-36 px-4 py-3"><div className="h-4 w-16 bg-[var(--border)] rounded" /></th>
-              <th className="hidden md:table-cell w-20 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
+              <th className="hidden md:table-cell w-16 px-4 py-3"><div className="h-4 w-12 bg-[var(--border)] rounded" /></th>
               <th className="hidden md:table-cell px-4 py-3"><div className="h-4 w-10 bg-[var(--border)] rounded" /></th>
-              <th className="w-28 px-2 py-3" />
+              <th className="w-36 px-2 py-3" />
             </tr>
           </thead>
           <tbody className="animate-pulse">
@@ -393,15 +393,15 @@ export function TransactionTable({ filters = {} }: TransactionTableProps) {
                 <th className="w-28 px-4 py-3 text-left text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('date')}>
                   Date {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
                 </th>
-                <th className="hidden md:table-cell w-28 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
+                <th className="hidden md:table-cell w-24 px-4 py-3 text-left text-xs font-medium text-fg-2">Account</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-fg-2">Merchant</th>
                 <th className="w-24 px-4 py-3 text-right text-xs font-medium text-fg-2 cursor-pointer select-none hover:bg-surface-2" onClick={() => handleSort('amount')}>
                   Amount {sortBy === 'amount' ? (sortOrder === 'asc' ? '↑' : '↓') : <span className="text-fg-3">↕</span>}
                 </th>
                 <th className="hidden sm:table-cell w-36 px-4 py-3 text-left text-xs font-medium text-fg-2">Category</th>
-                <th className="hidden md:table-cell w-20 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
+                <th className="hidden md:table-cell w-16 px-4 py-3 text-left text-xs font-medium text-fg-2">Paid By</th>
                 <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-fg-2">Note</th>
-                <th className="w-28 px-2 py-3 text-left text-xs font-medium text-fg-2">
+                <th className="w-36 px-2 py-3 text-left text-xs font-medium text-fg-2">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
