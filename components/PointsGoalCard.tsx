@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { today, fmtDateLong, fmtNumber, fmtEUR } from '@/lib/utils';
 import { SourceLinks } from './SourceLinks';
 import { AviosExplainer } from './AviosExplainer';
-import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS } from '@/lib/avios-facts';
+import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR } from '@/lib/avios-facts';
 
 interface Balance {
   id: number;
@@ -254,9 +254,9 @@ function FlightProgressRow({ flight, unit }: { flight: FlightProgress; unit: str
         </span>
         {flight.remainingNow > 0 && flight.pointsPerMonthNeeded !== null && (
           <span className={flight.onTrack === false ? 'text-amber-600 dark:text-amber-400' : ''}>
-            needs {fmtNumber(flight.pointsPerMonthNeeded)}/mo
+            needs {fmtNumber(flight.pointsPerMonthNeeded)}/mo to earn
             {flight.onTrack === true && ' · on track'}
-            {flight.onTrack === false && ' · behind pace'}
+            {flight.onTrack === false && ' · behind earn pace (buying the gap in a sale is a separate option, below)'}
           </span>
         )}
       </div>
@@ -289,13 +289,14 @@ function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: str
       <div className="font-medium text-[13px]">
         {fmtNumber(c.shortfallPoints)} {unit} short for &quot;{c.flightLabel}&quot; by {fmtDateLong(c.neededBy)}
         {c.overCap && (
-          <span className="text-amber-600 dark:text-amber-400 font-normal"> · exceeds the 200,000/yr purchase cap</span>
+          <span className="text-amber-600 dark:text-amber-400 font-normal"> · exceeds the {fmtNumber(PURCHASE_CAP_PER_YEAR)}/yr purchase cap</span>
         )}
       </div>
+      <div className="text-[11px] text-[var(--fg-3)]">Any one of these closes the whole gap on its own — they&apos;re alternatives, not steps to combine:</div>
       <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
-        <li>Subscription price: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span></li>
-        <li>Amex MR needed: <span className="mono">{fmtNumber(c.mrPoints)}</span> (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
-        <li>Finnair Visa spend: <span className="mono">{fmtEUR(c.visaSpendTotal)}</span> at your current tier</li>
+        <li>Buy it in a sale: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span> (≈€0.0126/Avios, a reported sale price — blog-sourced, unverified)</li>
+        <li>Or earn it via Amex: <span className="mono">{fmtNumber(c.mrPoints)}</span> MR needed (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
+        <li>Or earn it via Finnair Visa: <span className="mono">{fmtEUR(c.visaSpendTotal)}</span> of spend at your current tier</li>
       </ul>
     </div>
   );
@@ -859,6 +860,10 @@ function GoalCard({
       {goal.cashPlan && (
         <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
           <div className="font-semibold text-[var(--fg-1)]">Can I afford it?</div>
+          <div className="text-[11px] text-[var(--fg-3)]">
+            This assumes buying any Avios shortfall in a sale (at the sale price above) instead of waiting to earn
+            it — so a flight marked &quot;behind pace&quot; above can still show as covered here.
+          </div>
           <div className="text-[var(--fg-2)]">
             Surplus <span className="mono">{fmtEUR(goal.cashPlan.monthlySurplus)}</span>/mo · regular investing{' '}
             <span className="mono">{fmtEUR(goal.cashPlan.regularInvesting)}</span>/mo · free{' '}
@@ -901,8 +906,8 @@ function GoalCard({
             </ul>
           )}
           <div className="text-[11px] text-[var(--fg-3)]">
-            Priced at the subscription rate (the dependable baseline); buying Avios during a flash sale would cost
-            less than shown, never more.
+            Priced at a reported sale price (≈40% off, blog-sourced, unverified). Sales are occasional, so plan
+            purchases around when one runs, and check the real price then.
           </div>
         </div>
       )}

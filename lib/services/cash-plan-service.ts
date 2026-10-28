@@ -1,6 +1,6 @@
 // Whether real household cash flow and balance sheet can actually fund the flights tracked
 // across every Avios goal: each flight's real economy fare (cash) plus the € cost of closing its
-// Avios gap (at the sourced subscription rate — see avios-strategy.ts), checked cumulatively (by
+// Avios gap (at the sale price — see avios-strategy.ts), checked cumulatively (by
 // neededBy date) against three widening pools of money, cheapest first:
 //   1. funded   — spare bank cash already above the emergency buffer, plus ongoing free monthly
 //                 flow (surplus left over after regular investing)
@@ -20,7 +20,7 @@ export interface CashPlanFlightInput {
   /** Real cash base fare for this flight; excluded from the plan until it's known. */
   economyFareEur: number | null;
   /** This flight's own incremental € cost of closing its share of the Avios gap at the
-   * subscription rate (0 once covered) — NOT cumulative across earlier flights; this function
+   * sale price (0 once covered) — NOT cumulative across earlier flights; this function
    * does its own running total below, so a cumulative value here would double-count. */
   aviosShortfallEur: number;
 }

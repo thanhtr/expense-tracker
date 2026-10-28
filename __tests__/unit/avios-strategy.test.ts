@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeAviosStrategy } from '../../lib/services/avios-strategy';
 import { computePointsGoalProgress, type PointsGoalInput } from '../../lib/services/points-goal-service';
-import { PURCHASE_CAP_PER_YEAR } from '../../lib/avios-facts';
+import { PURCHASE_CAP_PER_YEAR, SALE_EUR_PER_AVIOS } from '../../lib/avios-facts';
 
 function progressFor(flights: PointsGoalInput['flights'], balance = 0, today = new Date('2026-07-01')) {
   return computePointsGoalProgress(
@@ -51,7 +51,7 @@ describe('computeAviosStrategy', () => {
     expect(s.allCovered).toBe(false);
     expect(s.nextAtRisk).not.toBeNull();
     expect(s.nextAtRisk!.shortfallPoints).toBe(80_000);
-    expect(s.nextAtRisk!.eurTotal).toBeCloseTo(80_000 * (628.8 / 48_000), 2);
+    expect(s.nextAtRisk!.eurTotal).toBeCloseTo(80_000 * SALE_EUR_PER_AVIOS, 2);
     // 80,000 / 10 * 17 = 136,000 MR exactly divides; still must be a multiple of 17.
     expect(s.nextAtRisk!.mrPoints % 17).toBe(0);
     expect(s.nextAtRisk!.overCap).toBe(false);

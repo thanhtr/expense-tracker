@@ -1786,6 +1786,25 @@ or dangling commit.
   area — not independently verified in this session (it's a mutating, interactive command this
   session's tooling was not permitted to run), so confirm once before relying on it.
 
+### Avios pricing switched from subscription rate to sale price (user decision, 2026-10-28)
+The household won't use Finnair's Avios subscription — the plan is to earn Avios, and only ever buy
+to cover a shortfall during a flash sale. `lib/avios-facts.ts`'s `SUBSCRIPTION_EUR_PER_AVIOS`
+(€628.80/yr ÷ 48,000, the one officially confirmed rate) was replaced by `SALE_EUR_PER_AVIOS`
+(€0.0126, ≈40% off, blog-sourced and explicitly marked unverified — the file's one deliberate
+exception to its "nothing here is an estimate" rule). Used in both places an Avios shortfall gets
+priced: `avios-strategy.ts`'s `eurTotal` (the "Closing the Avios gap" conversions) and
+`points-goal-enrichment.ts`'s `aviosShortfallEur` (the "Can I afford it?" cash plan). Copy in
+`PointsGoalCard.tsx`/`AviosExplainer.tsx` updated to say "sale price"/"buy it in a sale" instead of
+"subscription rate", and to note the figure is a planning estimate, not a quote — a real sale
+could price differently.
+
+While here, also fixed two UI clarity gaps flagged by the user (2026-10-28): the flight badge
+"needs X/mo · behind pace" measures organic earn pace only and now says "behind earn pace" with a
+pointer to the cash plan, since a flight can show that *and* "covered" in the cash plan at the same
+time (the cash plan assumes buying the gap, not waiting to earn it — now stated explicitly in both
+places). The three "Closing the Avios gap" bullets (buy / Amex / Finnair Visa) are now labeled as
+independent alternatives, not steps to combine.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
