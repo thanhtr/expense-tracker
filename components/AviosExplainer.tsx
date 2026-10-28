@@ -6,7 +6,7 @@ import {
   AVIOS_SOURCES,
   VERIFIED_ON,
   UPGRADE_AVIOS_PER_PAX_DIRECTION,
-  SUBSCRIPTION_EUR_PER_AVIOS,
+  SALE_EUR_PER_AVIOS,
   PURCHASE_CAP_PER_YEAR,
   MR_PER_TRANSFER_UNIT,
   AVIOS_PER_TRANSFER_UNIT,
@@ -52,18 +52,19 @@ export function AviosExplainer() {
           <section className="space-y-2">
             <h3 className="font-semibold text-[var(--fg-1)]">What an Avios costs in €</h3>
             <p>
-              The only confirmed, dependable price is Finnair&apos;s own subscription: €628.80/yr for 4,000 Avios/mo,
-              or <span className="mono font-medium">€{SUBSCRIPTION_EUR_PER_AVIOS.toFixed(4)}</span> per Avios — too
-              small a unit price for 2-decimal € formatting to show accurately, so it&apos;s spelled out here.
-              That&apos;s the figure this app uses everywhere it needs a € price. You can buy up to{' '}
+              The plan is to earn Avios, and only ever buy to cover a shortfall during a sale — never at full or
+              subscription price. Flash sales are reported at up to 40% off, or{' '}
+              <span className="mono font-medium">€{SALE_EUR_PER_AVIOS.toFixed(4)}</span> per Avios — too small a unit
+              price for 2-decimal € formatting to show accurately, so it&apos;s spelled out here. That&apos;s the
+              figure this app uses everywhere it needs a € price. You can buy up to{' '}
               {fmtNumber(PURCHASE_CAP_PER_YEAR)} Avios per calendar year.
             </p>
             <p className="text-[var(--fg-3)]">
-              Flash sales are reported at up to 40% off (≈€0.0126/Avios), but that figure only comes from travel
-              blogs, not an official Finnair page, and the standard (non-sale) cash price isn&apos;t public either —
-              both are shown here as context, never used in the numbers above.
+              This figure only comes from travel blogs, not an official Finnair page — treat every € amount derived
+              from it as a planning estimate, not a quote. A real sale could be priced differently, and the standard
+              (non-sale) cash price and the subscription price aren&apos;t used here at all.
             </p>
-            <SourceLinks sources={S('subscription', 'buyAvios', 'salePriceBlog')} />
+            <SourceLinks sources={S('buyAvios', 'salePriceBlog')} />
           </section>
 
           <section className="space-y-2">
@@ -110,9 +111,10 @@ export function AviosExplainer() {
               negative.
             </p>
             <p>
-              Each tracked flight&apos;s real economy fare plus its Avios shortfall (priced at the subscription
-              rate — the conservative baseline, not a hoped-for sale) is checked cumulatively, by date, against three
-              widening pools, with every Avios goal competing for the same capacity:
+              Each tracked flight&apos;s real economy fare plus its Avios shortfall (priced at the sale price
+              above — a planning estimate, since the plan is to only ever buy during a sale) is checked
+              cumulatively, by date, against three widening pools, with every Avios goal competing for the same
+              capacity:
             </p>
             <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
               <li><strong>Funded</strong> — spare bank cash (above your FIRE emergency buffer) plus free monthly flow alone covers it.</li>
@@ -120,7 +122,8 @@ export function AviosExplainer() {
               <li><strong>Draws on wealth</strong> — still short even pausing investing entirely; shown as a € amount and a % of your liquid net worth (bank + investments + crypto).</li>
             </ul>
             <p>
-              Buying Avios during a flash sale would only improve on the numbers shown, never worsen them.
+              Sales are occasional, not guaranteed on any schedule — this tells you whether you could afford to buy
+              the gap if one runs before the flight&apos;s date, not that one will.
             </p>
           </section>
 

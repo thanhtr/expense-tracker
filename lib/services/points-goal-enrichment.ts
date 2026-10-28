@@ -10,7 +10,7 @@ import { deriveMoneyCapacity, type MoneyCapacity } from './money-capacity-servic
 import { monthString } from './stats';
 import { resolveCompletedMonthsWindow, type CompletedMonthsWindow } from './completed-months-window';
 import { LIQUID_ASSET_TYPES } from '@/lib/constants';
-import { SUBSCRIPTION_EUR_PER_AVIOS, type FinnairTier } from '@/lib/avios-facts';
+import { SALE_EUR_PER_AVIOS, type FinnairTier } from '@/lib/avios-facts';
 import { withProgress, POINTS_GOAL_INCLUDE, type PointsGoalInput, type PointsGoalProgress } from './points-goal-service';
 import { computeAviosStrategy, type AviosStrategyResult } from './avios-strategy';
 import { computeCashPlan, type CashPlanFlightInput, type CashPlanResult } from './cash-plan-service';
@@ -172,7 +172,7 @@ function buildSharedCashPlan(
           label: f.label,
           neededBy: f.neededBy,
           economyFareEur: f.economyFareEur,
-          aviosShortfallEur: incrementalShortfall * SUBSCRIPTION_EUR_PER_AVIOS,
+          aviosShortfallEur: incrementalShortfall * SALE_EUR_PER_AVIOS,
         };
       });
   });

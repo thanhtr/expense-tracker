@@ -18,7 +18,7 @@ vi.mock('../../lib/services/aggregation-service', () => ({
 import { prisma } from '../../lib/db';
 import { getDashboardStats, getEarliestTransactionDate } from '../../lib/services/aggregation-service';
 import { enrichPointsGoal, enrichPointsGoals } from '../../lib/services/points-goal-enrichment';
-import { SUBSCRIPTION_EUR_PER_AVIOS } from '../../lib/avios-facts';
+import { SALE_EUR_PER_AVIOS } from '../../lib/avios-facts';
 
 // €2,700/mo net surplus, €8,000/mo income, over a full rolling 12-month window.
 const BASE_STATS = { net: 2_700 * 12, totalIncome: 8_000 * 12 };
@@ -92,7 +92,7 @@ describe('enrichPointsGoal cashPlan', () => {
       ]),
     );
 
-    const expectedSecondFlightCash = 1_000 + 80_000 * SUBSCRIPTION_EUR_PER_AVIOS; // both fares + the real cumulative Avios cost
+    const expectedSecondFlightCash = 1_000 + 80_000 * SALE_EUR_PER_AVIOS; // both fares + the real cumulative Avios cost
     expect(enriched.cashPlan!.flights[1]!.cumulativeCashNeeded).toBeCloseTo(expectedSecondFlightCash, 2);
   });
 
@@ -106,7 +106,7 @@ describe('enrichPointsGoal cashPlan', () => {
     const [enrichedA] = await enrichPointsGoals([goalA, goalB]);
 
     const flightA = enrichedA!.cashPlan!.flights.find((f) => f.id === 100)!;
-    expect(flightA.cashNeeded).toBeCloseTo(100_000 * SUBSCRIPTION_EUR_PER_AVIOS, 2);
+    expect(flightA.cashNeeded).toBeCloseTo(100_000 * SALE_EUR_PER_AVIOS, 2);
   });
 
   it('shares one capacity pool across multiple Avios goals instead of each claiming the full amount (regression)', async () => {

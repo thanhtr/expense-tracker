@@ -5,7 +5,7 @@
 import {
   AMEX_MR_PER_EUR,
   PURCHASE_CAP_PER_YEAR,
-  SUBSCRIPTION_EUR_PER_AVIOS,
+  SALE_EUR_PER_AVIOS,
   VISA_AVIOS_PER_EUR,
   aviosToMrPoints,
   type FinnairTier,
@@ -52,7 +52,7 @@ function convert(flight: PointsFlightProgress, tier: FinnairTier, today: Date): 
     neededBy: flight.neededBy,
     shortfallPoints,
     monthsUntil,
-    eurTotal: shortfallPoints * SUBSCRIPTION_EUR_PER_AVIOS,
+    eurTotal: shortfallPoints * SALE_EUR_PER_AVIOS,
     mrPoints,
     visaSpendTotal: shortfallPoints / VISA_AVIOS_PER_EUR[tier],
     // Amex earns MR, not Avios directly — spend enough to generate the MR needed, then transfer.
