@@ -94,6 +94,22 @@ describe('parseFinnair', () => {
     expect(result[2].merchant).toBe('Store C');
   });
 
+  it('should use the EUR-converted Amount column, not the original-currency Transaction amount, for foreign-currency rows', async () => {
+    // Real Finnair Visa export shape: "Transaction amount" holds the original-currency
+    // figure (e.g. NOK) and "Amount" holds the EUR-converted figure. A naive substring
+    // match on "amount" picks "Transaction amount" first since it appears earlier in the
+    // row, silently storing the NOK number as if it were euros.
+    const csv = `Date of payment,Location of purchase,Transaction amount,Currency,Exchange rate,Currency conversion fee,Amount,Currency
+2026-10-22,FLYTOGET TAP 1009996 VI,-276.00,NOK,0.09801,0.73 EUR,-27.05,EUR
+2026-10-24,Local Store,-7.50,EUR,,,-7.50,EUR`;
+
+    const result = await parseFinnair(csv);
+
+    expect(result).toHaveLength(2);
+    expect(result.find(r => r.merchant === 'FLYTOGET TAP 1009996 VI')?.amount).toBe(-27.05);
+    expect(result.find(r => r.merchant === 'Local Store')?.amount).toBe(-7.50);
+  });
+
   it('should skip rows with unparseable amounts instead of storing NaN', async () => {
     const csv = `Date,Location of purchase,Amount
 2026-04-10,Garbled Row,not-a-number

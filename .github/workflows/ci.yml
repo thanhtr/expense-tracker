@@ -149,7 +149,10 @@ jobs:
         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   e2e-test:
-    runs-on: ubuntu-latest
+    # Pinned (not ubuntu-latest): Playwright's browser binaries only support specific
+    # Ubuntu versions, and ubuntu-latest moved to 26.04 before Playwright added support
+    # for it, breaking `playwright install --with-deps chromium`.
+    runs-on: ubuntu-24.04
     needs: unit-test
     timeout-minutes: 10
     if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'skip-e2e')
