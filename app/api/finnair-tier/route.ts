@@ -3,6 +3,8 @@ import { revalidateTag } from '@/lib/cache-tags';
 import { prisma } from '@/lib/db';
 import { updateFinnairTierSchema, parseBody } from '@/lib/validation';
 
+const DEFAULTS = { tier: 'basic', amexCancelDate: null };
+
 function serialize(row: { tier: string; amexCancelDate: Date | null } | null) {
   return {
     tier: row?.tier ?? 'basic',
@@ -18,18 +20,10 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   const parsed = parseBody(updateFinnairTierSchema, await request.json());
   if ('error' in parsed) return parsed.error;
-  const { tier, amexCancelDate } = parsed.data;
   const row = await prisma.finnairPlusTier.upsert({
     where: { id: 1 },
-    create: {
-      id: 1,
-      tier: tier ?? 'basic',
-      amexCancelDate: amexCancelDate ? new Date(amexCancelDate) : null,
-    },
-    update: {
-      ...(tier !== undefined && { tier }),
-      ...(amexCancelDate !== undefined && { amexCancelDate: amexCancelDate ? new Date(amexCancelDate) : null }),
-    },
+    update: parsed.data,
+    create: { id: 1, ...DEFAULTS, ...parsed.data },
   });
   revalidateTag('config');
   return NextResponse.json(serialize(row));

@@ -7,6 +7,7 @@ import { SourceLinks } from './SourceLinks';
 import { AviosExplainer } from './AviosExplainer';
 import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR } from '@/lib/avios-facts';
 import { computeAmexCancelScenario } from '@/lib/services/amex-scenario';
+import { localDateKey } from '@/lib/services/stats';
 
 interface Balance {
   id: number;
@@ -128,7 +129,7 @@ interface PointsGoal {
 function defaultAmexCancelDate(): string {
   const d = new Date();
   d.setMonth(d.getMonth() + 3, 1);
-  return d.toISOString().slice(0, 10);
+  return localDateKey(d);
 }
 
 function defaultForm() {

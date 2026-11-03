@@ -93,6 +93,13 @@ describe('PATCH /api/finnair-tier', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 for a calendar-invalid date instead of silently rolling it over', async () => {
+    // JS's Date constructor silently rolls Feb 30 into March 2 — must be rejected, not stored
+    // as a different date than the one submitted.
+    const res = await PATCH(makeReq({ amexCancelDate: '2027-02-30' }));
+    expect(res.status).toBe(400);
+  });
+
   it('returns 400 when neither field is given', async () => {
     const res = await PATCH(makeReq({}));
     expect(res.status).toBe(400);

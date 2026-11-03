@@ -13,7 +13,7 @@ import {
   SALE_EUR_PER_AVIOS,
   mrToAvios,
 } from '@/lib/avios-facts';
-import { monthsBetween, type PointsFlightProgress, type PointsGoalProgress } from './points-goal-service';
+import { monthsBetween, toDate, type PointsFlightProgress, type PointsGoalProgress } from './points-goal-service';
 
 export interface AmexScenarioFlight {
   id: number;
@@ -47,10 +47,6 @@ export interface AmexScenarioResult {
   flights: AmexScenarioFlight[];
 }
 
-function toDate(d: Date | string): Date {
-  return d instanceof Date ? d : new Date(d);
-}
-
 export function computeAmexCancelScenario(input: {
   progress: PointsGoalProgress;
   expectedAviosPerMonth: number;
@@ -67,16 +63,18 @@ export function computeAmexCancelScenario(input: {
   const aviosPart = progress.availableBalance - progress.amexMrAviosEquivalent;
   const latestAmexMr = progress.latestAmexMr;
 
+  function projectedMrAt(date: Date): number {
+    const months = Math.max(monthsBetween(today, date), 0);
+    return latestAmexMr + expectedMrPerMonth * months;
+  }
+
   function projectAvios(target: Date, cancelAt: Date | null): number {
     const visaMonths = Math.max(monthsBetween(today, target), 0);
     const mrEnd = cancelAt !== null && cancelAt.getTime() < target.getTime() ? cancelAt : target;
-    const mrMonths = Math.max(monthsBetween(today, mrEnd), 0);
-    const projectedMr = latestAmexMr + expectedMrPerMonth * mrMonths;
-    return aviosPart + expectedAviosPerMonth * visaMonths + mrToAvios(projectedMr);
+    return aviosPart + expectedAviosPerMonth * visaMonths + mrToAvios(projectedMrAt(mrEnd));
   }
 
-  const mrMonthsToCancel = Math.max(monthsBetween(today, cancelDateObj), 0);
-  const mrToTransferAtCancel = latestAmexMr + expectedMrPerMonth * mrMonthsToCancel;
+  const mrToTransferAtCancel = projectedMrAt(cancelDateObj);
 
   const avgAviosPerMr = AVIOS_PER_TRANSFER_UNIT / MR_PER_TRANSFER_UNIT;
   const organicAviosPerYearKeep = (expectedAviosPerMonth + expectedMrPerMonth * avgAviosPerMr) * 12;
