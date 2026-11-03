@@ -415,4 +415,37 @@ test.describe('Goals page', () => {
 
     await expect(page.getByText(/may already have expired/)).toBeVisible();
   });
+
+  test('switching on the Amex cancellation scenario renders it and PATCHes the date', async ({ page }) => {
+    let patchedBody: Record<string, unknown> | null = null;
+    await page.route(/\/api\/finnair-tier/, async (route) => {
+      if (route.request().method() === 'PATCH') {
+        patchedBody = route.request().postDataJSON();
+        await route.fulfill({ json: { tier: 'basic', amexCancelDate: patchedBody.amexCancelDate } });
+      } else {
+        await route.fulfill({ json: { tier: 'basic', amexCancelDate: null } });
+      }
+    });
+    await page.route(/\/api\/points-goals/, async (route) => {
+      await route.fulfill({
+        json: [makeGoal({
+          earnReconciliation: {
+            expectedAviosPerMonth: 770,
+            expectedMrPerMonth: 3_000,
+            qualifyingTierPointMonths: 1,
+            monthsInWindow: 6,
+            expectedTierPoints: 500,
+          },
+        })],
+      });
+    });
+    await page.goto('/goals');
+
+    await page.getByText('What if I cancel Amex?').click();
+
+    await expect.poll(() => patchedBody).not.toBeNull();
+    expect(patchedBody!.amexCancelDate).toMatch(/^\d{4}-\d{2}-01$/);
+    await expect(page.getByText(/What if Amex is cancelled on/)).toBeVisible();
+    await expect(page.getByText(/Transfer .* MR/)).toBeVisible();
+  });
 });

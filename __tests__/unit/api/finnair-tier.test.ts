@@ -42,20 +42,66 @@ describe('GET /api/finnair-tier', () => {
 
 describe('PATCH /api/finnair-tier', () => {
   it('upserts the tier', async () => {
-    vi.mocked(prisma.finnairPlusTier.upsert).mockResolvedValueOnce({ id: 1, tier: 'silver' } as never);
+    vi.mocked(prisma.finnairPlusTier.upsert).mockResolvedValueOnce({ id: 1, tier: 'silver', amexCancelDate: null } as never);
     const res = await PATCH(makeReq({ tier: 'silver' }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.tier).toBe('silver');
+    expect(body.amexCancelDate).toBeNull();
     expect(prisma.finnairPlusTier.upsert).toHaveBeenCalledWith({
       where: { id: 1 },
-      create: { id: 1, tier: 'silver' },
+      create: { id: 1, tier: 'silver', amexCancelDate: null },
       update: { tier: 'silver' },
     });
   });
 
   it('returns 400 for an invalid tier', async () => {
     const res = await PATCH(makeReq({ tier: 'gold' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('upserts only the cancellation date, leaving tier untouched', async () => {
+    vi.mocked(prisma.finnairPlusTier.upsert).mockResolvedValueOnce({
+      id: 1,
+      tier: 'basic',
+      amexCancelDate: new Date('2027-03-01'),
+    } as never);
+    const res = await PATCH(makeReq({ amexCancelDate: '2027-03-01' }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.amexCancelDate).toBe('2027-03-01');
+    expect(prisma.finnairPlusTier.upsert).toHaveBeenCalledWith({
+      where: { id: 1 },
+      create: { id: 1, tier: 'basic', amexCancelDate: new Date('2027-03-01') },
+      update: { amexCancelDate: new Date('2027-03-01') },
+    });
+  });
+
+  it('clears the cancellation date when given null', async () => {
+    vi.mocked(prisma.finnairPlusTier.upsert).mockResolvedValueOnce({ id: 1, tier: 'basic', amexCancelDate: null } as never);
+    const res = await PATCH(makeReq({ amexCancelDate: null }));
+    expect(res.status).toBe(200);
+    expect(prisma.finnairPlusTier.upsert).toHaveBeenCalledWith({
+      where: { id: 1 },
+      create: { id: 1, tier: 'basic', amexCancelDate: null },
+      update: { amexCancelDate: null },
+    });
+  });
+
+  it('returns 400 for an invalid date', async () => {
+    const res = await PATCH(makeReq({ amexCancelDate: 'not-a-date' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for a calendar-invalid date instead of silently rolling it over', async () => {
+    // JS's Date constructor silently rolls Feb 30 into March 2 — must be rejected, not stored
+    // as a different date than the one submitted.
+    const res = await PATCH(makeReq({ amexCancelDate: '2027-02-30' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when neither field is given', async () => {
+    const res = await PATCH(makeReq({}));
     expect(res.status).toBe(400);
   });
 });

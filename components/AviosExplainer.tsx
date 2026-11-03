@@ -147,6 +147,17 @@ export function AviosExplainer() {
           </section>
 
           <section className="space-y-2">
+            <h3 className="font-semibold text-[var(--fg-1)]">What if Amex is cancelled?</h3>
+            <p>
+              An Avios goal can show a &quot;what if I cancel Amex&quot; projection for a chosen date: organic pace
+              drops to Finnair Visa spend only, and any untransferred Membership Rewards balance at that date has to
+              be converted to Avios first or it&apos;s forfeited. It uses the same expected card-spend rates as the
+              earn reconciliation above (not the observed pace), so it&apos;s a conservative, apples-to-apples
+              comparison between keeping and cancelling the card.
+            </p>
+          </section>
+
+          <section className="space-y-2">
             <h3 className="font-semibold text-[var(--fg-1)]">Tier points</h3>
             <p>
               Tracking tier points toward Silver requalification uses the exact same goal mechanism as Avios — just

@@ -236,7 +236,22 @@ export const updateCardEarnRuleSchema = z.object({
 });
 
 export const updateFinnairTierSchema = z.object({
-  tier: z.enum(['basic', 'silver']),
+  tier: z.enum(['basic', 'silver']).optional(),
+  amexCancelDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+    // Round-trips through toISOString rather than just checking getTime() isn't NaN, so a
+    // calendar-invalid date like '2027-02-30' (which JS silently rolls into March) is rejected
+    // instead of silently persisting a different date than the one submitted.
+    .refine(s => !isNaN(new Date(s).getTime()) && new Date(s).toISOString().slice(0, 10) === s, 'must be a valid date')
+    .nullable()
+    .optional()
+    // Converts to a Date (or null) here, once, so the route can pass parsed.data straight into
+    // Prisma's update/create — an omitted key stays undefined (Prisma treats that as "don't
+    // touch"), distinct from an explicit null (clears it).
+    .transform(s => (s === undefined ? undefined : s === null ? null : new Date(s))),
+}).refine(d => d.tier !== undefined || d.amexCancelDate !== undefined, {
+  message: 'must provide tier and/or amexCancelDate',
 });
 
 export const createIncomeRuleSchema = z.object({

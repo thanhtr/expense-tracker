@@ -113,7 +113,7 @@ export function withProgress<T extends PointsGoalInput>(goal: T): T & { progress
   return { ...goal, progress: computePointsGoalProgress(goal) };
 }
 
-function toDate(d: Date | string): Date {
+export function toDate(d: Date | string): Date {
   return d instanceof Date ? d : new Date(d);
 }
 

@@ -69,6 +69,10 @@ export const AVIOS_PER_TRANSFER_UNIT = 10;
  * selected travel partners, not modelled here). Source: `amexPlatinum`. */
 export const AMEX_MR_PER_EUR = 2;
 
+/** Amex Platinum (Finland) monthly card fee, since 1 Nov 2026 (was €65/mo before). Used only to
+ * show what cancelling the card would save. Source: `amexPlatinum`. */
+export const AMEX_PLATINUM_MONTHLY_FEE_EUR = 75;
+
 /** Finnair Visa (Aktia) Avios earned per €1 of card spend, by Finnair Plus tier. No Avios on
  * bill payments, cash withdrawals or bank transfers. Source: `visa`. */
 export const VISA_AVIOS_PER_EUR = { basic: 1.0, silver: 1.2 } as const;

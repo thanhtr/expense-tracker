@@ -255,6 +255,6 @@ export async function setupSplitwise(page: Page, transactions?: ParsedTransactio
     await route.fulfill({ json: [] });
   });
   await page.route('**/api/finnair-tier*', async (route) => {
-    await route.fulfill({ json: { tier: 'basic' } });
+    await route.fulfill({ json: { tier: 'basic', amexCancelDate: null } });
   });
 }
