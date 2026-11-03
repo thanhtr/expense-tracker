@@ -6,6 +6,7 @@ import { today, fmtDateLong, fmtNumber, fmtEUR } from '@/lib/utils';
 import { SourceLinks } from './SourceLinks';
 import { AviosExplainer } from './AviosExplainer';
 import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR } from '@/lib/avios-facts';
+import { computeAmexCancelScenario } from '@/lib/services/amex-scenario';
 
 interface Balance {
   id: number;
@@ -122,6 +123,12 @@ interface PointsGoal {
   cashPlan?: CashPlan;
   earnReconciliation?: AviosEarnReconciliation;
   tierPointsReconciliation?: TierPointsReconciliation;
+}
+
+function defaultAmexCancelDate(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 3, 1);
+  return d.toISOString().slice(0, 10);
 }
 
 function defaultForm() {
@@ -306,12 +313,16 @@ function GoalCard({
   goal,
   tier,
   onTierChange,
+  amexCancelDate,
+  onAmexCancelDateChange,
   onUpdate,
   onRemove,
 }: {
   goal: PointsGoal;
   tier: 'basic' | 'silver';
   onTierChange: (tier: 'basic' | 'silver') => void;
+  amexCancelDate: string | null;
+  onAmexCancelDateChange: (date: string | null) => void;
   onUpdate: (goal: PointsGoal) => void;
   onRemove: (id: number) => void;
 }) {
@@ -342,6 +353,16 @@ function GoalCard({
   const [savingGoalEdit, setSavingGoalEdit] = useState(false);
 
   const { progress } = goal;
+
+  const amexScenario =
+    goal.unit === 'Avios' && amexCancelDate && goal.earnReconciliation && goal.earnReconciliation.monthsInWindow > 0
+      ? computeAmexCancelScenario({
+          progress,
+          expectedAviosPerMonth: goal.earnReconciliation.expectedAviosPerMonth,
+          expectedMrPerMonth: goal.earnReconciliation.expectedMrPerMonth,
+          cancelDate: amexCancelDate,
+        })
+      : null;
 
   async function handleAddReading(e: React.FormEvent) {
     e.preventDefault();
@@ -691,6 +712,29 @@ function GoalCard({
             </label>
           </div>
         )}
+        {goal.unit === 'Avios' && (
+          <div className="flex items-center gap-2 text-[11px] text-[var(--fg-3)] pt-1">
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={amexCancelDate !== null}
+                onChange={(e) => onAmexCancelDateChange(e.target.checked ? defaultAmexCancelDate() : null)}
+              />
+              What if I cancel Amex?
+            </label>
+            {amexCancelDate !== null && (
+              <>
+                <span>on</span>
+                <input
+                  type="date"
+                  className="date-input"
+                  value={amexCancelDate}
+                  onChange={(e) => onAmexCancelDateChange(e.target.value)}
+                />
+              </>
+            )}
+          </div>
+        )}
         {goal.unit === 'Tier points' && goal.tierPointsReconciliation && goal.tierPointsReconciliation.monthsInWindow > 0 && (
           <div className="text-[11px] text-[var(--fg-3)]">
             {goal.tierPointsReconciliation.qualifyingTierPointMonths} of {goal.tierPointsReconciliation.monthsInWindow}{' '}
@@ -912,6 +956,49 @@ function GoalCard({
         </div>
       )}
 
+      {/* Amex cancellation scenario */}
+      {amexScenario && (
+        <div className="border-t border-[var(--border)] pt-3 mb-3 space-y-2 text-[12px]">
+          <div className="font-semibold text-[var(--fg-1)]">
+            What if Amex is cancelled on {fmtDateLong(amexScenario.cancelDate)}?
+          </div>
+          <div className="text-[11px] text-[var(--fg-3)]">
+            Based on your card-spend earn rules only (flight-earned Avios aren&apos;t counted, so this is
+            conservative next to the observed pace above).
+          </div>
+          <div className="text-[var(--fg-2)]">
+            Organic pace: <span className="mono">{fmtNumber(amexScenario.organicAviosPerYearKeep)}</span>/yr with
+            Amex → <span className="mono">{fmtNumber(amexScenario.organicAviosPerYearCancel)}</span>/yr without
+          </div>
+          <div className="text-amber-600 dark:text-amber-400">
+            Transfer <span className="mono">{fmtNumber(amexScenario.mrToTransferAtCancel)}</span> MR (≈
+            <span className="mono">{fmtNumber(amexScenario.mrToTransferAviosEquivalent)}</span> {goal.unit}) before
+            closing the card — untransferred MR is forfeited.
+          </div>
+          {amexScenario.flights.length > 0 && (
+            <ul className="space-y-1 pl-4 list-disc text-[var(--fg-2)]">
+              {amexScenario.flights.map((f) => (
+                <li key={f.id}>
+                  {f.label} (by {fmtDateLong(f.neededBy)}): shortfall{' '}
+                  <span className="mono">{fmtNumber(f.shortfallKeep)}</span> {goal.unit} if Amex is kept vs{' '}
+                  <span className="mono">{fmtNumber(f.shortfallCancel)}</span> if cancelled
+                  {f.extraShortfall > 0 && (
+                    <> (<span className="mono">+{fmtNumber(f.extraShortfall)}</span> worse)</>
+                  )}
+                  <br />
+                  {f.shortfallCancel > 0 && (
+                    <>Buying that gap at the sale price costs ≈<span className="mono">{fmtEUR(f.eurToCloseCancel)}</span>. </>
+                  )}
+                  {f.feeSavedByDate > 0 && (
+                    <>Cancelling also saves ≈<span className="mono">{fmtEUR(f.feeSavedByDate)}</span> in card fees by then.</>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Readings */}
       <div className="border-t border-[var(--border)] pt-3">
         <div className="flex items-center justify-between gap-2 mb-2">
@@ -1099,6 +1186,7 @@ export function PointsGoalCard() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [tier, setTier] = useState<'basic' | 'silver'>('basic');
+  const [amexCancelDate, setAmexCancelDate] = useState<string | null>(null);
 
   function load() {
     fetch('/api/points-goals')
@@ -1110,8 +1198,11 @@ export function PointsGoalCard() {
   useEffect(load, []);
   useEffect(() => {
     fetch('/api/finnair-tier')
-      .then((r) => (r.ok ? r.json() : { tier: 'basic' }))
-      .then((d: { tier: 'basic' | 'silver' }) => setTier(d.tier));
+      .then((r) => (r.ok ? r.json() : { tier: 'basic', amexCancelDate: null }))
+      .then((d: { tier: 'basic' | 'silver'; amexCancelDate?: string | null }) => {
+        setTier(d.tier);
+        setAmexCancelDate(d.amexCancelDate ?? null);
+      });
   }, []);
 
   async function handleTierChange(newTier: 'basic' | 'silver') {
@@ -1127,6 +1218,20 @@ export function PointsGoalCard() {
     } else {
       setTier(previousTier);
       toast.error('Failed to update tier');
+    }
+  }
+
+  async function handleAmexCancelDateChange(newDate: string | null) {
+    const previousDate = amexCancelDate;
+    setAmexCancelDate(newDate);
+    const res = await fetch('/api/finnair-tier', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amexCancelDate: newDate }),
+    });
+    if (!res.ok) {
+      setAmexCancelDate(previousDate);
+      toast.error('Failed to update cancellation date');
     }
   }
 
@@ -1184,6 +1289,8 @@ export function PointsGoalCard() {
           goal={goal}
           tier={tier}
           onTierChange={(t) => void handleTierChange(t)}
+          amexCancelDate={amexCancelDate}
+          onAmexCancelDateChange={(d) => void handleAmexCancelDateChange(d)}
           onUpdate={updateGoal}
           onRemove={removeGoal}
         />

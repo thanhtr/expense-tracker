@@ -260,8 +260,11 @@ model CardEarnRule {
 }
 
 model FinnairPlusTier {
-  id   Int    @id @default(1)
-  tier String @default("basic") // 'basic' | 'silver'
+  id             Int       @id @default(1)
+  tier           String    @default("basic") // 'basic' | 'silver'
+  // What-if scenario: the date Amex would be cancelled on, if the Goals page toggle is on. Null
+  // means the scenario is off.
+  amexCancelDate DateTime? @db.Date
 }
 
 model CsvImport {

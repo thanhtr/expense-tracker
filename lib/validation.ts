@@ -236,7 +236,15 @@ export const updateCardEarnRuleSchema = z.object({
 });
 
 export const updateFinnairTierSchema = z.object({
-  tier: z.enum(['basic', 'silver']),
+  tier: z.enum(['basic', 'silver']).optional(),
+  amexCancelDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+    .refine(s => !isNaN(new Date(s).getTime()), 'must be a valid date')
+    .nullable()
+    .optional(),
+}).refine(d => d.tier !== undefined || d.amexCancelDate !== undefined, {
+  message: 'must provide tier and/or amexCancelDate',
 });
 
 export const createIncomeRuleSchema = z.object({
