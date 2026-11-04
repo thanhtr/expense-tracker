@@ -302,7 +302,7 @@ function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: str
       </div>
       <div className="text-[11px] text-[var(--fg-3)]">Any one of these closes the whole gap on its own — they&apos;re alternatives, not steps to combine:</div>
       <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
-        <li>Buy it in a sale: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span> (≈€0.0126/Avios, a reported sale price — blog-sourced, unverified)</li>
+        <li>Buy it in a sale: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span> (≈€0.011/Avios, the rate of a real 85,000-Avios sale, Nov 2026)</li>
         <li>Or earn it via Amex: <span className="mono">{fmtNumber(c.mrPoints)}</span> MR needed (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
         <li>Or earn it via Finnair Visa: <span className="mono">{fmtEUR(c.visaSpendTotal)}</span> of spend at your current tier</li>
       </ul>
@@ -951,8 +951,8 @@ function GoalCard({
             </ul>
           )}
           <div className="text-[11px] text-[var(--fg-3)]">
-            Priced at a reported sale price (≈40% off, blog-sourced, unverified). Sales are occasional, so plan
-            purchases around when one runs, and check the real price then.
+            Priced at the rate of a real sale (€935 for 85,000 Avios, Nov 2026). Sales are occasional and
+            smaller purchases can cost more, so plan purchases around when one runs, and check the real price then.
           </div>
         </div>
       )}

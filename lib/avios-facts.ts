@@ -50,12 +50,12 @@ export type AviosSourceId = keyof typeof AVIOS_SOURCES;
  * (Japan, Singapore, most of Asia, North America). Round trip needs double. Source: `upgrade`. */
 export const UPGRADE_AVIOS_PER_PAX_DIRECTION = 40_000;
 
-/** Avios sale price: flash sales are reported at up to 40% off, ≈€0.0126/Avios. This is a
- * blog-sourced, unverified figure — not an official Finnair rate — but it's the planning
- * assumption used everywhere this app prices an Avios shortfall, since the household plan is to
- * buy only during a sale, never at full/subscription price. A real sale could be priced
- * differently; treat this as a reasonable estimate, not a quote. Source: `salePriceBlog`. */
-export const SALE_EUR_PER_AVIOS = 0.0126;
+/** Avios sale price baseline: €0.011/Avios, the rate of a real Finnair sale seen 2026-11-04
+ * (€935 for 85,000 Avios, advertised 50% off; the 50,000–84,000 tier was 40% off, ≈€0.0132).
+ * An observed sale offer, not a guaranteed or standing rate — it's the planning baseline used
+ * everywhere this app prices an Avios shortfall, since the household plan is to buy only during a
+ * sale, never at full/subscription price. Smaller purchases or other sales can cost more. */
+export const SALE_EUR_PER_AVIOS = 0.011;
 
 /** Maximum Avios purchasable per calendar year. Source: `buyAvios`. */
 export const PURCHASE_CAP_PER_YEAR = 200_000;

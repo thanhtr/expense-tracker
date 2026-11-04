@@ -1805,6 +1805,12 @@ time (the cash plan assumes buying the gap, not waiting to earn it — now state
 places). The three "Closing the Avios gap" bullets (buy / Amex / Finnair Visa) are now labeled as
 independent alternatives, not steps to combine.
 
+### Avios sale baseline updated to a real observed sale (user decision, 2026-11-04)
+`SALE_EUR_PER_AVIOS` changed from €0.0126 (blog-sourced) to **€0.011**, the rate of a real Finnair
+sale: €935 for 85,000 Avios (50% off; the 50,000–84,000 tier was 40% off, ≈€0.0132). It's an
+observed offer, not a standing rate; smaller purchases can cost more. Copy in `PointsGoalCard.tsx`
+and `AviosExplainer.tsx` updated accordingly; all calculations read the constant, so no logic changed.
+
 ---
 
 **For future sessions:** This document contains the full architecture and recent dashboard implementation. Refer back when making changes to understand dependencies and data flow.
