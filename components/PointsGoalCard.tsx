@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { today, fmtDateLong, fmtNumber, fmtEUR } from '@/lib/utils';
 import { SourceLinks } from './SourceLinks';
 import { AviosExplainer } from './AviosExplainer';
-import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR } from '@/lib/avios-facts';
+import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR, FINNAIR_VISA_MONTHLY_FEE_EUR, AMEX_PLATINUM_MONTHLY_FEE_EUR, SALE_EUR_PER_AVIOS } from '@/lib/avios-facts';
+import { effectiveEurPerEarnedAvios } from '@/lib/services/avios-earn-service';
 import { computeAmexCancelScenario } from '@/lib/services/amex-scenario';
 import { localDateKey } from '@/lib/services/stats';
 
@@ -302,7 +303,7 @@ function StrategyConversion({ c, unit }: { c: AviosStrategyConversion; unit: str
       </div>
       <div className="text-[11px] text-[var(--fg-3)]">Any one of these closes the whole gap on its own — they&apos;re alternatives, not steps to combine:</div>
       <ul className="text-[var(--fg-2)] space-y-[2px] pl-4 list-disc">
-        <li>Buy it in a sale: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span> (≈€0.0126/Avios, a reported sale price — blog-sourced, unverified)</li>
+        <li>Buy it in a sale: <span className="mono">{fmtEUR(c.eurTotal, { cents: true })}</span> (≈€0.011/Avios, the rate of a real 85,000-Avios sale, Nov 2026)</li>
         <li>Or earn it via Amex: <span className="mono">{fmtNumber(c.mrPoints)}</span> MR needed (≈ <span className="mono">{fmtEUR(c.amexSpendTotal)}</span> of card spend at 2 MR/€)</li>
         <li>Or earn it via Finnair Visa: <span className="mono">{fmtEUR(c.visaSpendTotal)}</span> of spend at your current tier</li>
       </ul>
@@ -694,6 +695,18 @@ function GoalCard({
             {progress.observedPointsPerMonth !== null && (
               <> — observed <span className="mono">{fmtNumber(progress.observedPointsPerMonth)}</span>/mo</>
             )}
+            {(() => {
+              const e = effectiveEurPerEarnedAvios(goal.earnReconciliation);
+              const fmt = (v: number | null) => (v === null ? '—' : `€${v.toFixed(4)}`);
+              return (
+                <div className="mt-[2px]">
+                  Fee-adjusted cost per earned Avios: Visa <span className="mono">{fmt(e.visa)}</span> (€
+                  {FINNAIR_VISA_MONTHLY_FEE_EUR}/mo fee), Amex <span className="mono">{fmt(e.amex)}</span> (€
+                  {AMEX_PLATINUM_MONTHLY_FEE_EUR}/mo fee) vs <span className="mono">€{SALE_EUR_PER_AVIOS.toFixed(4)}</span>{' '}
+                  buying in a sale — lower means earning beats buying.
+                </div>
+              );
+            })()}
             <div className="mt-[2px]">
               Flight-earned Avios aren&apos;t counted here, so observed can run higher — see Settings → Card earn
               rules to fine-tune the estimate.
@@ -951,8 +964,8 @@ function GoalCard({
             </ul>
           )}
           <div className="text-[11px] text-[var(--fg-3)]">
-            Priced at a reported sale price (≈40% off, blog-sourced, unverified). Sales are occasional, so plan
-            purchases around when one runs, and check the real price then.
+            Priced at the rate of a real sale (€935 for 85,000 Avios, Nov 2026). Sales are occasional and
+            smaller purchases can cost more, so plan purchases around when one runs, and check the real price then.
           </div>
         </div>
       )}

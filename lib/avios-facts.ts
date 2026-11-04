@@ -38,10 +38,6 @@ export const AVIOS_SOURCES = {
     label: 'finnair.com — Finnair Plus Silver',
     url: 'https://www.finnair.com/fi-en/finnair-plus/finnair-plus-membership-tiers-and-benefits/finnair-plus-silver',
   },
-  salePriceBlog: {
-    label: 'loyaltylobby.com — Finnair Avios sale coverage (blog, unverified)',
-    url: 'https://loyaltylobby.com/?s=finnair+avios+sale',
-  },
 } as const;
 
 export type AviosSourceId = keyof typeof AVIOS_SOURCES;
@@ -50,12 +46,13 @@ export type AviosSourceId = keyof typeof AVIOS_SOURCES;
  * (Japan, Singapore, most of Asia, North America). Round trip needs double. Source: `upgrade`. */
 export const UPGRADE_AVIOS_PER_PAX_DIRECTION = 40_000;
 
-/** Avios sale price: flash sales are reported at up to 40% off, ≈€0.0126/Avios. This is a
- * blog-sourced, unverified figure — not an official Finnair rate — but it's the planning
- * assumption used everywhere this app prices an Avios shortfall, since the household plan is to
- * buy only during a sale, never at full/subscription price. A real sale could be priced
- * differently; treat this as a reasonable estimate, not a quote. Source: `salePriceBlog`. */
-export const SALE_EUR_PER_AVIOS = 0.0126;
+/** Avios sale price baseline: €0.011/Avios, the rate of a real Finnair sale seen 2026-11-04
+ * (€935 for 85,000 Avios, advertised 50% off; the 50,000–84,000 tier was 40% off, ≈€0.0132).
+ * An observed sale offer, not a guaranteed or standing rate — it's the planning baseline used
+ * everywhere this app prices an Avios shortfall, since the household plan is to buy only during a
+ * sale, never at full/subscription price. Deliberately flat (user decision, 2026-11-04): the plan
+ * is to buy at the biggest discount or not at all, so smaller/lower-tier purchases aren't modelled. */
+export const SALE_EUR_PER_AVIOS = 0.011;
 
 /** Maximum Avios purchasable per calendar year. Source: `buyAvios`. */
 export const PURCHASE_CAP_PER_YEAR = 200_000;
@@ -72,6 +69,10 @@ export const AMEX_MR_PER_EUR = 2;
 /** Amex Platinum (Finland) monthly card fee, since 1 Nov 2026 (was €65/mo before). Used only to
  * show what cancelling the card would save. Source: `amexPlatinum`. */
 export const AMEX_PLATINUM_MONTHLY_FEE_EUR = 75;
+
+/** Finnair Visa (Aktia) monthly card fee, as stated by the user (2026-11-04) — not read from an
+ * official page. Used only to net the fee against Avios earned (effective € per earned Avios). */
+export const FINNAIR_VISA_MONTHLY_FEE_EUR = 6;
 
 /** Finnair Visa (Aktia) Avios earned per €1 of card spend, by Finnair Plus tier. No Avios on
  * bill payments, cash withdrawals or bank transfers. Source: `visa`. */

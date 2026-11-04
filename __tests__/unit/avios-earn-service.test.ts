@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   classifyTransaction,
   computeAviosEarnReconciliation,
+  effectiveEurPerEarnedAvios,
   type CardEarnRuleInput,
   type CardTransactionInput,
 } from '../../lib/services/avios-earn-service';
@@ -88,5 +89,20 @@ describe('computeAviosEarnReconciliation', () => {
     const result = computeAviosEarnReconciliation({ transactions, rules: [], tier: 'basic', months });
     expect(result.qualifyingTierPointMonths).toBe(1);
     expect(result.expectedTierPoints).toBe(500);
+  });
+});
+
+describe('effectiveEurPerEarnedAvios', () => {
+  it('spreads each card fee over the Avios it earns (Amex MR at 17:10)', () => {
+    const r = effectiveEurPerEarnedAvios({ expectedAviosPerMonth: 1500, expectedMrPerMonth: 3400 });
+    expect(r.visa).toBeCloseTo(6 / 1500, 6);
+    expect(r.amex).toBeCloseTo(75 / 2000, 6); // 3400 MR × 10/17 = 2000 Avios
+  });
+
+  it('returns null for a card that earns nothing', () => {
+    expect(effectiveEurPerEarnedAvios({ expectedAviosPerMonth: 0, expectedMrPerMonth: 0 })).toEqual({
+      visa: null,
+      amex: null,
+    });
   });
 });
