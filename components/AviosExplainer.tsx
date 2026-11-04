@@ -53,7 +53,7 @@ export function AviosExplainer() {
             <h3 className="font-semibold text-[var(--fg-1)]">What an Avios costs in €</h3>
             <p>
               The plan is to earn Avios, and only ever buy to cover a shortfall during a sale — never at full or
-              subscription price. The baseline is a real sale seen on 4 Nov 2026 (€935 for 85,000 Avios, 50% off), or{' '}
+              subscription price. The baseline is a real sale seen on 4 Nov 2026 (€935 for 85,000 Avios, 50% off), which works out to{' '}
               <span className="mono font-medium">€{SALE_EUR_PER_AVIOS.toFixed(4)}</span> per Avios — too small a unit
               price for 2-decimal € formatting to show accurately, so it&apos;s spelled out here. That&apos;s the
               figure this app uses everywhere it needs a € price. You can buy up to{' '}
@@ -65,7 +65,7 @@ export function AviosExplainer() {
               ≈€0.0132) or other sales could be priced differently, and the standard
               (non-sale) cash price and the subscription price aren&apos;t used here at all.
             </p>
-            <SourceLinks sources={S('buyAvios', 'salePriceBlog')} />
+            <SourceLinks sources={S('buyAvios')} />
           </section>
 
           <section className="space-y-2">

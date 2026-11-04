@@ -1810,6 +1810,16 @@ independent alternatives, not steps to combine.
 sale: €935 for 85,000 Avios (50% off; the 50,000–84,000 tier was 40% off, ≈€0.0132). It's an
 observed offer, not a standing rate; smaller purchases can cost more. Copy in `PointsGoalCard.tsx`
 and `AviosExplainer.tsx` updated accordingly; all calculations read the constant, so no logic changed.
+The rate stays deliberately **flat** (user: "I would buy the biggest discount or nothing"), so a
+shortfall under 85,000 Avios is priced optimistically; lower tiers are not modelled. The now-unused
+`salePriceBlog` source was removed.
+
+### Finnair Visa fee and fee-adjusted cost per earned Avios (same branch)
+New `FINNAIR_VISA_MONTHLY_FEE_EUR = 6` (user-stated, not from an official page) in `lib/avios-facts.ts`
+and pure `effectiveEurPerEarnedAvios()` in `avios-earn-service.ts`: each card's monthly fee ÷ the Avios
+it earns per month (spend assumed to happen anyway; Amex MR at 17:10). The Goals card shows it next to
+the €0.011 sale rate — lower means earning beats buying. Rule of thumb from the user's own rates: the
+Visa (Silver) costs ≈€0.008/Avios earned, the Amex ≈€0.04, so only the Visa beats buying at the sale rate.
 
 ---
 

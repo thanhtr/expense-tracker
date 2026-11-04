@@ -38,10 +38,6 @@ export const AVIOS_SOURCES = {
     label: 'finnair.com — Finnair Plus Silver',
     url: 'https://www.finnair.com/fi-en/finnair-plus/finnair-plus-membership-tiers-and-benefits/finnair-plus-silver',
   },
-  salePriceBlog: {
-    label: 'loyaltylobby.com — Finnair Avios sale coverage (blog, unverified)',
-    url: 'https://loyaltylobby.com/?s=finnair+avios+sale',
-  },
 } as const;
 
 export type AviosSourceId = keyof typeof AVIOS_SOURCES;
@@ -54,7 +50,8 @@ export const UPGRADE_AVIOS_PER_PAX_DIRECTION = 40_000;
  * (€935 for 85,000 Avios, advertised 50% off; the 50,000–84,000 tier was 40% off, ≈€0.0132).
  * An observed sale offer, not a guaranteed or standing rate — it's the planning baseline used
  * everywhere this app prices an Avios shortfall, since the household plan is to buy only during a
- * sale, never at full/subscription price. Smaller purchases or other sales can cost more. */
+ * sale, never at full/subscription price. Deliberately flat (user decision, 2026-11-04): the plan
+ * is to buy at the biggest discount or not at all, so smaller/lower-tier purchases aren't modelled. */
 export const SALE_EUR_PER_AVIOS = 0.011;
 
 /** Maximum Avios purchasable per calendar year. Source: `buyAvios`. */
