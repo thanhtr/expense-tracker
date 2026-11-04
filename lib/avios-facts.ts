@@ -73,6 +73,10 @@ export const AMEX_MR_PER_EUR = 2;
  * show what cancelling the card would save. Source: `amexPlatinum`. */
 export const AMEX_PLATINUM_MONTHLY_FEE_EUR = 75;
 
+/** Finnair Visa (Aktia) monthly card fee, as stated by the user (2026-11-04) — not read from an
+ * official page. Used only to net the fee against Avios earned (effective € per earned Avios). */
+export const FINNAIR_VISA_MONTHLY_FEE_EUR = 6;
+
 /** Finnair Visa (Aktia) Avios earned per €1 of card spend, by Finnair Plus tier. No Avios on
  * bill payments, cash withdrawals or bank transfers. Source: `visa`. */
 export const VISA_AVIOS_PER_EUR = { basic: 1.0, silver: 1.2 } as const;

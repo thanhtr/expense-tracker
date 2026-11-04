@@ -5,7 +5,8 @@ import { toast } from 'sonner';
 import { today, fmtDateLong, fmtNumber, fmtEUR } from '@/lib/utils';
 import { SourceLinks } from './SourceLinks';
 import { AviosExplainer } from './AviosExplainer';
-import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR } from '@/lib/avios-facts';
+import { AVIOS_SOURCES, UPGRADE_AVIOS_PER_PAX_DIRECTION, AVIOS_EXPIRY_MONTHS, PURCHASE_CAP_PER_YEAR, FINNAIR_VISA_MONTHLY_FEE_EUR, AMEX_PLATINUM_MONTHLY_FEE_EUR, SALE_EUR_PER_AVIOS } from '@/lib/avios-facts';
+import { effectiveEurPerEarnedAvios } from '@/lib/services/avios-earn-service';
 import { computeAmexCancelScenario } from '@/lib/services/amex-scenario';
 import { localDateKey } from '@/lib/services/stats';
 
@@ -694,6 +695,18 @@ function GoalCard({
             {progress.observedPointsPerMonth !== null && (
               <> — observed <span className="mono">{fmtNumber(progress.observedPointsPerMonth)}</span>/mo</>
             )}
+            {(() => {
+              const e = effectiveEurPerEarnedAvios(goal.earnReconciliation);
+              const fmt = (v: number | null) => (v === null ? '—' : `€${v.toFixed(4)}`);
+              return (
+                <div className="mt-[2px]">
+                  Fee-adjusted cost per earned Avios: Visa <span className="mono">{fmt(e.visa)}</span> (€
+                  {FINNAIR_VISA_MONTHLY_FEE_EUR}/mo fee), Amex <span className="mono">{fmt(e.amex)}</span> (€
+                  {AMEX_PLATINUM_MONTHLY_FEE_EUR}/mo fee) vs <span className="mono">€{SALE_EUR_PER_AVIOS.toFixed(4)}</span>{' '}
+                  buying in a sale — lower means earning beats buying.
+                </div>
+              );
+            })()}
             <div className="mt-[2px]">
               Flight-earned Avios aren&apos;t counted here, so observed can run higher — see Settings → Card earn
               rules to fine-tune the estimate.
