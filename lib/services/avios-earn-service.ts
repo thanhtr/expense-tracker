@@ -13,6 +13,10 @@
 import {
   AMEX_BONUS_MR_PER_EUR,
   AMEX_MR_PER_EUR,
+  AMEX_PLATINUM_MONTHLY_FEE_EUR,
+  AVIOS_PER_TRANSFER_UNIT,
+  FINNAIR_VISA_MONTHLY_FEE_EUR,
+  MR_PER_TRANSFER_UNIT,
   TIER_POINTS_MONTHLY_SPEND_THRESHOLD_EUR,
   TIER_POINTS_PER_QUALIFYING_MONTH,
   VISA_AVIOS_PER_EUR,
@@ -68,6 +72,21 @@ export function classifyTransaction(
 
 function absAmount(amount: number): number {
   return Math.abs(amount);
+}
+
+/** Effective € cost of each Avios earned on a card, i.e. the card's monthly fee spread over the
+ * Avios it earns (the spend itself is assumed to happen anyway). Compare against
+ * SALE_EUR_PER_AVIOS: earning is cheaper than buying only when this is lower. Null when the card
+ * earns nothing. Amex MR is converted at the 17:10 transfer ratio. */
+export function effectiveEurPerEarnedAvios(r: {
+  expectedAviosPerMonth: number;
+  expectedMrPerMonth: number;
+}): { visa: number | null; amex: number | null } {
+  const amexAvios = (r.expectedMrPerMonth * AVIOS_PER_TRANSFER_UNIT) / MR_PER_TRANSFER_UNIT;
+  return {
+    visa: r.expectedAviosPerMonth > 0 ? FINNAIR_VISA_MONTHLY_FEE_EUR / r.expectedAviosPerMonth : null,
+    amex: amexAvios > 0 ? AMEX_PLATINUM_MONTHLY_FEE_EUR / amexAvios : null,
+  };
 }
 
 export function computeAviosEarnReconciliation(input: {
